@@ -1,0 +1,52 @@
+# =========================
+# Unity 项目忽略文件
+# =========================
+
+# —— Unity 自动生成的缓存文件夹
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# —— 日志
+*.log
+
+# —— Rider / VS / VSCode 等 IDE 生成的项目文件
+.vs/
+.idea/
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.pdb
+*.mdb
+*.tmp
+*.svd
+*.VC.db
+*.DotSettings.user
+
+# —— Unity 自动生成 / 使用时产生的临时文件
+.sysinfo.txt
+mono_crash.*
+
+# —— 录制/分析类的大文件
+MemoryCaptures/
+Recordings/
+
+# —— 其他 Unity 自动生成的中间产物
+*.booproj
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+ExportedObj/
+.consulo/
+
+# —— 构建产物
+*.apk
+*.aab
+*.unitypackage
+*.app

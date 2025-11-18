@@ -1,0 +1,21 @@
+// ===============================================
+// 自动生成文件（请勿手动修改）
+// 生成时间：{DateTime}
+// 源数据文件：{SourceFile}
+// ===============================================
+
+using System;
+using System.Collections.Generic;
+
+namespace {Namespace}
+{
+    /// <summary>
+    /// 自动生成的数据容器类
+    /// 来自：{SourceFile}
+    /// </summary>
+    [Serializable]
+    public class {ClassName}Container
+    {
+        public List<{ClassName}> items = new();
+    }
+}
