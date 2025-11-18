@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Fink-Framework/Assets/Framework/Resources/f_logo.png" width="120" alt="logo">
+  <img src="https://finkkk.cn/upload/f_logo.webp" width="120" alt="logo">
 </p>
 
 # Fink Framework
@@ -11,9 +11,10 @@
 
 ## 文档地址（Documentation）
 
+框架详细使用教程请查阅文档：
 <p align="center">
   <a href="https://finkkk.cn/docs/fink-framework" target="_blank">
-    <img src="https://img.shields.io/badge/查看完整文档-点击进入-2b90ff?style=for-the-badge" alt="Docs">
+    查看完整文档
   </a>
 </p>
 
