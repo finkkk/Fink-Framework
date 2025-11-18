@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/framework/Resources/f_logo.png" width="120" alt="logo">
+</p>
+
 # Fink Framework
 
 **Fink Framework** 是一套面向 Unity 中小型游戏项目的 **模块化开发框架**。  
