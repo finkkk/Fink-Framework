@@ -9,7 +9,9 @@
 
 框架完全开源，可直接集成至任意 Unity 项目中。
 
-## 文档地址（Documentation）
+---
+
+# 文档地址（Documentation）
 
 框架详细使用教程请查阅文档：
 <p align="center">
