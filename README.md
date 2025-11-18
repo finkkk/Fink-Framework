@@ -78,10 +78,10 @@ https://github.com/finkkk/Fink-Framework
 
 如需交流、反馈或合作，欢迎联系：
 
-- **QQ：**2217183968  
-- **微信：**FLX2217183968  
-- **博客：**https://finkkk.cn  
-- **GitHub：**https://github.com/finkkk  
+- **QQ：** 2217183968  
+- **微信：** FLX2217183968  
+- **博客：** https://finkkk.cn  
+- **GitHub：** https://github.com/finkkk  
 
 你也可以在仓库 Issue 区或文章底部留言。
 
