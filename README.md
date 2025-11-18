@@ -9,10 +9,13 @@
 
 框架完全开源，可直接集成至任意 Unity 项目中。
 
-关于框架的详细使用请查阅文档：
+## 文档地址（Documentation）
 
-**文档地址：**  
-https://finkkk.cn/docs/fink-framework
+<p align="center">
+  <a href="https://finkkk.cn/docs/fink-framework" target="_blank">
+    <img src="https://img.shields.io/badge/查看完整文档-点击进入-2b90ff?style=for-the-badge" alt="Docs">
+  </a>
+</p>
 
 >  **注意：当前版本仅支持 .NET Framework（.NET Standard / .NET Core / IL2CPP 源生成尚未适配）。**
 
