@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/framework/Resources/f_logo.png" width="120" alt="logo">
+  <img src="Fink-Framework/Assets/Framework/Resources/f_logo.png" width="120" alt="logo">
 </p>
 
 # Fink Framework
