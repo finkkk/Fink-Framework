@@ -18,7 +18,7 @@
 
   <!-- Release 版本 -->
   <a href="https://github.com/finkkk/Fink-Framework/releases">
-    <img src="https://img.shields.io/github/v/release/finkkk/Fink-Framework?label=Release&style=flat-square&cacheSeconds=60">
+    <img src="https://img.shields.io/github/v/release/finkkk/Fink-Framework?label=Release&style=flat-square">
   </a>
 
   <!-- License -->
