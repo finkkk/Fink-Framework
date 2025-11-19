@@ -5,6 +5,32 @@
 <h1 align="center">Fink-Framework</h1>
 <p align="center">Fink Framework unity游戏框架</p>
 
+<p align="center">
+  <!-- 文档 -->
+  <a href="https://github.com/finkkk/Fink-Framework#readme">
+    <img src="https://img.shields.io/badge/Docs-📘-blue?style=flat-square">
+  </a>
+
+  <!-- 语言 -->
+  <img src="https://img.shields.io/badge/Language-Csharp-blue?style=flat-square">
+
+  <!-- Unity 版本 -->
+  <img src="https://img.shields.io/badge/Unity-2022.3%2B-green?style=flat-square">
+
+  <!-- Stars -->
+  <a href="https://github.com/finkkk/Fink-Framework/stargazers">
+    <img src="https://img.shields.io/github/stars/finkkk/Fink-Framework?style=flat-square">
+  </a>
+
+  <!-- Release 版本 -->
+  <a href="https://github.com/finkkk/Fink-Framework/releases">
+    <img src="https://img.shields.io/github/v/release/finkkk/Fink-Framework?label=Release&style=flat-square&cacheSeconds=60">
+  </a>
+
+  <!-- License -->
+  <img src="https://img.shields.io/github/license/finkkk/Fink-Framework?style=flat-square">
+</p>
+
 ---
 
 # Fink Framework
