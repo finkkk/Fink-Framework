@@ -22,7 +22,8 @@
   </a>
 
   <!-- License -->
-  <img src="https://img.shields.io/github/license/finkkk/Fink-Framework?style=flat-square&cacheSeconds=0&timestamp=1">
+  <img src="https://img.shields.io/github/license/finkkk/Fink-Framework?style=flat-square&cacheSeconds=0">
+
 
 
 </p>
