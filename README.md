@@ -21,8 +21,6 @@
     <img src="https://img.shields.io/github/v/release/finkkk/Fink-Framework?label=Release&style=flat-square&cacheSeconds=60">
   </a>
 
-  <!-- License -->
-  <img src="https://img.shields.io/github/license/finkkk/Fink-Framework?style=flat-square">
 </p>
 
 ---
