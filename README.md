@@ -7,15 +7,9 @@
 
 <p align="center">
   <!-- 文档 -->
-  <a href="https://github.com/finkkk/Fink-Framework#readme">
+  <a href="https://finkkk.cn/docs/fink-framework">
     <img src="https://img.shields.io/badge/Docs-📘-blue?style=flat-square">
   </a>
-
-  <!-- 语言 -->
-  <img src="https://img.shields.io/badge/Language-Csharp-blue?style=flat-square">
-
-  <!-- Unity 版本 -->
-  <img src="https://img.shields.io/badge/Unity-2022.3%2B-green?style=flat-square">
 
   <!-- Stars -->
   <a href="https://github.com/finkkk/Fink-Framework/stargazers">
