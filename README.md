@@ -117,3 +117,14 @@ https://github.com/finkkk/Fink-Framework
 你也可以在仓库 Issue 区或文章底部留言。
 
 ---
+
+## 5. 致谢（Acknowledgements）
+
+感谢以下项目与作者在本框架开发中提供的支持与启发：
+
+* [**唐老狮 Unity 程序基础小框架课程**](https://www.yxtown.com/goods/show/32`)
+  为整体架构设计、模块划分等核心思路提供了重要启发。
+* [**Json.NET Converters（Wanzyee Studio）**](https://assetstore.unity.com/packages/tools/input-management/json-net-converters-simple-compatible-solution-58621)
+  在 JSON 转换器体系和扩展思路方面给予了参考。
+* [**Odin Serializer（MIT）**](https://github.com/TeamSirenix/odin-serializer)
+  作为框架内置的开源序列化系统，为数据处理提供了强大支持。
