@@ -95,12 +95,6 @@ https://github.com/finkkk/Fink-Framework
 - **百度网盘（提取码 2333）：**  
  [点击下载](https://pan.baidu.com/s/1obZYHwBI4ZVnavCiCPE8BA?pwd=2333)
 
-- **123 网盘（提取码 2333）：**  
- [点击下载](https://www.123865.com/s/KRq5Vv-rlVAH?pwd=2333#)
-
-- **蓝奏云（提取码 hwpl）：**  
- [点击下载](https://wwzc.lanzn.com/b00eg96whg)
-
 你可以在 GitHub Releases 中获取最新的 `unitypackage`，或通过上述镜像直接下载。
 
 ---
