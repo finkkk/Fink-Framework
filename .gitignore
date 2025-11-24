@@ -10,6 +10,9 @@
 [Bb]uilds/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
+ProjectSettings/SceneTemplateSettings.json
+ProjectSettings/EditorBuildSettings.asset
+ProjectSettings/EditorSettings.asset
 
 # —— 日志
 *.log
@@ -50,3 +53,20 @@ ExportedObj/
 *.aab
 *.unitypackage
 *.app
+
+# —— Excel 导出的临时中间文件
+*.xlsx.meta
+*.xls.meta
+~$*.xlsx
+~$*.xls
+
+# —— AssetBundle 构建输出
+AssetBundles/
+StreamingAssets/AssetBundles/
+
+# —— PackageManager 下载缓存
+**/Packages/*/package.json.meta
+**/PackageCache/
+
+# —— ShaderVariantCollection 缓存
+ShaderCache/

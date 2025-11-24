@@ -3,7 +3,7 @@ using Framework.Singleton;
 using UnityEditor;
 using UnityEngine;
 
-namespace Framework.ResLoad
+namespace Framework.ResLoad.Editor
 {
     /// <summary>
     /// 编辑器资源管理器
@@ -17,7 +17,7 @@ namespace Framework.ResLoad
         //用于放置需要打包进AB包中的资源路径 
         private const string rootPath = "Assets/Editor/ArtRes/";
         
-        //1.加载单个资源的
+        //1.加载单个资源
         public T LoadEditorRes<T>(string path) where T:Object
         {
             string suffixName = "";
@@ -34,7 +34,7 @@ namespace Framework.ResLoad
             return res;
         }
 
-        //2.加载图集相关资源的
+        //2.加载图集相关资源
         public Sprite LoadSprite(string path, string spriteName)
         {
             //加载图集中的所有子资源 
