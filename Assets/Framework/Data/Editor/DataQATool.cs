@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using ExcelDataReader;
 using Framework.Utils;
 using UnityEngine;
@@ -22,13 +20,21 @@ namespace Framework.Data.Editor
     /// </summary>
     public static class DataQATool
     {
-        private static int successCount;
-        private static int warningCount;
-        private static int errorCount;
-
+        #region === 全局统计 ===
+        private static int successCount; // 完全通过的表
+        private static int warningCount; // 含警告的表
+        private static int errorCount;   // 含错误的表
+        #endregion
+        
+        #region === 入口：验证所有 Excel ===
+        
+        /// <summary>
+        /// 扫描 DataTables 目录，验证所有 Excel 文件的数据合法性。
+        /// 输出最终 QA 汇总统计（成功 / 警告 / 错误）。
+        /// </summary>
         public static void ValidateAllData()
         {
-            string sourceRoot = Path.Combine(Application.dataPath, "Data");
+            string sourceRoot = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "DataTables");
             if (!Directory.Exists(sourceRoot))
             {
                 LogUtil.Error("DataQATool", $"源目录不存在: {sourceRoot}");
@@ -67,7 +73,15 @@ namespace Framework.Data.Editor
             else
                 LogUtil.Warn("DataQATool", $"QA未通过｜{summary}");
         }
-
+        #endregion
+        
+        #region === 内部：单个表格验证 ===
+        /// <summary>
+        /// 对单个 Excel 文件执行：
+        /// 1. 字段名合法性检查
+        /// 2. 字段类型结构可解析性检查（使用伪造数据）
+        /// 3. 每个单元格实际数据解析检查
+        /// </summary>
         private static void ValidateExcel(string excelPath)
         {
             bool hasError = false;
@@ -78,61 +92,55 @@ namespace Framework.Data.Editor
             {
                 using var stream = File.Open(excelPath, FileMode.Open, FileAccess.Read);
                 using var reader = ExcelReaderFactory.CreateReader(stream);
+                // 读取表格前三行数据信息
+                var header = ExcelReaderTool.ReadHeader(reader);
+                var fieldNames = header.fieldNames;
+                var fieldTypes = header.fieldTypes;
 
-                reader.Read(); // 字段名
-                var fieldNames = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => reader.GetString(i)?.Trim() ?? "")
-                    .ToArray();
+                
+                var check = ExcelReaderTool.CheckFieldDefinitions(
+                    tableName,
+                    header.fieldNames,
+                    header.fieldTypes
+                );
 
-                reader.Read(); // 字段类型
-                var fieldTypes = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => reader.GetString(i)?.Trim() ?? "string")
-                    .ToArray();
-
-                reader.Read(); // 跳过描述行
-
-                HashSet<string> nameSet = new();
+                var skipColumn = check.skipColumn;
+                hasError |= check.hasError;
+                hasWarn |= check.hasWarn;
+                // 尝试基于变量类型填入一个伪造数值去测试解析，验证类型结构是否可被支持
                 for (int i = 0; i < fieldNames.Length; i++)
                 {
                     string name = fieldNames[i];
                     string typeName = fieldTypes[i];
-
-                    if (string.IsNullOrEmpty(name))
+                    
+                    var testValue = GenerateTestValueForType(typeName);
+                    string pos = $"第2行第{i+1}列";
+                    var pr = DataParseTool.ConvertValue(
+                        testValue,
+                        typeName,
+                        $"变量类型检查-变量名:{name} (坐标:{pos})",
+                        tableName
+                    );
+                    if (pr.errors.Count > 0)
                     {
-                        LogUtil.Error("DataQATool", $"[{tableName}] 第 {i + 1} 列字段名为空！");
                         hasError = true;
-                        continue;
+                        foreach (var err in pr.errors)
+                            LogUtil.Error("DataQATool", err);
                     }
 
-                    if (!Regex.IsMatch(name, @"^[a-zA-Z_][a-zA-Z0-9_]*$"))
+                    if (pr.warnings.Count > 0)
                     {
-                        LogUtil.Warn("DataQATool", $"[{tableName}] 字段名 '{name}' 含非法字符");
                         hasWarn = true;
-                    }
-
-                    if (!nameSet.Add(name))
-                    {
-                        LogUtil.Error("DataQATool", $"[{tableName}] 字段名重复：{name}");
-                        hasError = true;
-                    }
-
-                    // 让 DataParseTool 作为最终权威
-                    try
-                    {
-                        // 尝试解析一个空值，验证类型结构是否可被支持
-                        _ = DataParseTool.ConvertValue(null, typeName, name, tableName);
-                    }
-                    catch
-                    {
-                        LogUtil.Error("DataQATool", $"[{tableName}] 字段 '{name}' 类型不受支持：{typeName}");
-                        hasError = true;
+                        foreach (var w in pr.warnings)
+                            LogUtil.Warn("DataQATool", w);
                     }
                 }
-
-                int rowIndex = 5;
+                // ==== 按行读取并检查数据 ====
+                int rowIndex = 4;
                 while (reader.Read())
                 {
                     bool isEmpty = true;
+                    // 判断本行是否为空行（跳过）
                     for (int i = 0; i < reader.FieldCount; i++)
                     {
                         if (reader.GetValue(i) != null && !string.IsNullOrWhiteSpace(reader.GetValue(i).ToString()))
@@ -147,24 +155,36 @@ namespace Framework.Data.Editor
                         rowIndex++;
                         continue;
                     }
-
+                    // 遍历每列
                     for (int i = 0; i < reader.FieldCount; i++)
                     {
+                        if (skipColumn[i]) continue;   // 跳过未生成类型的整列
+                        
                         if (string.IsNullOrEmpty(fieldNames[i])) continue;
                         object raw = reader.GetValue(i);
 
-                        try
+                        string pos = $"第{rowIndex}行第{i+1}列";
+                        var pr = DataParseTool.ConvertValue(
+                            raw,
+                            fieldTypes[i],
+                            $"变量数据解析-变量名:{fieldNames[i]} (坐标:{pos})",
+                            tableName
+                        );
+
+                        if (pr.errors.Count > 0)
                         {
-                            _ = DataParseTool.ConvertValue(raw, fieldTypes[i], fieldNames[i], tableName);
-                        }
-                        catch (Exception ex)
-                        {
-                            LogUtil.Error("DataQATool",
-                                $"[{tableName}] 第 {rowIndex} 行 字段 '{fieldNames[i]}' ({fieldTypes[i]}) 验证失败: {ex.Message}");
                             hasError = true;
+                            foreach (var err in pr.errors)
+                                LogUtil.Error("DataQATool", err);
+                        }
+
+                        if (pr.warnings.Count > 0)
+                        {
+                            hasWarn = true;
+                            foreach (var w in pr.warnings)
+                                LogUtil.Warn("DataQATool", w);
                         }
                     }
-
                     rowIndex++;
                 }
 
@@ -178,14 +198,82 @@ namespace Framework.Data.Editor
                 {
                     if (hasWarn) warningCount++;
                     if (hasError) errorCount++;
-                    LogUtil.Warn("DataQATool", $"[{tableName}] ✗ 存在警告或错误");
+                    LogUtil.Warn("DataQATool", $"[{tableName}] ✗ 存在警告或错误！不予通过");
                 }
             }
             catch (Exception ex)
             {
                 errorCount++;
+
+                // 文件被占用（通常是 Excel 正在打开）
+                if (ex is IOException && ex.Message.Contains("Sharing violation"))
+                {
+                    LogUtil.Error("DataQATool", 
+                        $"[{tableName}] 验证失败：无法读取 Excel 文件，因为该文件可能正在被 Excel 或其他程序打开。\n" +
+                        $"请关闭所有打开 {tableName}.xlsx 的窗口后再试一次。");
+
+                    return;
+                }
+
+                // 其他未知错误
                 LogUtil.Error("DataQATool", $"[{tableName}] 验证失败: {ex.Message}");
             }
         }
+        #endregion
+
+        #region === 内部：生成测试数据 === 
+        /// <summary>
+        /// 为 QA 生成一个“可用于测试类型结构”的伪造数据
+        /// 比直接传 null 更严谨，会模拟 JSON 或数组结构。
+        /// </summary>
+        private static object GenerateTestValueForType(string type)
+        {
+            type = type.Trim();
+
+            // 基础类型
+            switch (type)
+            {
+                case "string": return "";
+                case "int":
+                case "float":
+                case "double":
+                case "long":
+                    return "0";
+                case "bool": return "false";
+                case "char": return "a";
+                case "decimal":
+                case "short":
+                case "ushort":
+                case "byte":
+                case "sbyte":
+                    return "0";
+                case "DateTime": return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+
+            // 泛型：List<T>
+            if (type.StartsWith("List<"))
+                return "[]";   // 最小合法列表
+
+            // 数组 T[]
+            if (type.EndsWith("[]"))
+                return "[]";   // 和 List 一致即可
+
+            // 字典 Dictionary<K,V>
+            if (type.StartsWith("Dictionary<"))
+                return "{}";   // 最小合法字典
+
+            // Vector2 / Vector3 / Vector4
+            if (type == "Vector2") return "(0,0)";
+            if (type == "Vector3") return "(0,0,0)";
+            if (type == "Vector4") return "(0,0,0,0)";
+
+            // Color
+            if (type == "Color") return "(1,1,1,1)";
+
+            // 其他自定义类 —— 用空 JSON 结构测试
+            return "{}";
+        }
+        #endregion
+    
     }
 }

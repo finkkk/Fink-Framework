@@ -14,7 +14,7 @@ namespace Framework.Data.Editor
     /// 数据导出工具（DataExportTool）
     /// ------------------------------------------------------------
     /// 功能：
-    /// 1. 扫描 Assets/Data 下的全部 Excel；
+    /// 1. 扫描 项目根目录/DataTables 下的全部 Excel；
     /// 2. 将表格内容读取为容器对象；
     /// 3. 使用 Odin + AES 生成加密数据文件；
     /// ------------------------------------------------------------
@@ -29,8 +29,8 @@ namespace Framework.Data.Editor
         /// </summary>
         public static (int success, int total) EncryptAllData(bool silent = false)
         {
-            // 原始数据源目录：Assets/Data
-            string sourceRoot = Path.Combine(Application.dataPath, "Data");
+            // 原始数据源目录：项目根目录/DataTables
+            string sourceRoot = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "DataTables");
             // 加密数据输出目录：StreamingAssets/Data
             string targetRoot = Path.Combine(Application.streamingAssetsPath, "Data");
             
@@ -111,7 +111,7 @@ namespace Framework.Data.Editor
         /// <param name="excelPath">表格文件所在路径</param>
         /// <param name="sourceRoot">数据文件根目录</param>
         /// <param name="targetRoot">目标根目录</param>
-         private static bool ExportExcel(string excelPath, string sourceRoot, string targetRoot)
+        private static bool ExportExcel(string excelPath, string sourceRoot, string targetRoot)
         {
             bool hasError = false;
             string tableName = Path.GetFileNameWithoutExtension(excelPath);
@@ -122,12 +122,14 @@ namespace Framework.Data.Editor
 
              try
             {
+                // 查找数据类 / 容器类
                 Type dataType = DataUtil.FindType(TextsUtil.ToPascalCase(tableName));
                 Type containerType = DataUtil.FindType(TextsUtil.ToPascalCase(tableName + "Container"));
 
                 if (dataType == null || containerType == null)
                 {
-                    LogUtil.Warn("DataExportTool", $"未找到类型：{tableName} 或 {tableName}Container");
+                    LogUtil.Warn("DataExportTool",
+                        $"[{tableName}] 数据结构类尚未生成。请先执行【数据工具面板 → 仅生成数据文件】再导出。");
                     return false;
                 }
 
@@ -138,54 +140,85 @@ namespace Framework.Data.Editor
 
                 using var stream = File.Open(excelPath, FileMode.Open, FileAccess.Read);
                 using var reader = ExcelReaderFactory.CreateReader(stream);
+                // 读取表格前三行数据信息
+                var header = ExcelReaderTool.ReadHeader(reader);
+                var fieldNames = header.fieldNames;
+                var fieldTypes = header.fieldTypes;
+                
+                var check = ExcelReaderTool.CheckFieldDefinitions(
+                    tableName,
+                    header.fieldNames,
+                    header.fieldTypes
+                );
 
-                reader.Read(); // 字段名
-                var fieldNames = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => reader.GetString(i)?.Trim() ?? "")
-                    .ToArray();
-
-                reader.Read(); // 字段类型
-                var fieldTypes = Enumerable.Range(0, reader.FieldCount)
-                    .Select(i => reader.GetString(i)?.Trim() ?? "string")
-                    .ToArray();
-
-                reader.Read(); // 跳过描述行
+                var skipColumn = check.skipColumn;
+                hasError |= check.hasError;
 
                 // === 数据行 ===
+                int rowIndex = 4;
                 while (reader.Read())
                 {
                     bool isEmpty = true;
                     for (int i = 0; i < reader.FieldCount; i++)
                     {
-                        if (reader.GetValue(i) != null && !string.IsNullOrWhiteSpace(reader.GetValue(i).ToString()))
+                        var v = reader.GetValue(i);
+                        if (v != null && !string.IsNullOrWhiteSpace(v.ToString()))
                         {
                             isEmpty = false;
                             break;
                         }
                     }
-                    if (isEmpty) continue;
+
+                    if (isEmpty)
+                    {
+                        rowIndex++;
+                        continue;
+                    }
 
                     var rowObj = Activator.CreateInstance(dataType);
 
                     for (int i = 0; i < reader.FieldCount; i++)
                     {
+                        // 跳过未生成类型的列
+                        if (skipColumn[i]) continue;
+                        
                         if (string.IsNullOrEmpty(fieldNames[i])) continue;
 
                         object raw = reader.GetValue(i);
-                        object val = DataParseTool.ConvertValue(raw, fieldTypes[i], fieldNames[i], tableName);
+                      
+                        string pos = $"第{rowIndex}行第{i+1}列";
+                        var pr = DataParseTool.ConvertValue(
+                            raw,
+                            fieldTypes[i],
+                            $"变量数据解析-变量名:{fieldNames[i]} (坐标:{pos})",
+                            tableName
+                        );
 
+                        if (pr.errors.Count > 0)
+                        {
+                            hasError = true;
+                            foreach (var err in pr.errors)
+                                LogUtil.Error("DataParseTool", err);
+                        }
+
+                        if (pr.warnings.Count > 0)
+                        {
+                            foreach (var w in pr.warnings)
+                                LogUtil.Warn("DataParseTool", w);
+                        }
+                        
                         try
                         {
-                            dataType.GetField(fieldNames[i])?.SetValue(rowObj, val);
+                            dataType.GetField(fieldNames[i])?.SetValue(rowObj, pr.value);
                         }
                         catch (Exception e)
                         {
                             hasError = true;
-                            LogUtil.Error("DataExportTool", $"{tableName}.{fieldNames[i]} 赋值失败 ← 值='{val}'：{e.Message}");
+                            LogUtil.Error("DataExportTool", $"{tableName}.{fieldNames[i]} 赋值失败 ← 值='{pr.value}'：{e.Message}");
                         }
                     }
-
                     addMethod?.Invoke(listInstance, new[] { rowObj });
+                    rowIndex++;
                 }
 
                 // === 创建容器 ===

@@ -20,44 +20,68 @@ namespace Framework.Data.Editor
         /// <summary>
         /// 顶层入口
         /// </summary>
-        public static object ConvertValue(object value, string type, string fieldName = "?", string tableName = "?")
+        public static ParseResult ConvertValue(object value, string type, string fieldName = "?", string tableName = "?")
         {
+            // 需要返回的解析结果
+            var result = new ParseResult();
+
             if (value == null)
-                return GetDefaultValue(type);
+            {
+                result.success = true;
+                result.value = GetDefaultValue(type);
+                return result;
+            }
             string str = value.ToString().Trim();
             type = type.Trim();
             str = TextsUtil.NormalizePunctuation(str);
             // 避免字符串 "null" 被误判为有效
             if (string.IsNullOrEmpty(str) || str.Equals("null", StringComparison.OrdinalIgnoreCase))
-                return GetDefaultValue(type);
+            {
+                result.success = true ;
+                result.value = GetDefaultValue(type);
+                return result;
+            }
             try
             { 
+                object parsed = null;
                 // ---------- 数组 ----------
                 if (type.EndsWith("[]"))
-                    return ParseCollection(str, type[..^2], true, fieldName, tableName);
-                
-                 // ---------- List ----------
-                if (type.StartsWith("List<", StringComparison.OrdinalIgnoreCase))
-                    return ParseCollection(str, type[5..^1], false, fieldName, tableName);
-                
+                {
+                    parsed =  ParseCollection(str, type[..^2], true, fieldName, tableName, result);
+                }
+                // ---------- List ----------
+                else if (type.StartsWith("List<", StringComparison.OrdinalIgnoreCase))
+                {
+                    parsed =  ParseCollection(str, type[5..^1], false, fieldName, tableName, result);
+                }
                 // ---------- Dictionary ----------
-                if (type.StartsWith("Dictionary<", StringComparison.OrdinalIgnoreCase))
-                    return ParseDictionary(str, type, fieldName, tableName);
-                
+                else if (type.StartsWith("Dictionary<", StringComparison.OrdinalIgnoreCase))
+                {
+                    parsed =  ParseDictionary(str, type, fieldName, tableName, result);
+                }
                 // ---------- 单值 ----------
-                return ParseSingleValue(str, type, fieldName, tableName);
+                else
+                {
+                    parsed =  ParseSingleValue(str, type, fieldName, tableName, result);
+                }
+                
+                result.success = true;
+                result.value = parsed;
             }
             catch (Exception ex)
             {
-                LogUtil.Warn("DataParseTool", $"[{tableName}] 字段 '{fieldName}' ({type}) ← '{str}' 解析失败: {ex.Message}");
-                return GetDefaultValue(type);
+                result.success = false;
+                result.errors.Add($"[{tableName}] {fieldName} ({type}) 解析失败: {ex.Message}");
+                result.value = GetDefaultValue(type);
             }
+            
+            return result;
         }
         
         /// <summary>
         /// 单值解析（基础类型 + Unity结构体 + JSON类）
         /// </summary>
-        private static object ParseSingleValue(string str, string type, string fieldName, string tableName)
+        private static object ParseSingleValue(string str, string type, string fieldName, string tableName, ParseResult result)
         {
             if (type.StartsWith("Vector", StringComparison.OrdinalIgnoreCase) || type == "Color")
             {
@@ -103,7 +127,7 @@ namespace Framework.Data.Editor
                         }
                         catch (Exception ex)
                         {
-                            LogUtil.Warn("DataParseTool", $"[{tableName}] JSON Vector3 解析失败: {ex.Message}");
+                            result.warnings.Add($"[{tableName}] JSON Vector3 解析失败: {ex.Message}");
                         }
                     }
                     else
@@ -137,8 +161,7 @@ namespace Framework.Data.Editor
                         try { return JsonConvert.DeserializeObject<Color>(str); }
                         catch (Exception ex)
                         {
-                            LogUtil.Warn("DataParseTool",
-                                $"[{tableName}] 字段 '{fieldName}' JSON 颜色格式解析失败 ({ex.Message})");
+                            result.warnings.Add($"[{tableName}] {fieldName} JSON 颜色格式解析失败 ({ex.Message})");
                         }
                     }
 
@@ -172,22 +195,19 @@ namespace Framework.Data.Editor
                     }
                     catch (Exception jsonEx)
                     {
-                        LogUtil.Warn("DataParseTool",
-                            $"[{tableName}] 字段 '{fieldName}' 非标准 JSON 格式或结构错误 ({jsonEx.Message})");
+                        result.warnings.Add($"[{tableName}] {fieldName} 非标准 JSON 格式或结构错误 ({jsonEx.Message})");
                     }
                 }
                 else
                 {
                     // 不是 JSON，给出警告
-                    LogUtil.Warn("DataParseTool",
-                        $"[{tableName}] 字段 '{fieldName}' 期望 JSON 格式 ({type})，但输入非 JSON → '{str}'");
+                    result.warnings.Add($"[{tableName}] {fieldName} 期望 JSON 格式 ({type})，但输入非 JSON → '{str}'");
                 }
             
             }
             catch (Exception e)
             {
-                LogUtil.Error("DataParseTool",
-                    $"单值解析错误：{tableName}.{fieldName} ({type}) ← '{str}' 解析失败：{e.Message}");
+                result.errors.Add($"单值解析错误! [{tableName}] {fieldName} ({type}) ← '{str}' 解析失败：{e.Message}");
                 throw;
             }
 
@@ -209,7 +229,7 @@ namespace Framework.Data.Editor
         /// - [1,2,3]
         /// - [{"id":1},{"id":2}]
         /// </summary>
-        private static object ParseCollection(string str, string elementType, bool asArray, string fieldName, string tableName)
+        private static object ParseCollection(string str, string elementType, bool asArray, string fieldName, string tableName, ParseResult result)
         {
             if (string.IsNullOrWhiteSpace(str))
             {
@@ -295,8 +315,8 @@ namespace Framework.Data.Editor
                     }
                     catch (Exception ex)
                     {
-                        LogUtil.Warn("DataParseTool",
-                            $"[{tableName}] 字段 '{fieldName}' JSON Color数组解析失败 ({ex.Message})");
+                        result.warnings.Add(
+                            $"[{tableName}] {fieldName} JSON Color数组解析失败 ({ex.Message})");
                     }
                 }
                 // 检测原始字符串是否为多组括号格式 
@@ -332,22 +352,31 @@ namespace Framework.Data.Editor
                             {
                                 var arr = new Color[parts.Count];
                                 for (int i = 0; i < parts.Count; i++)
-                                    arr[i] = (Color)ConvertValue(parts[i], "Color", fieldName, tableName);
+                                {
+                                    var pr = ConvertValue(parts[i], "Color", fieldName, tableName);
+                                    result.warnings.AddRange(pr.warnings);
+                                    result.errors.AddRange(pr.errors);
+                                    arr[i] = (Color)pr.value;
+                                }
                                 return arr;
                             }
                             else
                             {
                                 var list = new List<Color>();
                                 foreach (var p in parts)
-                                    list.Add((Color)ConvertValue(p, "Color", fieldName, tableName));
+                                {
+                                    var pr = ConvertValue(p, "Color", fieldName, tableName);
+                                    result.warnings.AddRange(pr.warnings);
+                                    result.errors.AddRange(pr.errors);
+                                    list.Add((Color)pr.value);
+                                }
                                 return list;
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        LogUtil.Warn("DataParseTool",
-                            $"[{tableName}] 字段 '{fieldName}' 多括号Color数组解析失败 ({ex.Message})");
+                        result.warnings.Add($"[{tableName}] {fieldName} 多括号Color数组解析失败 ({ex.Message})");
                     }
                 }
                 List<string> groups = new();
@@ -392,14 +421,19 @@ namespace Framework.Data.Editor
                 {
                     var arr = new Color[groups.Count];
                     for (int i = 0; i < groups.Count; i++)
-                        arr[i] = (Color)ConvertValue(groups[i], "Color", fieldName, tableName);
+                        arr[i] = (Color)ConvertValue(groups[i], "Color", fieldName, tableName).value;
                     return arr;
                 }
                 else
                 {
                     var list = new List<Color>();
                     foreach (var g in groups)
-                        list.Add((Color)ConvertValue(g, "Color", fieldName, tableName));
+                    {
+                        var pr = ConvertValue(g, "Color", fieldName, tableName);
+                        result.warnings.AddRange(pr.warnings);
+                        result.errors.AddRange(pr.errors);
+                        list.Add((Color)pr.value);
+                    }
                     return list;
                 }
             }
@@ -432,7 +466,7 @@ namespace Framework.Data.Editor
                     }
                     catch (Exception ex)
                     {
-                        LogUtil.Warn("DataParseTool", $"[{tableName}] 字段 '{fieldName}' JSON Vector解析失败: {ex.Message}");
+                        result.warnings.Add($"[{tableName}] {fieldName} JSON Vector解析失败: {ex.Message}");
                     }
                 }
 
@@ -477,7 +511,7 @@ namespace Framework.Data.Editor
                     }
                     catch(Exception ex)
                     {
-                        LogUtil.Error(ex.Message);
+                        result.errors.Add(ex.Message);
                     }
                 }
 
@@ -498,7 +532,7 @@ namespace Framework.Data.Editor
                 {
                     try
                     {
-                        listInstance.Add(ConvertValue(g, elementType, fieldName, tableName));
+                        listInstance.Add(ConvertValue(g, elementType, fieldName, tableName).value);
                     }
                     catch
                     {
@@ -539,7 +573,7 @@ namespace Framework.Data.Editor
                 {
                     var arr = Array.CreateInstance(elemType, items.Length);
                     for (int i = 0; i < items.Length; i++)
-                        arr.SetValue(ConvertValue(items[i].Trim('"', ' '), elementType, fieldName, tableName), i);
+                        arr.SetValue(ConvertValue(items[i].Trim('"', ' '), elementType, fieldName, tableName).value, i);
                     return arr;
                 }
                 else
@@ -547,7 +581,7 @@ namespace Framework.Data.Editor
                     var listType = typeof(List<>).MakeGenericType(elemType);
                     var list = (System.Collections.IList)Activator.CreateInstance(listType);
                     foreach (var item in items)
-                        list.Add(ConvertValue(item.Trim('"', ' '), elementType, fieldName, tableName));
+                        list.Add(ConvertValue(item.Trim('"', ' '), elementType, fieldName, tableName).value);
                     return list;
                 }
             }
@@ -573,8 +607,7 @@ namespace Framework.Data.Editor
             }
             catch (Exception ex)
             {
-                LogUtil.Warn("DataParseTool",
-                    $"[{tableName}] 集合字段 '{fieldName}' JSON解析失败 ({ex.Message})");
+                result.warnings.Add($"[{tableName}] [集合解析] {fieldName} JSON解析失败 ({ex.Message})");
             }
             // 默认空容器
             return asArray
@@ -591,11 +624,11 @@ namespace Framework.Data.Editor
         /// — 支持键值对类型自动转换；
         /// — 支持嵌套 Vector、Color、自定义类等结构。
         /// </summary>
-        private static object ParseDictionary(string str, string type, string fieldName, string tableName)
+        private static object ParseDictionary(string str, string type, string fieldName, string tableName, ParseResult result)
         {
             if (string.IsNullOrWhiteSpace(str))
             {
-                LogUtil.Warn("DataParseTool", $"[{tableName}] 字典字段 '{fieldName}' JSON 为空或无效！");
+                result.warnings.Add($"[{tableName}] [字典解析] {fieldName} JSON 为空或无效！");
                 return new Dictionary<string, object>();
             }
 
@@ -616,12 +649,11 @@ namespace Framework.Data.Editor
 
                 if (keyTypeResolved == null || valueTypeResolved == null)
                 {
-                    LogUtil.Warn("DataParseTool", $"[{tableName}] 字典字段 '{fieldName}' 无法解析类型：{keyType} 或 {valueType}");
                     return new Dictionary<string, object>();
                 }
 
                 if (!str.TrimStart().StartsWith("{"))
-                    throw new FormatException($"[{tableName}] 字段 '{fieldName}' JSON 格式不合法，期望对象 {{...}}");
+                    throw new FormatException($"[{tableName}] {fieldName} JSON 格式不合法，期望对象 {{...}}");
 
                 // ==== 严格模式 ====
                 try
@@ -636,7 +668,7 @@ namespace Framework.Data.Editor
                     if (raw == null)
                         return new Dictionary<string, object>();
 
-                    var result = (System.Collections.IDictionary)Activator.CreateInstance(
+                    var res = (System.Collections.IDictionary)Activator.CreateInstance(
                         typeof(Dictionary<,>).MakeGenericType(keyTypeResolved, valueTypeResolved)
                     );
 
@@ -647,23 +679,21 @@ namespace Framework.Data.Editor
                             object key = keyTypeResolved == typeof(string)
                                 ? kv.Key
                                 : Convert.ChangeType(kv.Key, keyTypeResolved);
-                            object value = ConvertValue(kv.Value, valueType, fieldName, tableName);
-                            result[key] = value;
+                            object value = ConvertValue(kv.Value, valueType, fieldName, tableName).value;
+                            res[key] = value;
                         }
                         catch (Exception e)
                         {
-                            LogUtil.Warn("DataParseTool",
-                                $"[{tableName}] 字典 '{fieldName}' 键 '{kv.Key}' 转换失败: {e.Message}");
+                            result.warnings.Add($"[字典解析] 表:{tableName}  {fieldName}  键:{kv.Key} 转换失败:{e.Message}");
                         }
                     }
 
-                    return result;
+                    return res;
                 }
             }
             catch (Exception ex)
             {
-                LogUtil.Warn("DataParseTool",
-                    $"[{tableName}] 字典字段 '{fieldName}' JSON 解析失败：{ex.Message}");
+                result.warnings.Add($"[{tableName}] [字典解析] {fieldName} JSON 解析失败：{ex.Message}");
                 return new Dictionary<string, object>();
             }
         }
@@ -752,7 +782,7 @@ namespace Framework.Data.Editor
         
         #region 类型查找缓存
         private static readonly Dictionary<string, Type> TypeCache = new();
-        private static Type FindTypeCached(string name)
+        public static Type FindTypeCached(string name)
         {
             if (string.IsNullOrEmpty(name))
                 return null;
@@ -764,9 +794,13 @@ namespace Framework.Data.Editor
             {
                 t = DataUtil.FindType(name);
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                LogUtil.Warn("DataParseTool", $"类型查找失败: {name} ({e.Message})");
+                // 特殊处理：忽略“Value cannot be null”这种低级错误
+                if (ex.Message.Contains("Value cannot be null"))
+                    return null;
+                // 其他类型解析问题仍然提示
+                LogUtil.Warn("DataParseTool", $"类型查找失败: {name} ({ex.Message})");
                 t = null;
             }
 
@@ -779,6 +813,18 @@ namespace Framework.Data.Editor
             TypeCache.Clear();
             LogUtil.Info("DataParseTool", "已清空类型查找缓存。");
         }
-        #endregion 
+        #endregion
+
+        #region 解析结果数据结构
+
+        public class ParseResult
+        {
+            public bool success;      // true:成功 false:失败
+            public object value;      // 最后解析出的值
+            public List<string> warnings = new();
+            public List<string> errors = new();
+        }
+
+        #endregion
     }
 }

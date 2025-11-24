@@ -220,6 +220,10 @@ namespace Framework.Data.Runtime
             }
             catch (Exception ex)
             {
+                // 特殊处理：忽略“Value cannot be null”这种低级错误
+                if (ex.Message.Contains("Value cannot be null"))
+                    return null;
+                // 其他类型解析问题仍然提示
                 LogUtil.Warn("DataUtil", $"泛型类型解析失败: {fullName} ({ex.Message})");
                 return null;
             }

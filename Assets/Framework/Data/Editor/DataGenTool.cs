@@ -13,7 +13,7 @@ namespace Framework.Data.Editor
 {
     /// <summary>
     /// 数据自动生成工具
-    /// 用于从 <c>Assets/Data</c> 目录下的 Excel 文件自动生成对应的 C# 数据类定义文件。
+    /// 用于从 <c>项目根目录/DataTables</c> 目录下的 Excel 文件自动生成对应的 C# 数据类定义文件。
     /// 功能说明：
     /// 1. 递归扫描所有 Excel 文件；
     /// 3. 自动生成类文件并保存至 <c>Assets/Scripts/Data/AutoGen</c>；
@@ -25,7 +25,7 @@ namespace Framework.Data.Editor
     {
         #region 字段定义
 
-        private static readonly string SOURCE_DIR = Path.Combine(Application.dataPath, "Data");
+        private static readonly string SOURCE_DIR = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "DataTables");
         private static readonly string OUTPUT_DIR = Path.Combine(Application.dataPath, "Scripts/Data/AutoGen");
         private static readonly string CLASS_ROOT = Path.Combine(OUTPUT_DIR, "DataClass");
         private static readonly string JSON_ROOT  = Path.Combine(OUTPUT_DIR, "DataJson");
@@ -197,46 +197,14 @@ namespace Framework.Data.Editor
             using var stream = File.Open(excelPath, FileMode.Open, FileAccess.Read);
             using var reader = ExcelDataReader.ExcelReaderFactory.CreateReader(stream);
 
-            // 第一行：字段名
-            reader.Read();
-            string[] fieldNames = new string[reader.FieldCount];
-            for (int i = 0; i < reader.FieldCount; i++)
-                fieldNames[i] = reader.GetString(i)?.Trim() ?? "";
+            // ---------- 4.  读取表格前三行 ----------
+            var header = ExcelReaderTool.ReadHeader(reader);
 
-            // 第二行：字段类型
-            reader.Read();
-            string[] fieldTypes = new string[reader.FieldCount];
-            for (int i = 0; i < reader.FieldCount; i++)
-                fieldTypes[i] = reader.GetString(i)?.Trim() ?? "string";
-
-            // 第三行（描述行，可留空或数字）
-            string[] fieldDescs = new string[reader.FieldCount];
-            bool hasDescRow = reader.Read();
-
-            if (hasDescRow)
-            {
-                for (int i = 0; i < reader.FieldCount; i++)
-                {
-                    object cellValue = reader.GetValue(i);
-                    if (cellValue == null)
-                    {
-                        fieldDescs[i] = ""; // 空单元格
-                        continue;
-                    }
-
-                    // 尝试字符串化（即使是数字或日期也强转成字符串）
-                    string text = cellValue.ToString().Trim();
-                    fieldDescs[i] = text;
-                }
-            }
-            else
-            {
-                // 若第三行缺失，则全部设为空
-                for (int i = 0; i < reader.FieldCount; i++)
-                    fieldDescs[i] = "";
-            }
+            string[] fieldNames = header.fieldNames;
+            string[] fieldTypes = header.fieldTypes;
+            string[] fieldDescs = header.fieldDescs;
             
-            // ---------- 4. 输出到目标路径 ----------
+            // ---------- 5. 输出到目标路径 ----------
             string jsonOutputDir = GetJsonOutputDir(excelPath);
             string classOutputDir = GetClassOutputDir(excelPath);
             // 确保两个输出目录都存在
