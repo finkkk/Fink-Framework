@@ -1,5 +1,6 @@
 using System.Collections;
 using Framework.Audio;
+using Framework.Event;
 using Framework.Mono;
 using Framework.ObjectPool;
 using Framework.Singleton;
@@ -132,6 +133,7 @@ namespace Framework.Scene
             AudioManager.Instance.ClearSound();
             PoolManager.Instance.CleanPool();
             UIManager.Instance.ClearAllPanels();
+            EventManager.Instance.ClearAllEvent();
             // 回收资源
             Resources.UnloadUnusedAssets();
             // 手动触发GC

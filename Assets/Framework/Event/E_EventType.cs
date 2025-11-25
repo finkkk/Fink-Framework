@@ -1,4 +1,4 @@
-    namespace Framework.Event
+namespace Framework.Event 
 {
     /// <summary>
     /// 事件类型 枚举
@@ -23,6 +23,5 @@
         /// </summary>
         E_Input_Vertical,
         #endregion
-        
     }
 }
