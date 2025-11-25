@@ -8,7 +8,7 @@ namespace Framework.Utils
     /// <summary>
     /// 字符串工具类：拆分、数字/时间格式化等
     /// </summary>
-    public class TextsUtil
+    public static class TextsUtil
     {
         private static readonly StringBuilder resultStr = new StringBuilder("");
         

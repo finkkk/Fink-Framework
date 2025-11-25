@@ -10,8 +10,87 @@ namespace Framework.Utils
     /// <summary>
     /// 数学运算工具类：角度弧度、距离、是否在屏幕外等
     /// </summary>
-    public class MathUtil
+    public static class MathUtil
     {
+        #region 数值处理相关
+
+        /// <summary>
+        /// 将数值限制在[min, max]之间（针对Mathf.Clamp重载，支持返回多种类型 int/double）
+        /// </summary>
+        public static float Clamp(float value, float min, float max)
+        {
+            if (value < min) return min;
+            return value > max ? max : value;
+        }
+
+        public static int Clamp(int value, int min, int max)
+        {
+            if (value < min) return min;
+            return value > max ? max : value;
+        }
+
+        public static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            return value > max ? max : value;
+        }
+
+        /// <summary>
+        /// 判断 value 是否位于 [min, max] 区间（包含边界）
+        /// </summary>
+        public static bool InRange(float value, float min, float max)
+        {
+            return value >= min && value <= max;
+        }
+
+        public static bool InRange(int value, int min, int max)
+        {
+            return value >= min && value <= max;
+        }
+
+        public static bool InRange(double value, double min, double max)
+        {
+            return value >= min && value <= max;
+        }
+
+        /// <summary>
+        /// 计算百分比（返回 0~1 之间的值）
+        /// </summary>
+        public static float Percent01(float value, float min, float max)
+        {
+            if (Math.Abs(max - min) < 0.00001f) return 0f;
+            return (value - min) / (max - min);
+        }
+
+        /// <summary>
+        /// 将百分比 (0~1) 映射回实际区间值
+        /// </summary>
+        public static float PercentToValue(float percent01, float min, float max)
+        {
+            return min + (max - min) * Clamp(percent01, 0f, 1f);
+        }
+
+        /// <summary>
+        /// 区间映射：将 value 从[fromMin, fromMax] 映射到[toMin, toMax]
+        /// </summary>
+        public static float Remap(float value, float fromMin, float fromMax, float toMin, float toMax)
+        {
+            if (Math.Abs(fromMax - fromMin) < 0.00001f)
+                return toMin;
+            float t = (value - fromMin) / (fromMax - fromMin);
+            return toMin + (toMax - toMin) * t;
+        }
+
+        /// <summary>
+        /// 外插：不限制 t 的 Lerp（可超过 0~1 范围）  应用场景 如：做“过冲”动画、外推预测等
+        /// /// </summary>
+        public static float LerpUnclamped(float a, float b, float t)
+        {
+            return a + (b - a) * t;
+        }
+
+        #endregion
+        
         #region 参与计算的平面坐标系枚举
         /// <summary>
         /// 表示计算距离时考虑的平面
@@ -88,6 +167,7 @@ namespace Framework.Utils
                     dy = pos1.z - pos2.z;
                     return dx * dx + dy * dy <= dis * dis;
 
+                case PlaneType.XYZ:
                 default: // 默认走完整3D比较
                     return Vector3.SqrMagnitude(pos1 - pos2) <= dis * dis;
             }
