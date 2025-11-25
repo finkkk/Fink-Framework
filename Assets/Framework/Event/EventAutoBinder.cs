@@ -20,6 +20,7 @@ namespace Framework.Event
             public readonly List<Action> unbindOnDisable = new();
             public readonly List<Action> unbindOnDestroy = new();
             // 记录是否已经注册监听 防止重复注册
+            [HideInInspector]
             public bool hasImmediateBound = false;
 
             private void OnEnable()
