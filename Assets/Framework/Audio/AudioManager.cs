@@ -173,7 +173,7 @@ namespace Framework.Audio
         /// <param name="fatherObj">用于跟随的游戏对象父物体 若传空则默认挂载到全局音效游戏对象</param>
         /// <param name="isAsync">是否异步加载</param>
         /// <param name="callback">加载完成的回调函数(并非播放完成)</param>
-        public AudioSource PlaySound(string name, bool isLoop = false,GameObject fatherObj = null, bool isAsync = true,UnityAction callback = null)
+        public AudioSource PlaySound(string name, bool isLoop = false,GameObject fatherObj = null, bool isAsync = true,UnityAction<AudioSource> callback = null)
         {
             if (!sfxGroup)
             {
@@ -206,14 +206,14 @@ namespace Framework.Audio
                 {
                     PlayAudioClip(source, clip, isLoop);
                     // 执行完毕逻辑后 执行回调
-                    callback?.Invoke();
+                    callback?.Invoke(source);
                 });
             }
             else
             {
                 AudioClip clip = ResManager.Instance.Load<AudioClip>("Audio/SFX/" + name);
                 PlayAudioClip(source, clip, isLoop);
-                callback?.Invoke();
+                callback?.Invoke(source);
             }
 
             return source;

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using Framework.Config;
 using Debug = UnityEngine.Debug;
 // ReSharper disable HeuristicUnreachableCode
@@ -23,16 +24,42 @@ namespace Framework.Utils
             for (int i = 1; i < trace.FrameCount; i++)
             {
                 var frame = trace.GetFrame(i);
-                var type = frame?.GetMethod()?.DeclaringType;
+                var method = frame?.GetMethod();
+                var type = method?.DeclaringType;
                 if (type == null) continue;
+                string typeName = type.Name;
 
-                // 跳过 LogUtil 自身
-                if (type != typeof(LogUtil))
+                // ① 跳过 LogUtil 自身
+                if (type == typeof(LogUtil))
+                    continue;
+
+                // ② 处理匿名类（lambda、闭包、计时器回调都会生成匿名显示类）
+                if (typeName.Contains("<>") || typeName.Contains("DisplayClass"))
                 {
-                    string name = type.Name.Split('`')[0]; // 去掉泛型标记
-                    _callerCache.TryAdd(hash, name);
-                    return name;
+                    string full = type.FullName;   // Ex: "Test+<>c__DisplayClass0_0"
+
+                    if (!string.IsNullOrEmpty(full))
+                    {
+                        int plusIndex = full.IndexOf('+');
+                        if (plusIndex > 0)
+                        {
+                            // 取外层类名，例如 "Test"
+                            string outerClass = full.Substring(0, plusIndex)
+                                .Split('.')
+                                .Last();
+
+                            _callerCache.TryAdd(hash, outerClass);
+                            return outerClass;
+                        }
+                    }
+
+                    continue;
                 }
+
+                // ③ 处理普通类
+                string clean = typeName.Split('`')[0];  // 去掉泛型后缀
+                _callerCache.TryAdd(hash, clean);
+                return clean;
             }
             return "Unknown";
         }

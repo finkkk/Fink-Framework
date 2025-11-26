@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Framework.Mono;
 using Framework.ObjectPool;
 using Framework.Singleton;
@@ -96,7 +97,7 @@ namespace Framework.Timer
                     yield return waitForSeconds;
                 }
                
-                foreach (var item in timerDic.Values)
+                foreach (var item in timerDic.Values.ToList())
                 {
                     if (!item.isRunning)
                     {
@@ -142,6 +143,7 @@ namespace Framework.Timer
                 // 清除完毕 清空待移除列表
                 delList.Clear();
             }
+            // ReSharper disable once IteratorNeverReturns
         }
 
         /// <summary>
@@ -214,7 +216,7 @@ namespace Framework.Timer
         }
 
         /// <summary>
-        /// 开启当个计时器 主要用于暂停后重新开始
+        /// 开启单个计时器 主要用于暂停后重新开始
         /// </summary>
         /// <param name="keyID">计时器唯一ID</param>
         public void StartTimer(int keyID)
@@ -257,7 +259,62 @@ namespace Framework.Timer
         {
             return CreateTimer(isRealTimer,-1, null, intervalTime, onInterval, isRunning);
         }
+        
+        /// <summary>
+        /// 一次性计时器（计时结束自动销毁）
+        /// 类似于 JavaScript 的 setTimeout
+        /// </summary>
+        /// <param name="delay">延迟时间（毫秒）</param>
+        /// <param name="callback">执行的回调函数</param>
+        /// <param name="isRealTimer">是否使用真实时间，不受 Time.timeScale 影响</param>
+        /// <returns>TimerID，可选</returns>
+        public int SetTimeout(int delay, UnityAction callback, bool isRealTimer = false)
+        {
+            // Delay <= 0 则立即执行
+            if (delay <= 0)
+            {
+                callback?.Invoke();
+                return -1;
+            }
 
+            // 创建计时器，计时结束后执行 callback 并自动移除 Timer
+            int id = 0;
+            id = CreateTimer(
+                isRealTimer,
+                delay,
+                () =>
+                {
+                    callback?.Invoke();
+                    // ReSharper disable once AccessToModifiedClosure
+                    RemoveTimer(id);
+                }
+            );
 
+            return id;
+        }
+        
+        /// <summary>
+        /// 暂停所有计时器（受 TimeScale 与 RealTime 两种计时器）
+        /// </summary>
+        public void PauseAll()
+        {
+            foreach (var t in timerDic.Values)
+                t.isRunning = false;
+
+            foreach (var t in realTimerDic.Values)
+                t.isRunning = false;
+        }
+
+        /// <summary>
+        /// 恢复所有计时器
+        /// </summary>
+        public void ResumeAll()
+        {
+            foreach (var t in timerDic.Values)
+                t.isRunning = true;
+
+            foreach (var t in realTimerDic.Values)
+                t.isRunning = true;
+        }
     }
 }
