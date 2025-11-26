@@ -270,10 +270,10 @@ namespace Framework.ResLoad
         }
 
         /// <summary>
-        /// 手动清空字典记录数据(适用于不想使用手动卸载资源时 比如切换场景时执行)
+        /// 异步调用：手动清空字典记录数据(适用于不想使用手动卸载资源时)
         /// </summary>
         /// <param name="callback"></param>
-        public void ClearDic(UnityAction callback)
+        public void ClearDicAsync(UnityAction callback = null)
         {
             MonoManager.Instance.StartCoroutine(ReallyClearDic(callback));
         }
@@ -283,6 +283,18 @@ namespace Framework.ResLoad
             resDic.Clear();
             AsyncOperation ao = Resources.UnloadUnusedAssets();
             yield return ao;
+            //卸载完毕后 通知外部
+            callback();
+        }
+        
+        /// <summary>
+        /// 同步调用：手动清空字典记录数据(适用于不想使用手动卸载资源时 比如切换场景时执行)
+        /// </summary>
+        /// <param name="callback"></param>
+        public void ClearDic(UnityAction callback = null)
+        {
+            resDic.Clear();
+            Resources.UnloadUnusedAssets();
             //卸载完毕后 通知外部
             callback();
         }

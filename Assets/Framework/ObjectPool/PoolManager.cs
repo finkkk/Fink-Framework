@@ -16,7 +16,7 @@ namespace Framework.ObjectPool
         // 继承单例模式基类需要显式实现私有无参构造函数
         private PoolManager(){}
         // 全局对象池 字典统一管理 键值对中键表示不同对象池的名字(子池) 值表示存储的对象池(仅用于GameObject)
-        private readonly Dictionary<string, ObjectPool> poolDic = new();
+        private readonly Dictionary<string, GameObjectPool> poolDic = new();
         // 用于存储 数据结构类、逻辑类等非继承Mono的类的对象池（即泛型对象池）的字典容器
         private readonly Dictionary<string, PoolObjectBase> poolObjectDic = new();
         // 是否开启调试模式(开启后失活的对象会按照根物体进行布局管理 结构清晰 但频繁修改父子关系有性能损耗 发布时建议关闭)
@@ -50,7 +50,7 @@ namespace Framework.ObjectPool
                 // 强制设置实例化对象名字为传入的对象池名字 方便返回对象池时直接使用对象名字查池（也避免实例化后unity自动添加的clone尾缀）
                 obj.name = name; 
                 // 创建对象池(构造对象池的方法内部就实现了记录使用中对象的功能 即将实例化出来的这个对象存入使用中的池子内)
-                poolDic.Add(name,new ObjectPool(poolObj,name,obj));
+                poolDic.Add(name,new GameObjectPool(poolObj,name,obj));
             }
             // 2.有该对象池 且该对象池中存在没有使用的对象 
             else if (value.Count > 0)

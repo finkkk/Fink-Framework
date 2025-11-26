@@ -3,6 +3,7 @@ using Framework.Audio;
 using Framework.Event;
 using Framework.Mono;
 using Framework.ObjectPool;
+using Framework.ResLoad;
 using Framework.Singleton;
 using Framework.UI;
 using UnityEngine;
@@ -134,8 +135,7 @@ namespace Framework.Scene
             PoolManager.Instance.CleanPool();
             UIManager.Instance.ClearAllPanels();
             EventManager.Instance.ClearAllEvent();
-            // 回收资源
-            Resources.UnloadUnusedAssets();
+            ResManager.Instance.ClearDic();
             // 手动触发GC
             System.GC.Collect();
         }

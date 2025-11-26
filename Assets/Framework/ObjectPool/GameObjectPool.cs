@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Framework.ObjectPool
 {
-    public class ObjectPool
+    public class GameObjectPool
     {
         // 对象池中的对象合集(栈)  记录的是没有使用的对象
         public readonly Stack<GameObject> pool = new();
@@ -27,7 +27,7 @@ namespace Framework.ObjectPool
         /// <param name="root">全局对象池根物体(父对象)</param>
         /// <param name="name">对象池的名字</param>
         /// <param name="usedObj">传入动态创建的对象 存入使用中对象池 标记其为正在使用的状态</param>
-        public ObjectPool(GameObject root,string name,GameObject usedObj)
+        public GameObjectPool(GameObject root,string name,GameObject usedObj)
         {
             // 只有当开启调试模式的时候 才会启用布局功能(即根据父子关系布局)
             if (PoolManager.debugMode)
@@ -40,7 +40,7 @@ namespace Framework.ObjectPool
             // 创建对象池时 动态创建的对象需要存入正在使用中对象的容器内 用以记录使用中对象
             AddUsedList(usedObj);
             // 获取被对象池管理的预制体对象身上的PoolGameObject脚本
-            if (!usedObj.TryGetComponent<PoolGameObject>(out var poolObject))
+            if (!usedObj.TryGetComponent<PoolGameObjectConfig>(out var poolObject))
             {
                 throw new System.Exception($"对象 {usedObj.name} 缺失 PoolObject 组件，禁止创建对象池！");
             }
