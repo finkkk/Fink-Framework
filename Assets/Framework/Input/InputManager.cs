@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Framework.Config;
 using Framework.Event;
 using Framework.Mono;
@@ -58,13 +59,12 @@ namespace Framework.Input
                     InputInfo inputInfo = null;
                     //我们需要去遍历监听所有键位的按下 来得到对应输入的信息
                     //键盘
-                    Array keyCodes = Enum.GetValues(typeof(KeyCode));
-                    foreach (KeyCode inputKey in keyCodes)
+                    foreach (KeyCode key in Enum.GetValues(typeof(KeyCode)))
                     {
                         //判断到底是谁被按下了 那么就可以得到对应的输入的键盘信息
-                        if (UnityEngine.Input.GetKeyDown(inputKey))
+                        if (UnityEngine.Input.GetKeyDown(key))
                         {
-                            inputInfo = new InputInfo(InputInfo.E_InputType.Down, inputKey);
+                            inputInfo = new InputInfo(InputInfo.E_InputType.Down, key);
                             break;
                         }
                     }
@@ -78,7 +78,7 @@ namespace Framework.Input
                         }
                     }
                     //把获取到的信息传递给外部
-                    getInputInfoCallBack.Invoke(inputInfo);
+                    getInputInfoCallBack?.Invoke(inputInfo);
                     getInputInfoCallBack = null;
                     //检测一次后就停止检测了
                     isBeginCheckInput = false;
@@ -89,9 +89,9 @@ namespace Framework.Input
             //如果外部没有开启检测功能 就不要检测
             if (!toggle) return;
             
-            foreach (E_EventType eventType in InputDic.Keys)
+            foreach (var (eventType, info) in InputDic.ToArray())
             {
-                nowInputInfo = InputDic[eventType];
+                nowInputInfo = info;
                 //如果是键盘输入
                 if(nowInputInfo.keyOrMouse == InputInfo.E_KeyOrMouse.Key)
                 {
@@ -110,6 +110,8 @@ namespace Framework.Input
                             if (UnityEngine.Input.GetKey(nowInputInfo.key))
                                 EventManager.Instance.EventTrigger(eventType);
                             break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
                     }
                 }
                 //如果是鼠标输入
@@ -129,6 +131,8 @@ namespace Framework.Input
                             if (UnityEngine.Input.GetMouseButton(nowInputInfo.mouseID))
                                 EventManager.Instance.EventTrigger(eventType);
                             break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
                     }
                 }
             }
