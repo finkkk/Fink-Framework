@@ -123,6 +123,7 @@ namespace Framework.Data.Runtime
         /// </summary>
         public static string NormalizePath(string path)
         {
+            path = TextsUtil.NormalizePunctuation(path);
             if (string.IsNullOrEmpty(path)) return string.Empty;
 
             // 统一分隔符
