@@ -44,7 +44,7 @@
 框架详细使用教程请查阅文档：
 <p align="center">
   <a href="https://finkkk.cn/docs/fink-framework" target="_blank">
-    查看完整文档
+    📘查看完整文档
   </a>
 </p>
 
@@ -122,3 +122,11 @@ https://github.com/finkkk/Fink-Framework
   在 JSON 转换器体系和扩展思路方面给予了参考。
 * [**Odin Serializer（MIT）**](https://github.com/TeamSirenix/odin-serializer)
   作为框架内置的开源序列化系统，为数据处理提供了强大支持。
+* [**Cysharp/UniTask（MIT）**](https://github.com/Cysharp/UniTask)
+  作为框架异步的重要基础，优化了资源加载、任务调度以及 Unity 中的异步管理等流程。
+* [**ExcelDataReader（MIT）**](https://github.com/ExcelDataReader/ExcelDataReader)
+  为框架的数据管线提供了可靠的 Excel 解析能力，使自动化配表流程得以顺畅实施。
+* [**Newtonsoft.Json（MIT）**](https://github.com/JamesNK/Newtonsoft.Json)
+  为框架中的 JSON 处理、配置导入、调试输出与数据透视提供了核心支持。
+* **所有在社区中分享 Unity 技术与开源库的开发者们**
+  你们的知识分享让本框架得以在更扎实的基础上构建与成长。
