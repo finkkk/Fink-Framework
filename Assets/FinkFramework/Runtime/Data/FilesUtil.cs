@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 
@@ -164,7 +164,7 @@ namespace FinkFramework.Runtime.Data
         {
             string normalized = NormalizePath(relativePath);
             string withoutExt = Path.ChangeExtension(normalized, null);
-            return NormalizePath(Path.Combine(basePath, isAddExtension ? (NormalizePath(withoutExt) + GlobalConfig.ENCRYPTED_FILE_EXTENSION) : NormalizePath(withoutExt)));
+            return NormalizePath(Path.Combine(basePath, isAddExtension ? (NormalizePath(withoutExt) + EnvironmentState.ENCRYPTED_FILE_EXTENSION) : NormalizePath(withoutExt)));
         }
 
         /// <summary>
@@ -234,7 +234,7 @@ namespace FinkFramework.Runtime.Data
             }
 
             // 搜索所有 加密后缀 文件
-            var files = Directory.GetFiles(searchRoot, "*" + GlobalConfig.ENCRYPTED_FILE_EXTENSION, SearchOption.AllDirectories);
+            var files = Directory.GetFiles(searchRoot, "*" + EnvironmentState.ENCRYPTED_FILE_EXTENSION, SearchOption.AllDirectories);
             var match = files.FirstOrDefault(f =>
                 Path.GetFileNameWithoutExtension(f)
                     .Equals(searchName, StringComparison.OrdinalIgnoreCase));

@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.ResLoad;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.Utils;
@@ -20,7 +20,7 @@ namespace FinkFramework.Runtime.Pool
         // 用于存储 数据结构类、逻辑类等非继承Mono的类的对象池（即泛型对象池）的字典容器
         private readonly Dictionary<string, BasePoolStorage> poolObjectDic = new();
         // 是否开启调试模式(开启后失活的对象会按照根物体进行布局管理 结构清晰 但频繁修改父子关系有性能损耗 发布时建议关闭)
-        public static bool debugMode = GlobalConfig.DebugMode;
+        public static bool debugMode = EnvironmentState.DebugMode;
         // 全局对象池根对象
         private GameObject poolObj;
 

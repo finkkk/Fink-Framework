@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.ResLoad;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.UI.Base;
@@ -75,7 +75,7 @@ namespace FinkFramework.Runtime.UI
             // ======================
             // 1. 创建 UI Camera（VR 项目不需要 UI Camera）
             // ======================
-            if (!GlobalConfig.FinalIsVR)
+            if (!EnvironmentState.FinalIsVR)
             {
                 uiCamera = Object.Instantiate(
                     ResManager.Instance.Load<GameObject>($"res://{BASE_PATH}UICamera")
@@ -90,18 +90,18 @@ namespace FinkFramework.Runtime.UI
             mainCanvas = Object.Instantiate(ResManager.Instance.Load<GameObject>($"res://{BASE_PATH}MainCanvas")).GetComponent<Canvas>();
             Object.DontDestroyOnLoad(mainCanvas.gameObject);
 
-            mainCanvas.renderMode = GlobalConfig.CurrentUIMode switch
+            mainCanvas.renderMode = EnvironmentState.CurrentUIMode switch
             {
-                GlobalConfig.UIMode.ScreenSpace => RenderMode.ScreenSpaceCamera,
-                GlobalConfig.UIMode.WorldSpace => RenderMode.WorldSpace,
-                GlobalConfig.UIMode.Auto => GlobalConfig.FinalIsVR
+                EnvironmentState.UIMode.ScreenSpace => RenderMode.ScreenSpaceCamera,
+                EnvironmentState.UIMode.WorldSpace => RenderMode.WorldSpace,
+                EnvironmentState.UIMode.Auto => EnvironmentState.FinalIsVR
                     ? RenderMode.WorldSpace
                     : RenderMode.ScreenSpaceCamera,
                 _ => mainCanvas.renderMode
             };
 
             // 非 VR 模式绑定 UI Camera
-            if (!GlobalConfig.FinalIsVR)
+            if (!EnvironmentState.FinalIsVR)
                 mainCanvas.worldCamera = uiCamera;
             else
                 mainCanvas.worldCamera = null; // VR 不使用 UI Camera
@@ -109,7 +109,7 @@ namespace FinkFramework.Runtime.UI
             // ======================
             // 3. URP CameraStack（非 VR 才用 UI Camera）
             // ======================
-            if (!GlobalConfig.FinalIsVR && GlobalConfig.FinalUseURP)
+            if (!EnvironmentState.FinalIsVR && EnvironmentState.FinalUseURP)
             {
                 SetupCameraStack();
             }
@@ -121,11 +121,11 @@ namespace FinkFramework.Runtime.UI
             {
                 string prefabName;
 
-                if (GlobalConfig.FinalIsVR)
+                if (EnvironmentState.FinalIsVR)
                 {
                     prefabName = "EventSystem_XR";
                 }
-                else if (GlobalConfig.FinalUseNewInputSystem)
+                else if (EnvironmentState.FinalUseNewInputSystem)
                 {
                     prefabName = "EventSystem_New";
                 }

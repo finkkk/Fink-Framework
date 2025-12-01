@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using Debug = UnityEngine.Debug;
 // ReSharper disable HeuristicUnreachableCode
 
@@ -76,7 +76,7 @@ namespace FinkFramework.Runtime.Utils
         /// </summary>
         public static void Info(string message, bool force = false)
         {
-            if (!GlobalConfig.DebugMode && !force) return;
+            if (!EnvironmentState.DebugMode && !force) return;
             string module = GetCallerClassName();
             Debug.Log($"{FormatModuleTag(module, "#87CEFA")} {message}");
         }
@@ -86,7 +86,7 @@ namespace FinkFramework.Runtime.Utils
         /// </summary>
         public static void Info(string module, string message, bool force = false)
         {
-            if (!GlobalConfig.DebugMode && !force) return;
+            if (!EnvironmentState.DebugMode && !force) return;
             Debug.Log($"{FormatModuleTag(module, "#87CEFA")} {message}");
         }
         #endregion
@@ -94,14 +94,14 @@ namespace FinkFramework.Runtime.Utils
         #region Success
         public static void Success(string message, bool force = false)
         {
-            if (!GlobalConfig.DebugMode && !force) return;
+            if (!EnvironmentState.DebugMode && !force) return;
             string module = GetCallerClassName();
             Debug.Log($"{FormatModuleTag(module, "#00FF7F")} {message} <color=#00FF7F>✓</color>");
         }
 
         public static void Success(string module, string message, bool force = false)
         {
-            if (!GlobalConfig.DebugMode && !force) return;
+            if (!EnvironmentState.DebugMode && !force) return;
             Debug.Log($"{FormatModuleTag(module, "#00FF7F")} {message} <color=#00FF7F>✓</color>");
         }
         #endregion
@@ -109,14 +109,14 @@ namespace FinkFramework.Runtime.Utils
         #region Warn
         public static void Warn(string message, bool force = true)
         {
-            if (!GlobalConfig.DebugMode && !force) return;
+            if (!EnvironmentState.DebugMode && !force) return;
             string module = GetCallerClassName();
             Debug.LogWarning($"{FormatModuleTag(module, "#FFA500")} {message} <color=#FFA500>!</color>");
         }
 
         public static void Warn(string module, string message, bool force = true)
         {
-            if (!GlobalConfig.DebugMode && !force) return;
+            if (!EnvironmentState.DebugMode && !force) return;
             Debug.LogWarning($"{FormatModuleTag(module, "#FFA500")} {message} <color=#FFA500>!</color>");
         }
         #endregion

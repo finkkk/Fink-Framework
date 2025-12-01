@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Utils;
 using OdinSerializer;
 using UnityEngine;
@@ -19,7 +19,7 @@ namespace FinkFramework.Runtime.Data
     {
         private const DataFormat Format = DataFormat.Binary;
         // AES加密 盐值与密码
-        private static readonly string Password = GlobalConfig.PASSWORD;
+        private static readonly string Password = EnvironmentState.PASSWORD;
         private static readonly byte[] Salt = Encoding.UTF8.GetBytes("Fink_AES_Salt");
 
         #region 数据存储与读取

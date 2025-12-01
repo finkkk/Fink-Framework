@@ -1,5 +1,5 @@
 ﻿using System;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Visualization;
 using UnityEngine;
 using UnityEngine.Events;
@@ -265,7 +265,7 @@ namespace FinkFramework.Runtime.Utils
                 }
             }
             // --- 可视化调试功能 ---
-            if (gizmosToggle && GlobalConfig.DebugMode)
+            if (gizmosToggle && EnvironmentState.DebugMode)
             {
 #if UNITY_EDITOR
                 GizmosAdapter.DrawSectorAction?.Invoke(pos,forward,radius,angle,plane,result);
@@ -287,7 +287,7 @@ namespace FinkFramework.Runtime.Utils
         public static void RayCast<T>(Ray ray, UnityAction<T> callBack, float maxDistance, int layerMask = ~0, bool gizmosToggle = true) where T : class
         {
             bool hit = Physics.Raycast(ray, out var hitInfo, maxDistance, layerMask);
-            if (gizmosToggle && GlobalConfig.DebugMode)
+            if (gizmosToggle && EnvironmentState.DebugMode)
             {
 #if UNITY_EDITOR
                 GizmosAdapter.DrawRayAction?.Invoke(ray.origin, ray.direction, maxDistance, hit);
@@ -305,7 +305,7 @@ namespace FinkFramework.Runtime.Utils
                 else
                     callBack(hitInfo.collider.gameObject.GetComponent<T>());
             }
-            else if (gizmosToggle && GlobalConfig.DebugMode)
+            else if (gizmosToggle && EnvironmentState.DebugMode)
             {
 #if UNITY_EDITOR
                 GizmosAdapter.DrawRayAction?.Invoke(ray.origin, ray.direction, maxDistance, false);
@@ -326,7 +326,7 @@ namespace FinkFramework.Runtime.Utils
         {
             RaycastHit[] hitInfos = Physics.RaycastAll(ray, maxDistance, layerMask);
 
-            if (gizmosToggle && GlobalConfig.DebugMode)
+            if (gizmosToggle && EnvironmentState.DebugMode)
             {
 #if UNITY_EDITOR
                 GizmosAdapter.DrawRayAction?.Invoke(ray.origin, ray.direction, maxDistance, hitInfos.Length > 0);
@@ -363,7 +363,7 @@ namespace FinkFramework.Runtime.Utils
         {
             Type type = typeof(T);
             Collider[] colliders = Physics.OverlapBox(center, halfExtents, rotation, layerMask, QueryTriggerInteraction.Collide);
-            if (gizmosToggle && GlobalConfig.DebugMode)
+            if (gizmosToggle && EnvironmentState.DebugMode)
             {
 #if UNITY_EDITOR
                 GizmosAdapter.DrawBoxAction?.Invoke(center, rotation, halfExtents, colliders.Length > 0);
@@ -393,7 +393,7 @@ namespace FinkFramework.Runtime.Utils
         {
             Type type = typeof(T);
             Collider[] colliders = Physics.OverlapSphere(center, radius, layerMask, QueryTriggerInteraction.Collide);
-            if (gizmosToggle && GlobalConfig.DebugMode)
+            if (gizmosToggle && EnvironmentState.DebugMode)
             {
 #if UNITY_EDITOR
                 GizmosAdapter.DrawSphereAction?.Invoke(center, radius, colliders.Length > 0);

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
@@ -38,7 +38,7 @@ namespace FinkFramework.Editor.Visualization
         static GizmosDrawer()
         {
             // 开关关闭 → 不进入队列
-            if (!GlobalConfig.DebugMode) return;
+            if (!EnvironmentState.DebugMode) return;
             // 初始化 默认开启所有形状绘制器
             ResetFeatures();
             // 永远注册到 MonoManager 的两个事件
@@ -61,14 +61,14 @@ namespace FinkFramework.Editor.Visualization
         public static void RequestDraw(Action drawer)
         {
             // 开关关闭 → 不进入队列
-            if (!GlobalConfig.DebugMode || !EnableDrawer) return;
+            if (!EnvironmentState.DebugMode || !EnableDrawer) return;
             gizmoDrawers.Add(drawer);
         }
         
         private static void DoDraw()
         {
             // 顶层检查：若未开启调试 → 不遍历、不清空，完全无消耗
-            if (!GlobalConfig.DebugMode || !EnableDrawer) return;
+            if (!EnvironmentState.DebugMode || !EnableDrawer) return;
             // 顶层检查：若无申请绘制需求 → 不遍历、不清空，完全无消耗
             if (gizmoDrawers.Count == 0) return;
             // 每帧遍历需要执行的绘制指令 全部执行一次后 清空指令

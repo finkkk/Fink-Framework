@@ -2,7 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using FinkFramework.Runtime.Config;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Event;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Singleton;
@@ -20,7 +20,7 @@ namespace FinkFramework.Runtime.Input
         private InputManager()
         {
             // 如果检测到项目正在使用新版输入系统，则不允许使用旧输入模块 除非手动设置
-            if (GlobalConfig.FinalUseNewInputSystem)
+            if (EnvironmentState.FinalUseNewInputSystem)
             {
                 LogUtil.Error("项目检测到新版输入系统(Input System)，已自动为您关闭框架输入模块。若想强制手动开启该模块，请前往全局设置手动设置ForceDisableNewInputSystem");
                 return; //  提前退出

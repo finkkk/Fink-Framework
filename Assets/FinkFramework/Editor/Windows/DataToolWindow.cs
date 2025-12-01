@@ -13,7 +13,7 @@ namespace FinkFramework.Editor.Windows
         private GUIStyle logStyle;
         private GUIStyle footerStyle;
 
-        [MenuItem("Tools/Fink的游戏框架/数据工具面板", priority = 50)]
+        [MenuItem("Fink Framework/数据工具面板", priority = 50)]
         public static void Open()
         {
             var window = GetWindow<DataToolWindow>("数据工具面板");
@@ -72,7 +72,7 @@ namespace FinkFramework.Editor.Windows
             }
             
             GUILayout.Space(10);
-            GUILayout.Label("Fink 的数据处理工具", titleStyle);
+            GUILayout.Label("数据工具面板", titleStyle);
             GUILayout.Space(10);
 
             DrawSection("主功能", () =>
