@@ -1,0 +1,16 @@
+{
+    "name": "FinkFramework.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:c8fc23c8609f6a045986288a5f247b11"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

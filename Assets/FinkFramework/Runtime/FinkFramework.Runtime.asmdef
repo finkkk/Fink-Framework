@@ -1,0 +1,29 @@
+{
+    "name": "FinkFramework.Runtime",
+    "rootNamespace": "",
+    "references": [
+        "GUID:6055be8ebefd69e48b49212b09b47b2f",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:e4f40b57c161c5c7be0e34e9f0dafcb1"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "define": "ENABLE_INPUT_SYSTEM",
+            "expression": ""
+        },
+        {
+            "name": "com.unity.xr.interaction.toolkit",
+            "define": "ENABLE_XRI",
+            "expression": ""
+        }
+    ],
+    "noEngineReferences": false
+}
