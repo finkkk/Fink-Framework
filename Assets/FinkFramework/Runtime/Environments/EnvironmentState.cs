@@ -14,15 +14,14 @@ namespace FinkFramework.Runtime.Environments
         /// </summary>
     public static class EnvironmentState
     {
-        #region 框架信息
+        #region 框架信息-版本号等基础信息
 
         /// <summary>
         /// 框架版本号
         /// </summary>
-        public const string FrameworkVersion = "0.1.0";
+        public const string FrameworkVersion = "0.2.0";
 
         #endregion
-        
         
         #region 全局设置-可配置字段定义
         
