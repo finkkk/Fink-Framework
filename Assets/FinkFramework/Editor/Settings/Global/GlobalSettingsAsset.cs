@@ -15,6 +15,9 @@ namespace FinkFramework.Editor.Settings.Global
         [Header("是否强制关闭 URP")]
         [Tooltip("是否强制关闭 URP（比自动检测优先级更高）。若为 true，则即使已安装 URP 也会禁用 URP 相关系统。若为 false，则按自动检测结果处理。")]
         public bool ForceDisableURP = false;
+        [Header("是否启用 编辑器加载 打包检测")]
+        [Tooltip("若为 true，则在构建前扫描 C# 脚本，若存在 editor:// 路径，将阻止打包。")]
+        public bool EnableEditorUrlCheck = true;
         [Header("当前 UI 渲染模式")]
         [Tooltip("当前 UI 渲染模式。默认使用 ScreenSpace-Camera。如果项目为 VR，请务必使用 WorldSpace 模式。")]
         public EnvironmentState.UIMode CurrentUIMode = EnvironmentState.UIMode.Auto;
@@ -34,6 +37,8 @@ namespace FinkFramework.Editor.Settings.Global
             EnvironmentState.ForceDisableNewInputSystem = ForceDisableNewInputSystem;
             EnvironmentState.ForceDisableURP = ForceDisableURP;
 
+            EnvironmentState.EnableEditorUrlCheck = EnableEditorUrlCheck;
+            
             EnvironmentState.CurrentUIMode = CurrentUIMode;
 
             EnvironmentState.PASSWORD = Password;

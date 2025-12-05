@@ -27,7 +27,21 @@ namespace FinkFramework.Runtime.ResLoad
         {
             // 注册默认 provider（无前缀 / res://）
             AddProvider("", new ResourcesProvider());
+            
+            // 注册 Resources 加载模块
             AddProvider("res", new ResourcesProvider());
+            
+            // 注册 File 加载模块
+            AddProvider("file",new FileProvider());
+            
+            // 注册 Web 加载模块
+            AddProvider("http", new WebProvider());
+            AddProvider("https", new WebProvider());
+            
+            // 注册 Editor 加载模块
+#if UNITY_EDITOR
+            AddProvider("editor", new EditorProvider());
+#endif
         }
         
         // Provider 插件路由字典

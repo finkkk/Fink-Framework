@@ -49,10 +49,11 @@ namespace FinkFramework.Editor.Settings.Global
             EditorGUILayout.LabelField("Fink Framework Global Settings", EditorStyles.label);
             GUILayout.Space(10);
 
-            DrawSectionTitle("环境相关 (Environment)");
+            DrawSectionTitle("环境配置 (Environment)");
             DrawToggle("强制关闭 XR", "Force Disable XR", ref asset.ForceDisableXR);
             DrawToggle("强制关闭 新输入系统", "Force Disable InputSystem", ref asset.ForceDisableNewInputSystem);
             DrawToggle("强制关闭 URP", "Force Disable URP", ref asset.ForceDisableURP);
+            DrawToggle("启用 编辑器加载 打包检测", "Enable Editor URL Check", ref asset.EnableEditorUrlCheck);
 
             GUILayout.Space(12);
 

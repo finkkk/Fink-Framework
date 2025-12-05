@@ -42,6 +42,12 @@ namespace FinkFramework.Runtime.Environments
         /// 如果为 true，即使项目使用 URP 也按非 URP 处理。
         /// </summary>
         public static bool ForceDisableURP { get; internal set; }
+        
+        /// <summary>
+        /// 是否启用 编辑器加载 打包检测。（由设置面板注入）
+        /// 若为 true，则在构建前扫描 C# 脚本，若存在 editor:// 路径，将阻止打包。
+        /// </summary>
+        public static bool EnableEditorUrlCheck { get; internal set; }
 
         /// <summary>
         /// 当前 UI 渲染模式。（由设置面板注入）

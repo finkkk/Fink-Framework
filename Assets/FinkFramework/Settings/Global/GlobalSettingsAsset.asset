@@ -15,6 +15,7 @@ MonoBehaviour:
   ForceDisableXR: 0
   ForceDisableNewInputSystem: 0
   ForceDisableURP: 0
+  EnableEditorUrlCheck: 1
   CurrentUIMode: 2
   Password: finkkk
   EncryptedExtension: .fink
