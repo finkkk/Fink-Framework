@@ -16,11 +16,11 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-using OdinSerializer;
+using FinkFramework.Odin.OdinSerializer;
 
 [assembly: RegisterDictionaryKeyPathProvider(typeof(Vector2DictionaryKeyPathProvider))]
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using System.Globalization;
     using UnityEngine;

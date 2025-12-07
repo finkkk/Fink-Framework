@@ -16,7 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     /// <summary>
     /// Indicates that an Odin-serialized Unity object supports prefab serialization.

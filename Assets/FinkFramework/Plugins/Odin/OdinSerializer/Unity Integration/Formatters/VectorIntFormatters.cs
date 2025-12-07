@@ -16,12 +16,12 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-using OdinSerializer;
+using FinkFramework.Odin.OdinSerializer;
 
 [assembly: RegisterFormatter(typeof(Vector2IntFormatter))]
 [assembly: RegisterFormatter(typeof(Vector3IntFormatter))]
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using UnityEngine;
 

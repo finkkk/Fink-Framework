@@ -16,7 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer.Utilities
+namespace FinkFramework.Odin.OdinSerializer.Utilities
 {
     /// <summary>
     /// Provides notification callbacks for values that are cached using the <see cref="Cache{T}"/> class.

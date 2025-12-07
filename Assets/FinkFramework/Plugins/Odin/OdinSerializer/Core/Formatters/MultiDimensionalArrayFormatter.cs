@@ -18,7 +18,7 @@
 
 using System.Globalization;
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using System;
     using System.Text;

@@ -16,7 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     /// <summary>
     /// Resolves external index references to reference objects during serialization and deserialization.

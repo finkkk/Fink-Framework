@@ -15,7 +15,7 @@
 // limitations under the License.
 // </copyright>
 //-----------------------------------------------------------------------
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     /// <summary>
     /// Contains global configuration options for the serialization system.

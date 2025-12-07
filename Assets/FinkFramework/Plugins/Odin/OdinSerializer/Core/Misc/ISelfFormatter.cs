@@ -15,7 +15,7 @@
 // limitations under the License.
 // </copyright>
 //-----------------------------------------------------------------------
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     /// <summary>
     /// Specifies that a type is capable of serializing itself using an <see cref="IDataWriter"/> and an

@@ -16,7 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer.Utilities
+namespace FinkFramework.Odin.OdinSerializer.Utilities
 {
     using System;
     using System.Threading;

@@ -15,9 +15,9 @@
 // limitations under the License.
 // </copyright>
 //-----------------------------------------------------------------------
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
-    using OdinSerializer.Utilities;
+    using FinkFramework.Odin.OdinSerializer.Utilities;
     using System;
     using System.Collections;
     using System.Collections.Generic;

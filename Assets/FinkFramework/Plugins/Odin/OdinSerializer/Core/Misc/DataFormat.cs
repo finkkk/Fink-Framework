@@ -16,7 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     /// <summary>
     /// Specifies a data format to read and write in.

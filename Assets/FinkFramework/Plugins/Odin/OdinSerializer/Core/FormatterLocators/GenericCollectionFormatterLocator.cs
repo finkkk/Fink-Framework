@@ -16,11 +16,11 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-using OdinSerializer;
+using FinkFramework.Odin.OdinSerializer;
 
 [assembly: RegisterFormatterLocator(typeof(GenericCollectionFormatterLocator), -100)]
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using Utilities;
     using System;

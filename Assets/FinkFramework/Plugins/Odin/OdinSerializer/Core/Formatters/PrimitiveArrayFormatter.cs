@@ -17,7 +17,7 @@
 //-----------------------------------------------------------------------
 
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using Utilities;
     using System;

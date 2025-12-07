@@ -16,11 +16,11 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-using OdinSerializer;
+using FinkFramework.Odin.OdinSerializer;
 
 [assembly: RegisterFormatter(typeof(StackFormatter<,>), weakFallback: typeof(WeakStackFormatter))]
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using Utilities;
     using System;

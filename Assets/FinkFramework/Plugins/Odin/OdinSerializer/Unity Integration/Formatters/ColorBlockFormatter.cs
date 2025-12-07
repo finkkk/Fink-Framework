@@ -16,11 +16,11 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-using OdinSerializer;
+using FinkFramework.Odin.OdinSerializer;
 
 [assembly: RegisterFormatterLocator(typeof(ColorBlockFormatterLocator))]
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using System;
     using System.Reflection;

@@ -17,14 +17,15 @@
 //-----------------------------------------------------------------------
 
 #if NET_STANDARD_2_0
-#error Odin Inspector 无法在 .NET Standard 2.0 API 下编译。请在 Player Settings 中将 API Compatibility Level 切换为 .NET Framework。
+#warning Odin Inspector is incapable of compiling source code against the .NET Standard 2.0 API surface. You can change the API Compatibility Level in the Player settings.
 #endif
 
-#if (UNITY_EDITOR || UNITY_STANDALONE) && !ENABLE_IL2CPP
+/*#if (UNITY_EDITOR || UNITY_STANDALONE) && !ENABLE_IL2CPP
 #define CAN_EMIT
-#endif
+#endif*/
+#undef CAN_EMIT
 
-namespace OdinSerializer.Utilities
+namespace FinkFramework.Odin.OdinSerializer.Utilities
 {
     using System;
     using System.Reflection;

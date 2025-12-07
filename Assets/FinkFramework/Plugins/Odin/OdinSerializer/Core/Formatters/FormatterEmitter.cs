@@ -16,13 +16,15 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-#if (UNITY_EDITOR || UNITY_STANDALONE) && !ENABLE_IL2CPP
-#define CAN_EMIT
-#endif
+//#if (UNITY_EDITOR || UNITY_STANDALONE) && !ENABLE_IL2CPP
+//#define CAN_EMIT
+//#endif
 
-namespace OdinSerializer
+#undef CAN_EMIT
+
+namespace FinkFramework.Odin.OdinSerializer
 {
-    using OdinSerializer.Utilities;
+    using FinkFramework.Odin.OdinSerializer.Utilities;
     using System;
     using System.Collections.Generic;
     using System.Linq;

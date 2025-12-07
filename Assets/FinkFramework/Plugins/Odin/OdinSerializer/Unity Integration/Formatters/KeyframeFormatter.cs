@@ -16,13 +16,13 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-using OdinSerializer;
+using FinkFramework.Odin.OdinSerializer;
 
 [assembly: RegisterFormatter(typeof(KeyframeFormatter))]
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
-    using OdinSerializer.Utilities;
+    using FinkFramework.Odin.OdinSerializer.Utilities;
     using UnityEngine;
 
     /// <summary>

@@ -16,9 +16,9 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
-    using OdinSerializer.Utilities;
+    using FinkFramework.Odin.OdinSerializer.Utilities;
     using System.IO;
 
     internal sealed class CachedMemoryStream : ICacheNotificationReceiver

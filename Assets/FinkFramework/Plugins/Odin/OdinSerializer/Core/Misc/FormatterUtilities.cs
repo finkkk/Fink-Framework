@@ -16,10 +16,10 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using System.Globalization;
-    using OdinSerializer.Utilities;
+    using FinkFramework.Odin.OdinSerializer.Utilities;
     using System;
     using System.Collections.Generic;
     using System.Linq;

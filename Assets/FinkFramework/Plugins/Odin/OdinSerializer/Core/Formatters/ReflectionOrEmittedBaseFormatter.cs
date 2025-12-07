@@ -16,11 +16,13 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-#if (UNITY_EDITOR || UNITY_STANDALONE) && !ENABLE_IL2CPP
-#define CAN_EMIT
-#endif
+//#if (UNITY_EDITOR || UNITY_STANDALONE) && !ENABLE_IL2CPP
+//#define CAN_EMIT
+//#endif
 
-namespace OdinSerializer
+#undef CAN_EMIT
+
+namespace FinkFramework.Odin.OdinSerializer
 {
     public abstract class ReflectionOrEmittedBaseFormatter<T> : ReflectionFormatter<T>
     {

@@ -16,7 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using System;
     using UnityEngine;
@@ -64,11 +64,14 @@ namespace OdinSerializer
                 case RuntimePlatform.LinuxPlayer:
                 case RuntimePlatform.WindowsPlayer:
                 case RuntimePlatform.OSXPlayer:
+                case RuntimePlatform.PS3:
                 case RuntimePlatform.PS4:
+                case RuntimePlatform.XBOX360:
                 case RuntimePlatform.XboxOne:
                 case RuntimePlatform.WebGLPlayer:
                 case RuntimePlatform.WSAPlayerX64:
                 case RuntimePlatform.WSAPlayerX86:
+                case RuntimePlatform.WiiU:
                     
                     try
                     {

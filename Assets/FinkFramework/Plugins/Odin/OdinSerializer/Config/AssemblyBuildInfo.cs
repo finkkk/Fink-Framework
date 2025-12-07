@@ -18,7 +18,7 @@
 
 #if UNITY_EDITOR
 
-namespace OdinSerializer.Utilities.Editor
+namespace FinkFramework.Odin.OdinSerializer.Utilities.Editor
 {
     using System;
     using System.Linq;

@@ -15,7 +15,7 @@
 // limitations under the License.
 // </copyright>
 //-----------------------------------------------------------------------
-namespace OdinSerializer.Utilities.Unsafe
+namespace FinkFramework.Odin.OdinSerializer.Utilities.Unsafe
 {
     using System;
     using System.Runtime.InteropServices;

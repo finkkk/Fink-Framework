@@ -29,13 +29,13 @@ namespace FinkFramework.Editor.Windows
         public static void ShowWindow()
         {
             var window = GetWindow<WelcomeWindow>(true, "ª∂”≠ π”√ Fink Framework");
-            window.minSize = new Vector2(520, 420);
+            window.minSize = new Vector2(540, 440);
         }
 
         private void OnEnable()
         {
             logo = AssetDatabase.LoadAssetAtPath<Texture2D>(
-                "Assets/Framework/Resources/f_logo.png"
+                "Assets/FinkFramework/Resources/FinkFramework_logo.png"
             );
         }
 

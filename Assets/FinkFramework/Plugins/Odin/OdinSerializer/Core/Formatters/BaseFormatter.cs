@@ -20,9 +20,9 @@
 #define CAN_EMIT
 #endif
 
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
-    using OdinSerializer.Utilities;
+    using FinkFramework.Odin.OdinSerializer.Utilities;
     using System;
     using System.Collections.Generic;
     using System.Reflection;

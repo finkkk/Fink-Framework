@@ -4,9 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using FinkFramework.Odin.OdinSerializer;
 using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
-using OdinSerializer;
+
 using UnityEngine;
 
 namespace FinkFramework.Runtime.Data

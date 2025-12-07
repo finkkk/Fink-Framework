@@ -57,12 +57,9 @@ namespace FinkFramework.Editor.Settings.Providers
             // ===== 主区域 =====
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
 
-            asset.CurrentUIMode =
-                (Runtime.Environments.EnvironmentState.UIMode)
-                EditorGUILayout.EnumPopup("UI 渲染模式", asset.CurrentUIMode);
-
-            GUILayout.Space(12);
-            
+            EditorGUILayout.LabelField("UI 渲染设置", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+            asset.CurrentUIMode = (Runtime.Environments.EnvironmentState.UIMode)EditorGUILayout.EnumPopup("UI 渲染模式", asset.CurrentUIMode);
             EditorGUILayout.LabelField(
                 "<b>ScreenSpace:</b> 普通 2D UI（适用于大多数项目）\n" +
                 "<b>WorldSpace:</b> 3D 空间 UI（适用于 VR 项目或需要 3D Canvas 的内容）\n" +

@@ -1,4 +1,4 @@
-namespace OdinSerializer
+namespace FinkFramework.Odin.OdinSerializer
 {
     using System;
 

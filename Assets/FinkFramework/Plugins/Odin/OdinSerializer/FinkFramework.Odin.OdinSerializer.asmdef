@@ -1,5 +1,5 @@
 {
-    "name": "OdinSerializer",
+    "name": "FinkFramework.Odin.OdinSerializer",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
