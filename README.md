@@ -48,8 +48,6 @@
   </a>
 </p>
 
->  **注意：当前版本仅支持 .NET Framework（.NET Standard / .NET Core / IL2CPP 源生成尚未适配）。**
-
 ---
 
 ## 1. 核心特性
