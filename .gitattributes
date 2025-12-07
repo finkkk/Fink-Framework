@@ -1,0 +1,11 @@
+# 强制所有 C# 文件使用 UTF-8
+*.cs text working-tree-encoding=UTF-8
+
+# 强制 Unity 文本文件也用 UTF-8
+*.shader text working-tree-encoding=UTF-8
+*.cginc text working-tree-encoding=UTF-8
+*.asmdef text working-tree-encoding=UTF-8
+*.json text working-tree-encoding=UTF-8
+*.xml text working-tree-encoding=UTF-8
+*.txt text working-tree-encoding=UTF-8
+*.md text working-tree-encoding=UTF-8

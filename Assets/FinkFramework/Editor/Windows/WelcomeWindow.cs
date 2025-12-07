@@ -25,10 +25,10 @@ namespace FinkFramework.Editor.Windows
         private static Texture2D logo;
         private GUIStyle footerStyle;
 
-        [MenuItem("Fink Framework/»¶Ó­Ê¹ÓÃÃæ°å", priority = 50)]
+        [MenuItem("Fink Framework/æ¬¢è¿ä½¿ç”¨é¢æ¿", priority = 50)]
         public static void ShowWindow()
         {
-            var window = GetWindow<WelcomeWindow>(true, "»¶Ó­Ê¹ÓÃ Fink Framework");
+            var window = GetWindow<WelcomeWindow>(true, "æ¬¢è¿ä½¿ç”¨ Fink Framework");
             window.minSize = new Vector2(540, 440);
         }
 
@@ -55,11 +55,11 @@ namespace FinkFramework.Editor.Windows
                 GUILayout.Space(10);
             }
 
-            // ===== ±êÌâ =====
-            GUILayout.Label("»¶Ó­Ê¹ÓÃ Fink Framework", FFEditorStyles.Title);
+            // ===== æ ‡é¢˜ =====
+            GUILayout.Label("æ¬¢è¿ä½¿ç”¨ Fink Framework", FFEditorStyles.Title);
 
-            // ===== °æ±¾ºÅ =====
-            GUILayout.Label($"µ±Ç°°æ±¾£ºv{EnvironmentState.FrameworkVersion}",
+            // ===== ç‰ˆæœ¬å· =====
+            GUILayout.Label($"å½“å‰ç‰ˆæœ¬ï¼šv{EnvironmentState.FrameworkVersion}",
                 EditorStyles.centeredGreyMiniLabel);
 
             GUILayout.Space(18);
@@ -69,10 +69,10 @@ namespace FinkFramework.Editor.Windows
             FFEditorGUI.Center(() =>
             {
                 GUILayout.Label(
-                    "¸ĞĞ»ÄúÊ¹ÓÃ Fink Framework ¡ª¡ª Unity Ä£¿é»¯¿ª·¢¿ò¼Ü£¡\n\n" +
-                    "Fink Framework Ìá¹©£ºÊı¾İÇı¶¯¹ÜÏß¡¢UI ÏµÍ³¡¢×ÊÔ´¼ÓÔØ¡¢¶ÔÏó³Ø¡¢ÊÂ¼şÏµÍ³¡¢" +
-                    "ÊäÈëÏµÍ³¡¢¼ÆÊ±Æ÷µÈ»ù´¡ÉèÊ©£¬ÊÊÓÃÓÚÖĞĞ¡ĞÍÏîÄ¿µÄ¿ìËÙÑĞ·¢¡£\n\n" +
-                    "<b>Ê×´ÎÊ¹ÓÃÇëÇ°Íù Project Settings ¡ú Fink Framework ½øĞĞ»ù´¡ÅäÖÃ¡£</b>",
+                    "æ„Ÿè°¢æ‚¨ä½¿ç”¨ Fink Framework â€”â€” Unity æ¨¡å—åŒ–å¼€å‘æ¡†æ¶ï¼\n\n" +
+                    "Fink Framework æä¾›ï¼šæ•°æ®é©±åŠ¨ç®¡çº¿ã€UI ç³»ç»Ÿã€èµ„æºåŠ è½½ã€å¯¹è±¡æ± ã€äº‹ä»¶ç³»ç»Ÿã€" +
+                    "è¾“å…¥ç³»ç»Ÿã€è®¡æ—¶å™¨ç­‰åŸºç¡€è®¾æ–½ï¼Œé€‚ç”¨äºä¸­å°å‹é¡¹ç›®çš„å¿«é€Ÿç ”å‘ã€‚\n\n" +
+                    "<b>é¦–æ¬¡ä½¿ç”¨è¯·å‰å¾€ Project Settings â†’ Fink Framework è¿›è¡ŒåŸºç¡€é…ç½®ã€‚</b>",
                     FFEditorStyles.Description,
                     GUILayout.Width(ww * 0.78f)
                 );
@@ -80,22 +80,22 @@ namespace FinkFramework.Editor.Windows
 
             GUILayout.Space(30);
 
-            // ===== °´Å¥×é =====
+            // ===== æŒ‰é’®ç»„ =====
             FFEditorGUI.Center(() =>
             {
                 GUILayout.BeginVertical(GUILayout.Width(ww * 0.70f));
 
-                if (GUILayout.Button("²é¿´Ê¹ÓÃÎÄµµ£¨Documentation£©", FFEditorStyles.BigButton))
+                if (GUILayout.Button("æŸ¥çœ‹ä½¿ç”¨æ–‡æ¡£ï¼ˆDocumentationï¼‰", FFEditorStyles.BigButton))
                     Application.OpenURL("https://finkkk.cn/docs/fink-framework");
 
                 GUILayout.Space(10);
 
-                if (GUILayout.Button("´ò¿ª¿ò¼ÜÉèÖÃ£¨Project Settings£©", FFEditorStyles.BigButton))
+                if (GUILayout.Button("æ‰“å¼€æ¡†æ¶è®¾ç½®ï¼ˆProject Settingsï¼‰", FFEditorStyles.BigButton))
                     SettingsService.OpenProjectSettings("Project/Fink Framework");
 
                 GUILayout.Space(10);
 
-                if (GUILayout.Button("ÁªÏµ×÷Õß / ¸öÈË²©¿Í£¨finkkk.cn£©", FFEditorStyles.BigButton))
+                if (GUILayout.Button("è”ç³»ä½œè€… / ä¸ªäººåšå®¢ï¼ˆfinkkk.cnï¼‰", FFEditorStyles.BigButton))
                     Application.OpenURL("https://finkkk.cn");
 
                 GUILayout.EndVertical();
@@ -104,16 +104,16 @@ namespace FinkFramework.Editor.Windows
             GUILayout.FlexibleSpace();
             GUILayout.Space(20);
 
-            // ===== ¹Ø±Õ°´Å¥ =====
+            // ===== å…³é—­æŒ‰é’® =====
             FFEditorGUI.Center(() =>
             {
-                if (GUILayout.Button("¹Ø±Õ", GUILayout.Height(28), GUILayout.Width(140)))
+                if (GUILayout.Button("å…³é—­", GUILayout.Height(28), GUILayout.Width(140)))
                     Close();
             });
 
             GUILayout.Space(8);
 
-            // ===== Ò³½Å =====
+            // ===== é¡µè„š =====
             GUILayout.Label("Copyright \u00A9 2025 Fink Framework",
                 FFEditorStyles.Footer, GUILayout.ExpandWidth(true));
 
