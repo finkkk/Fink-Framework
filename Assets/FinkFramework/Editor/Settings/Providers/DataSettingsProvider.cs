@@ -68,7 +68,7 @@ namespace FinkFramework.Editor.Settings.Providers
             if (asset.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
             {
                 EditorGUILayout.LabelField(
-                    "当前模式：运行时使用 加密二进制 数据作为数据源。\n" +
+                    "当前模式：运行时使用 二进制 数据作为数据源。\n" +
                     "同时会额外导出 JSON 文件用于调试（仅外部存储）。",
                     FFEditorStyles.Description);
             }

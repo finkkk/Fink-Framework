@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
@@ -9,7 +10,7 @@ using UnityEngine;
 namespace FinkFramework.Runtime.Data
 {
     /// <summary>
-    /// 文件工具类（基于 Odin + AES）
+    /// 文件工具类
     /// ------------------------------------------------------------
     /// - LoadDefault：只读默认数据（配置、模板等），随安装包发布；
     /// - LoadLocal：  可读可写（存档、设置等），玩家持久化数据；
@@ -26,21 +27,17 @@ namespace FinkFramework.Runtime.Data
         {
             try
             {
+                // 自动查找路径
                 if (string.IsNullOrEmpty(relativePath))
                     relativePath = FindRelativePath<T>();
-
-                if (string.IsNullOrEmpty(relativePath))
-                    return default;
-                
-                relativePath = EnsureDataPrefix(relativePath);
-                string fullPath = BuildFullPath(Application.streamingAssetsPath, relativePath,true);
-                
+                // 拼接完整 StreamingAssets 路径（自动选择 .json / .fink）
+                string fullPath = BuildFullPath(Application.streamingAssetsPath, relativePath, true);
                 if (!File.Exists(fullPath))
                 {
                     LogUtil.Warn("FilesUtil", $"默认数据文件不存在：{fullPath}");
                     return default;
                 }
-
+                // 读取（DataUtil 会根据扩展名自动选择 JSON 或 Binary 序列化方式）
                 T data = DataUtil.Load<T>(fullPath);
                 return data;
             }
@@ -59,13 +56,15 @@ namespace FinkFramework.Runtime.Data
         {
             try
             {
+                // 自动查找
                 if (string.IsNullOrEmpty(relativePath))
                     relativePath = FindRelativePath<T>(); // 优先查 PersistentDataPath
 
                 if (string.IsNullOrEmpty(relativePath))
                     return default;
-                relativePath = EnsureDataPrefix(relativePath);
+                // 如果本地不存在 → 自动复制默认文件（根据 JSON/Binary 模式）
                 EnsureLocalFileExists(relativePath);
+                // 拼接 PersistentDataPath 完整路径（自动补 .json 或 .fink 后缀）
                 string fullPath = BuildFullPath(Application.persistentDataPath, relativePath,true);
 
                 if (!File.Exists(fullPath))
@@ -73,7 +72,7 @@ namespace FinkFramework.Runtime.Data
                     LogUtil.Warn("FilesUtil", $"本地数据文件不存在：{fullPath}");
                     return default;
                 }
-
+                // 自动根据扩展名加载 JSON 或 Binary
                 T data = DataUtil.Load<T>(fullPath);
                 return data;
             }
@@ -92,6 +91,7 @@ namespace FinkFramework.Runtime.Data
         {
             try
             {
+                // 自动匹配类型对应路径
                 if (string.IsNullOrEmpty(relativePath))
                     relativePath = FindRelativePath<T>();
 
@@ -100,11 +100,13 @@ namespace FinkFramework.Runtime.Data
                     LogUtil.Warn("FilesUtil", $"未找到类型 {typeof(T).Name} 对应的文件路径，保存失败。");
                     return;
                 }
-                relativePath = EnsureDataPrefix(relativePath);
+                // 构造最终保存路径（根据数据源模式自动附加 .json / .fink）
                 string fullPath = BuildFullPath(Application.persistentDataPath, relativePath,true);
+                // 创建目录
                 EnsureDirectory(Path.GetDirectoryName(fullPath));
+                // 保存数据（DataUtil.Save 内部根据扩展名选择 JSON 或 Binary）
                 DataUtil.Save(fullPath, data);
-                LogUtil.Success("FilesUtil", $"已保存本地数据：{relativePath}");
+                LogUtil.Success("FilesUtil", $"已保存本地数据（模式：{GlobalSettings.Current.CurrentDataLoadMode}）：{relativePath}");
             }
             catch (Exception ex)
             {
@@ -136,24 +138,6 @@ namespace FinkFramework.Runtime.Data
         }
         
         /// <summary>
-        /// 确保路径以 "Data/" 为开头；
-        /// 若未包含该前缀，则自动补全。
-        /// </summary>
-        private static string EnsureDataPrefix(string relativePath)
-        {
-            if (string.IsNullOrWhiteSpace(relativePath))
-                return "Data/Unknown";
-
-            // 标准化路径符号
-            relativePath = NormalizePath(relativePath).TrimStart('/');
-    
-            // 自动补全
-            return relativePath.StartsWith("data/", StringComparison.OrdinalIgnoreCase)
-                ? relativePath
-                : "Data/" + relativePath;
-        }
-        
-        /// <summary>
         /// 拼接创建完整路径（包括自定义后缀名）
         /// </summary>
         /// <param name="basePath">基础路径</param>
@@ -164,7 +148,9 @@ namespace FinkFramework.Runtime.Data
         {
             string normalized = NormalizePath(relativePath);
             string withoutExt = Path.ChangeExtension(normalized, null);
-            return NormalizePath(Path.Combine(basePath, isAddExtension ? (NormalizePath(withoutExt) + GlobalSettings.Current.EncryptedExtension) : NormalizePath(withoutExt)));
+            // 根据当前数据源模式返回扩展名
+            string ext = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json ? ".json" : GlobalSettings.Current.EncryptedExtension;
+            return NormalizePath(Path.Combine(basePath, isAddExtension ? NormalizePath(withoutExt) + ext : NormalizePath(withoutExt)));
         }
 
         /// <summary>
@@ -212,10 +198,11 @@ namespace FinkFramework.Runtime.Data
         /// 根据类型自动匹配相对路径（不带扩展名）
         /// </summary>
         /// <typeparam name="T">目标数据类型，如 PlayerDataContainer</typeparam>
-        /// <returns>返回相对路径（如 Player/PlayerData），找不到返回 null</returns>
+        /// <returns>返回相对路径（如 Data/Player/PlayerData），找不到返回 null</returns>
         public static string FindRelativePath<T>()
         {
             Type type = typeof(T);
+            // 缓存命中
             if (cache.TryGetValue(type, out string cached))
                 return cached;
 
@@ -223,29 +210,38 @@ namespace FinkFramework.Runtime.Data
             string searchName = className.EndsWith("Container")
                 ? className[..^9]
                 : className;
-
-            // 搜索根目录（persistentDataPath）
-            string defaultRoot = Path.Combine(Application.streamingAssetsPath, "Data");
-            string searchRoot = NormalizePath(defaultRoot);
+            
+            // 根据数据源模式决定扩展名
+            string ext = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
+                ? ".json"
+                : GlobalSettings.Current.EncryptedExtension;
+            
+            // 根据模式决定搜索根目录
+            // Binary → StreamingAssets/DataBinary/
+            // JSON → StreamingAssets/DataJson/
+            string folder = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
+                ? "FinkFramework_Data/DataJson"
+                : "FinkFramework_Data/DataBinary";
+            string searchRoot = NormalizePath(Path.Combine(Application.streamingAssetsPath, folder));
             if (!Directory.Exists(searchRoot))
             {
                 LogUtil.Warn($"搜索目录不存在：{searchRoot}");
                 return null;
             }
+            // 搜索所有符合扩展名的文件
+            var files = Directory.GetFiles(searchRoot, "*" + ext, SearchOption.AllDirectories);
 
-            // 搜索所有 加密后缀 文件
-            var files = Directory.GetFiles(searchRoot, "*" + GlobalSettings.Current.EncryptedExtension, SearchOption.AllDirectories);
             var match = files.FirstOrDefault(f =>
                 Path.GetFileNameWithoutExtension(f)
                     .Equals(searchName, StringComparison.OrdinalIgnoreCase));
 
             if (match == null)
             {
-                LogUtil.Warn($"未找到与类型 {className} 匹配的文件。");
+                LogUtil.Warn($"未找到与类型 {className} 匹配的文件（扩展名：{ext}）。");
                 return null;
             }
 
-            // ----------- 以 streamingAssetsPath 为锚点截取 -----------
+            // ----------- 计算相对路径（以 StreamingAssets 为锚点） -----------
             string normalized = NormalizePath(match);
             string root = NormalizePath(Application.streamingAssetsPath);
 
@@ -255,13 +251,15 @@ namespace FinkFramework.Runtime.Data
                 return null;
             }
 
-            // 去掉 StreamingAssets/ 前缀
+            // 去掉 StreamingAssets/
             string relativeToStreaming = normalized[(root.Length + 1)..];
 
             // 再去掉扩展名
             string relNoExt = Path.ChangeExtension(relativeToStreaming, null);
 
+            // 缓存
             cache[type] = relNoExt;
+            
             LogUtil.Info($"[{className}] 匹配到文件：{relNoExt}");
             return relNoExt;
         }

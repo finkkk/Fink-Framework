@@ -5,9 +5,10 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using FinkFramework.Odin.OdinSerializer;
+using FinkFramework.Runtime.Data.JsonConverter;
 using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
-
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace FinkFramework.Runtime.Data
@@ -25,7 +26,16 @@ namespace FinkFramework.Runtime.Data
         /// </summary>
         public static void Save<T>(string path, T data)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty); 
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
+
+            string ext = Path.GetExtension(path).ToLower();
+
+            if (ext == ".json")
+            {
+                SaveJson(path, data);
+                return;
+            }
+
             if (GlobalSettings.Current.EnableEncryption)
                 SaveEncrypted(path, data);
             else
@@ -79,10 +89,15 @@ namespace FinkFramework.Runtime.Data
         /// </summary>
         public static T Load<T>(string path)
         {
+            string ext = Path.GetExtension(path).ToLower();
+
+            if (ext == ".json")
+                return LoadJson<T>(path);
+
             if (GlobalSettings.Current.EnableEncryption)
                 return LoadEncrypted<T>(path);
-            else
-                return LoadPlain<T>(path);
+
+            return LoadPlain<T>(path);
         }
 
         /// <summary>
@@ -128,7 +143,73 @@ namespace FinkFramework.Runtime.Data
                 return default;
             }
         }
+    
+        #endregion
+
+        #region Json相关
+                
+        public static void SaveJson<T>(string path, T data)
+        {
+            try
+            {
+                var settings = GetJsonSettings();
+                string json = JsonConvert.SerializeObject(data, settings);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
+                File.WriteAllText(path, json);
+
+                LogUtil.Success("DataUtil", $"JSON 保存成功：{path}");
+            }
+            catch (Exception ex)
+            {
+                LogUtil.Error("DataUtil", $"保存 JSON 失败: {path} → {ex.Message}");
+            }
+        }
         
+        public static T LoadJson<T>(string path)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    LogUtil.Warn("DataUtil", $"JSON 文件不存在：{path}");
+                    return default;
+                }
+
+                string json = File.ReadAllText(path);
+                var settings = GetJsonSettings();
+
+                return JsonConvert.DeserializeObject<T>(json, settings);
+            }
+            catch (Exception ex)
+            {
+                LogUtil.Error("DataUtil", $"加载 JSON 失败: {path} → {ex.Message}");
+                return default;
+            }
+        }
+
+        private static JsonSerializerSettings GetJsonSettings()
+        {
+            var settings = new JsonSerializerSettings
+            {
+                Formatting = Formatting.Indented,
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+            };
+
+            // 注册所有 Unity 类型转换器（与你导出时完全一致）
+            settings.Converters.Add(new Vector2Converter());
+            settings.Converters.Add(new Vector3Converter());
+            settings.Converters.Add(new Vector4Converter());
+            settings.Converters.Add(new QuaternionConverter());
+            settings.Converters.Add(new ColorConverter());
+            settings.Converters.Add(new Matrix4x4Converter());
+            settings.Converters.Add(new BoundsConverter());
+            settings.Converters.Add(new RectConverter());
+            settings.Converters.Add(new RectOffsetConverter());
+
+            return settings;
+        }
+
         #endregion
 
         #region AES加密解密
