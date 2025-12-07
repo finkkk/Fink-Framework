@@ -16,8 +16,19 @@ namespace FinkFramework.Editor.Windows.Common
                 {
                     fontSize = 22,
                     alignment = TextAnchor.MiddleCenter,
-                    normal = {textColor = EditorGUIUtility.isProSkin ? Color.white : Color.black}
+                    normal =
+                    {
+                        textColor = new Color(0.85f,0.85f,0.85f )
+                    }
                 };
+                // ======== 取消 hover / active / focused 效果 =========
+                style.hover.textColor   = style.normal.textColor;
+                style.active.textColor  = style.normal.textColor;
+                style.focused.textColor = style.normal.textColor;
+
+                style.hover.background   = null;
+                style.active.background  = null;
+                style.focused.background = null;
                 return style;
             }
         }
@@ -46,7 +57,7 @@ namespace FinkFramework.Editor.Windows.Common
             {
                 var style = new GUIStyle(EditorStyles.label)
                 {
-                    fontSize = 13,
+                    fontSize = 11,
                     richText = true,
                     wordWrap = true,
                     normal =

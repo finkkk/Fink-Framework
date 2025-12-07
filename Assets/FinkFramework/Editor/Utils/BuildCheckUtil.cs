@@ -1,5 +1,5 @@
 ﻿using System.IO;
-using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEditor.Build;
@@ -14,7 +14,7 @@ namespace FinkFramework.Editor.Utils
         public void OnPreprocessBuild(BuildReport report)
         {
             // 读取配置文件
-            if (!EnvironmentState.EnableEditorUrlCheck)
+            if (!GlobalSettings.Current.EnableEditorUrlCheck)
             {
                 LogUtil.Info("EditorUrlCheck 已关闭，跳过 editor:// 扫描。");
                 return;

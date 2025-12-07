@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using OdinSerializer;
 using UnityEngine;
@@ -12,44 +12,100 @@ using UnityEngine;
 namespace FinkFramework.Runtime.Data
 {
     /// <summary>
-    /// 使用 OdinSerializer 的通用数据存取工具（默认 AES 加密，可选关闭）
+    /// 使用 OdinSerializer 的通用数据存取工具（默认 AES 加密，可前往全局设置中关闭加密）
     /// 提供 Serialize / Deserialize / Encrypt / Decrypt。
     /// </summary>
     public static class DataUtil
     {
-        private const DataFormat Format = DataFormat.Binary;
-        // AES加密 盐值与密码
-        private static readonly string Password = EnvironmentState.PASSWORD;
-        private static readonly byte[] Salt = Encoding.UTF8.GetBytes("Fink_AES_Salt");
-
-        #region 数据存储与读取
+        #region 数据存储
+        
         /// <summary>
-        /// 保存对象为二进制文件（默认 AES 加密，可手动关闭）
+        /// 保存对象为二进制文件（基于全局设置的加密选项自动判断是否加密）
         /// </summary>
-        public static void Save<T>(string path, T data, bool encrypt = true)
+        public static void Save<T>(string path, T data)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty); 
+            if (GlobalSettings.Current.EnableEncryption)
+                SaveEncrypted(path, data);
+            else
+                SavePlain(path, data);
+        }
+
+        /// <summary>
+        /// 不加密 明文保存数据为二进制文件
+        /// </summary>
+        public static void SavePlain<T>(string path, T data)
         {
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
+                byte[] bytes = SerializationUtility.SerializeValue(data, DataFormat.Binary);
+                File.WriteAllBytes(path, bytes);
+            }
+            catch (Exception ex)
+            {
+                LogUtil.Error("DataUtil", $"保存明文失败: {path} → {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// AES 加密保存数据为二进制文件
+        /// </summary>
+        public static void SaveEncrypted<T>(string path, T data)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
                 // 1. 序列化对象为二进制
-                byte[] bytes = SerializationUtility.SerializeValue(data, Format);
-
-                // 2. 可选加密
-                if (encrypt)
-                    bytes = AESEncrypt(bytes, Password);
-
+                byte[] bytes = SerializationUtility.SerializeValue(data, DataFormat.Binary);
+                // 2. AES加密
+                bytes = AESEncrypt(bytes, GlobalSettings.Current.Password);
                 // 3. 写入文件
                 File.WriteAllBytes(path, bytes);
             }
             catch (Exception ex)
             {
-                LogUtil.Error("DataUtil", $"保存失败: {path} → {ex.Message}");
+                LogUtil.Error("DataUtil", $"保存加密数据失败: {path} → {ex.Message}");
             }
         }
 
+        #endregion
+
+        #region 数据加载
+        
         /// <summary>
-        /// 从文件加载对象（默认 AES 解密，可手动关闭）
+        /// 从文件加载对象（基于全局设置的加密选项自动判断是否加密）
         /// </summary>
-        public static T Load<T>(string path, bool decrypt = true)
+        public static T Load<T>(string path)
+        {
+            if (GlobalSettings.Current.EnableEncryption)
+                return LoadEncrypted<T>(path);
+            else
+                return LoadPlain<T>(path);
+        }
+
+        /// <summary>
+        /// 不加密 明文从文件加载对象
+        /// </summary>
+        public static T LoadPlain<T>(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return default;
+                byte[] bytes = File.ReadAllBytes(path);
+                return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary);
+            }
+            catch (Exception ex)
+            {
+                LogUtil.Error("DataUtil", $"加载明文失败: {path} → {ex.Message}");
+                return default;
+            }
+        }
+        
+        /// <summary>
+        /// AES 解密从文件加载对象
+        /// </summary>
+        public static T LoadEncrypted<T>(string path)
         {
             try
             {
@@ -58,26 +114,27 @@ namespace FinkFramework.Runtime.Data
                     LogUtil.Warn("DataUtil", $"文件不存在: {path}");
                     return default;
                 }
-
                 // 1. 读取文件
                 byte[] bytes = File.ReadAllBytes(path);
-
-                // 2. 可选解密
-                if (decrypt)
-                    bytes = AESDecrypt(bytes, Password);
-
+                // 2. AES解密
+                bytes = AESDecrypt(bytes, GlobalSettings.Current.Password);
                 // 3. 反序列化为对象
-                return SerializationUtility.DeserializeValue<T>(bytes, Format);
+                return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary);
             }
             catch (Exception ex)
             {
-                LogUtil.Error("DataUtil", $"加载失败: {path} → {ex.Message}");
+                LogUtil.Error("DataUtil", $"加载加密数据失败: {path} → {ex.Message}");
                 return default;
             }
         }
+        
         #endregion
 
         #region AES加密解密
+        
+        // AES加密 盐值
+        // AES加密 盐值
+        private static readonly byte[] Salt = Encoding.UTF8.GetBytes("Fink_AES_Salt");
         /// <summary>
         /// AES加密
         /// </summary>
@@ -111,6 +168,7 @@ namespace FinkFramework.Runtime.Data
                 cs.Write(data, 0, data.Length);
             return ms.ToArray();
         }
+        
         #endregion
         
         #region 类型映射与查找

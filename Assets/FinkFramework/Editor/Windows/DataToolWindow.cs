@@ -29,20 +29,20 @@ namespace FinkFramework.Editor.Windows
             // ===== 主功能区 =====
             DrawSection("主功能", () =>
             {
-                if (GUILayout.Button("一键处理全部数据（清空 → 生成 → 加密）", FFEditorStyles.BigButton))
+                if (GUILayout.Button("一键处理全部数据", FFEditorStyles.BigButton))
                     LogAndRun("一键处理全部数据", DataHandleTool.HandleAllData);
 
                 GUILayout.Space(8);
 
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("清空加密数据"))
-                    LogAndRun("清空加密数据", DataExportTool.ClearEncryptData);
+                if (GUILayout.Button("清空加密数据",GUILayout.Height(26)))
+                    LogAndRun("清空加密数据", DataExportTool.ClearExportedData);
 
-                if (GUILayout.Button("仅生成数据文件"))
+                if (GUILayout.Button("仅生成数据文件",GUILayout.Height(26)))
                     LogAndRun("仅生成数据文件", () => DataGenTool.GenerateAllData());
 
-                if (GUILayout.Button("仅解析导出数据"))
-                    LogAndRun("仅解析导出数据", () => DataExportTool.EncryptAllData());
+                if (GUILayout.Button("仅解析导出数据",GUILayout.Height(26)))
+                    LogAndRun("仅解析导出数据", () => DataExportTool.ExportAllData());
                 GUILayout.EndHorizontal();
             });
 
@@ -51,7 +51,7 @@ namespace FinkFramework.Editor.Windows
             // ===== QA 区 =====
             DrawSection("QA 验证", () =>
             {
-                if (GUILayout.Button("验证所有表格 (QA 模式)", GUILayout.Height(28)))
+                if (GUILayout.Button("验证所有表格", FFEditorStyles.BigButton))
                     DataQATool.ValidateAllData();
             });
 

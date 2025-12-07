@@ -17,5 +17,8 @@ MonoBehaviour:
   ForceDisableURP: 0
   EnableEditorUrlCheck: 1
   CurrentUIMode: 2
+  CurrentDataLoadMode: 0
+  CSharpUseExternal: 0
+  EnableEncryption: 1
   Password: finkkk
   EncryptedExtension: .fink

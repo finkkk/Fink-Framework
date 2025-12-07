@@ -2,8 +2,8 @@
 using System.IO;
 using System.Linq;
 using ExcelDataReader;
+using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Utils;
-using UnityEngine;
 
 namespace FinkFramework.Editor.DataTools
 {
@@ -34,7 +34,7 @@ namespace FinkFramework.Editor.DataTools
         /// </summary>
         public static void ValidateAllData()
         {
-            string sourceRoot = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "DataTables");
+            string sourceRoot = DataPipelinePath.ExcelRoot;
             if (!Directory.Exists(sourceRoot))
             {
                 LogUtil.Error("DataQATool", $"源目录不存在: {sourceRoot}");

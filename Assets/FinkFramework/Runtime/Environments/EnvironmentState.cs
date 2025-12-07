@@ -1,4 +1,6 @@
 ﻿// ReSharper disable ConvertToConstant.Global
+using FinkFramework.Runtime.Settings;
+
 #pragma warning disable CS0162 // 检测到不可到达的代码
 namespace FinkFramework.Runtime.Environments
 {
@@ -6,7 +8,7 @@ namespace FinkFramework.Runtime.Environments
         /// 全局框架环境状态 FrameworkEnvironment
         /// ------------------------------------------------------------
         /// 该类用于存储框架在运行时的环境状态（Environment State）。
-        /// 包括：宏定义检测环境信息、全局设置提供可配置字段和枚举、自动计算最终环境状态等。
+        /// 包括：宏定义检测环境信息、自动计算最终环境状态等。
         /// 该类为 Runtime-only，不会进入构建之外的 Asset 系统。
         /// 用户不会直接修改此类，而是通过 ScriptableObject（GlobalSettingsAsset）
         /// 由编辑器在初始化时注入运行时值。
@@ -20,52 +22,6 @@ namespace FinkFramework.Runtime.Environments
         /// 框架版本号
         /// </summary>
         public const string FrameworkVersion = "0.2.0";
-
-        #endregion
-        
-        #region 全局设置-可配置字段定义
-        
-        /// <summary>
-        /// 是否强制关闭 XR。（由设置面板注入）
-        /// 若为 true，则即使已安装 XRI 也会禁用 XR 相关系统若为 false，则按自动检测结果处理
-        /// </summary>
-        public static bool ForceDisableXR { get; internal set; }
-
-        /// <summary>
-        /// 是否强制关闭新输入系统。（由设置面板注入）
-        /// 若为 true，则即使安装了 InputSystem 也用旧输入系统若为 false，则按自动检测结果处理
-        /// </summary>
-        public static bool ForceDisableNewInputSystem { get; internal set; }
-
-        /// <summary>
-        /// 是否强制关闭 URP。（由设置面板注入）
-        /// 如果为 true，即使项目使用 URP 也按非 URP 处理。
-        /// </summary>
-        public static bool ForceDisableURP { get; internal set; }
-        
-        /// <summary>
-        /// 是否启用 编辑器加载 打包检测。（由设置面板注入）
-        /// 若为 true，则在构建前扫描 C# 脚本，若存在 editor:// 路径，将阻止打包。
-        /// </summary>
-        public static bool EnableEditorUrlCheck { get; internal set; }
-
-        /// <summary>
-        /// 当前 UI 渲染模式。（由设置面板注入）
-        /// 默认使用 ScreenSpace-Camera。如果项目为 VR，请务必使用 WorldSpace 模式。
-        /// </summary>
-        public static UIMode CurrentUIMode { get; internal set; } = UIMode.Auto;
-
-        /// <summary>
-        /// 框架生成的加密数据文件的后缀名。（由设置面板注入）
-        /// 用于存档、配置文件、数据表等加密存储。
-        /// </summary>
-        public static string ENCRYPTED_FILE_EXTENSION { get; internal set; } = ".fink";
-
-        /// <summary>
-        /// AES 加密使用的密钥。（由设置面板注入）
-        /// 注意：请务必根据项目需求自行修改。不建议在正式线上版本中使用简单字符串，建议将密钥外部化或混淆处理。
-        /// </summary>
-        public static string PASSWORD { get; internal set; } = "finkkk";
 
         #endregion
 
@@ -131,25 +87,39 @@ namespace FinkFramework.Runtime.Environments
             /// </summary>
             Auto            
         }
+        
+        /// <summary>
+        /// 数据管线 运行时读取的数据源模式
+        /// </summary>
+        public enum DataLoadMode
+        {
+            Binary,     // 默认模式：运行时加载二进制加密数据（安全、轻量、生产环境使用）
+            Json        // 调试模式：运行时直接读取 JSON（不需要生成或使用 Binary）
+        }
 
         #endregion 
         
         #region 最终状态-自动计算最终环境状态
         
         /// <summary>
+        /// 全局配置 SO 缓存
+        /// </summary>
+        private static GlobalSettingsAsset GS => GlobalSettings.Current;
+        
+        /// <summary>
         /// 最终 VR 模式 = 自动检测 XR 是否存在 且 未被强制关闭
         /// </summary>
-        public static bool FinalIsVR => AutoXR && !ForceDisableXR;
+        public static bool FinalIsVR => AutoXR && !GS.ForceDisableXR;
         
         /// <summary>
         /// 最终输入系统 = 自动检测结果 且 未被强制关闭
         /// </summary>
-        public static bool FinalUseNewInputSystem => AutoNewInputSystem && !ForceDisableNewInputSystem;
+        public static bool FinalUseNewInputSystem => AutoNewInputSystem && !GS.ForceDisableNewInputSystem;
         
         /// <summary>
         /// 最终 URP 判定（优先级：ForceDisableURP > AutoURP）
         /// </summary>
-        public static bool FinalUseURP => AutoURP && !ForceDisableURP;
+        public static bool FinalUseURP => AutoURP && !GS.ForceDisableURP;
 
         #endregion
     }

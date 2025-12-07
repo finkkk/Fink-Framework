@@ -811,7 +811,6 @@ namespace FinkFramework.Editor.DataTools
         public static void ClearTypeCache()
         {
             TypeCache.Clear();
-            LogUtil.Info("DataParseTool", "已清空类型查找缓存。");
         }
         #endregion
 

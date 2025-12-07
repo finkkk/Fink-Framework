@@ -1,4 +1,5 @@
 using System;
+using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -6,7 +7,7 @@ using UnityEngine;
 namespace FinkFramework.Editor.DataTools
 {
     /// <summary>
-    /// 数据全流程处理工具（清空 → 生成类 → 编译 → 加密 → 汇总打印）
+    /// 数据全流程处理工具（清空 → 生成类 → 等待编译(可选) → 导出 → 汇总打印）
     /// </summary>
     public static class DataHandleTool
     {
@@ -17,46 +18,59 @@ namespace FinkFramework.Editor.DataTools
         [Serializable]
         private class HandleState
         {
-            public int genSuccess, genTotal, saveSuccess, saveTotal;
+            public int genSuccess, genTotal;
+            public int saveSuccess, saveTotal;
         }
 
         private enum Stage
         {
             None = 0,
             Cleared = 1,
-            Generated = 2,
-            PendingEncrypt = 3,
-            Encrypted = 4,
+            Generated = 2,     // 仅内部输出使用
+            PendingCompile = 3,// 仅内部输出使用
+            Exported = 4,
         }
 
         // ========== 一键处理数据 主函数 ==========
         public static void HandleAllData()
         {
-            // 清空加密数据
-            DataExportTool.ClearEncryptData();
+            // 清空导出数据
+            DataExportTool.ClearExportedData();
             EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Cleared);
 
             // 生成数据类
             var (genSuccess, genTotal) = DataGenTool.GenerateAllData(true);
 
-            // 保存生成结果
-            var state = new HandleState { genSuccess = genSuccess, genTotal = genTotal };
-            EditorPrefs.SetString(KEY_GEN_RESULT, JsonUtility.ToJson(state));
-            EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Generated);
-
-            // 检查是否触发编译
-            if (EditorApplication.isCompiling)
+            // 判断是否需要等待编译
+            bool needWaitCompile = !GlobalSettings.Current.CSharpUseExternal;
+            
+            if (needWaitCompile)
             {
-                EditorPrefs.SetInt(KEY_STAGE, (int)Stage.PendingEncrypt);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
-                return;
+                // 内部路径 → 会触发编译 → 必须记录中间状态
+                var genState = new HandleState { genSuccess = genSuccess, genTotal = genTotal };
+                EditorPrefs.SetString(KEY_GEN_RESULT, JsonUtility.ToJson(genState));
+                EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Generated);
+                // 内部输出 -> 会触发编译，需等待
+                if (EditorApplication.isCompiling)
+                {
+                    EditorPrefs.SetInt(KEY_STAGE, (int)Stage.PendingCompile);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+                    return;
+                }
+
+                // 没有触发编译 → 直接导出
+                DoExport(genState);
             }
-            // 若未触发编译，直接执行加密
-            DoEncrypt();
+            else
+            {
+                // 外部路径 → 不会触发编译 → 不需要记录任何 EditorPrefs
+                var genState = new HandleState { genSuccess = genSuccess, genTotal = genTotal };
+                DoExport(genState);
+            }
         }
 
-        // ========== 编译完成后自动恢复 ==========
+        // ========== 编辑器 reload 时恢复流程 ==========
         [InitializeOnLoadMethod]
         private static void OnEditorReload()
         {
@@ -66,29 +80,26 @@ namespace FinkFramework.Editor.DataTools
 
             switch (stage)
             {
-                case Stage.PendingEncrypt:
-                    DoEncrypt();
+                case Stage.PendingCompile:
+                {
+                    var genState = JsonUtility.FromJson<HandleState>(EditorPrefs.GetString(KEY_GEN_RESULT, "{}"));
+                    DoExport(genState);
                     break;
-
-                case Stage.Encrypted:
-                    PrintFinalLog();
-                    break;
+                }
                 case Stage.None:
                 case Stage.Cleared:
                 case Stage.Generated:
+                case Stage.Exported:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
 
-        // ========== 执行加密 ==========
-        private static void DoEncrypt()
+        // ========== 执行数据导出 ==========
+        private static void DoExport(HandleState genState)
         {
-            var genState = JsonUtility.FromJson<HandleState>(
-                EditorPrefs.GetString(KEY_GEN_RESULT, "{}"));
-
-            var (saveSuccess, saveTotal) = DataExportTool.EncryptAllData(true);
+            var (saveSuccess, saveTotal) = DataExportTool.ExportAllData(true);
 
             var state = new HandleState
             {
@@ -99,7 +110,7 @@ namespace FinkFramework.Editor.DataTools
             };
 
             EditorPrefs.SetString(KEY_STATE, JsonUtility.ToJson(state));
-            EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Encrypted);
+            EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Exported);
 
             // 立即触发最终打印
             PrintFinalLog();
@@ -115,7 +126,7 @@ namespace FinkFramework.Editor.DataTools
             EditorPrefs.DeleteKey(KEY_STAGE);
             EditorPrefs.DeleteKey(KEY_GEN_RESULT);
 
-            LogUtil.Success("DataEncryptTool", "加密数据清空完成！");
+            LogUtil.Success("DataExportTool", "导出数据清空完成！");
             bool result = true;
 
             if (state.genSuccess != state.genTotal)
@@ -129,10 +140,10 @@ namespace FinkFramework.Editor.DataTools
             if (state.saveSuccess != state.saveTotal)
             {
                 result = false;
-                LogUtil.Error("DataEncryptTool", $"部分数据解析失败！状态: {state.saveSuccess}/{state.saveTotal}");
+                LogUtil.Error("DataExportTool", $"部分数据解析失败！状态: {state.saveSuccess}/{state.saveTotal}");
             }
             else
-                LogUtil.Success("DataEncryptTool", $"数据加密存储完成！状态: {state.saveSuccess}/{state.saveTotal}");
+                LogUtil.Success("DataExportTool", $"数据导出存储完成！状态: {state.saveSuccess}/{state.saveTotal}");
 
             if (result)
                 LogUtil.Success("DataHandleTool", "全部数据处理完成！");

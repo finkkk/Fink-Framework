@@ -1,56 +1,85 @@
 ﻿using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Utils;
 using UnityEngine;
 
-namespace FinkFramework.Editor.Settings.Global
+namespace FinkFramework.Runtime.Settings
 {
-    [CreateAssetMenu(fileName = "GlobalSettingsAsset", menuName = "FinkFramework/Settings/GlobalSettings", order = 0)]
+    /// <summary>
+    /// 全局配置 SO 文件（唯一存在）
+    /// </summary>
     public class GlobalSettingsAsset : ScriptableObject
     {
+        #region ===== 环境配置 =====
         [Header("是否强制关闭 XR")]
         [Tooltip("是否强制关闭 XR（比自动检测优先级更高）。若为 true，则即使已安装 XRI 也会禁用 XR 相关系统。若为 false，则按自动检测结果处理。")]
         public bool ForceDisableXR = false;
+        
         [Header("是否强制关闭 新输入系统")]
         [Tooltip("是否强制关闭 新输入系统（比自动检测优先级更高）。若为 true，则即使已安装 Input System 也会禁用 Input System 相关系统。若为 false，则按自动检测结果处理。")]
         public bool ForceDisableNewInputSystem = false;
+        
         [Header("是否强制关闭 URP")]
         [Tooltip("是否强制关闭 URP（比自动检测优先级更高）。若为 true，则即使已安装 URP 也会禁用 URP 相关系统。若为 false，则按自动检测结果处理。")]
         public bool ForceDisableURP = false;
+        
         [Header("是否启用 编辑器加载 打包检测")]
         [Tooltip("若为 true，则在构建前扫描 C# 脚本，若存在 editor:// 路径，将阻止打包。")]
         public bool EnableEditorUrlCheck = true;
+        
+        #endregion
+        
+        #region ===== UI配置 =====
+        
         [Header("当前 UI 渲染模式")]
         [Tooltip("当前 UI 渲染模式。默认使用 ScreenSpace-Camera。如果项目为 VR，请务必使用 WorldSpace 模式。")]
         public EnvironmentState.UIMode CurrentUIMode = EnvironmentState.UIMode.Auto;
+        
+        #endregion
+        
+        #region ===== 数据配置 =====
+        
+        [Header("运行时数据加载模式")]
+        [Tooltip("Binary：使用加密二进制作为运行时数据源(Json依然导出)  Json：只使用 JSON 作为运行时数据源(二进制不导出)")]
+        public EnvironmentState.DataLoadMode CurrentDataLoadMode = EnvironmentState.DataLoadMode.Binary;
+
+        [Header("C# 数据类路径模式")]
+        [Tooltip("若为 false → C# 类生成在 Assets 内部；若为 true → 生成在 FinkFramework_Data 根目录")]
+        public bool CSharpUseExternal = false;
+
+        #endregion
+        
+        #region ===== 加密配置 =====
+
+        [Header("是否全局开启加密")]
+        [Tooltip("true：所有数据文件都加密 false：所有数据文件都不加密")]
+        public bool EnableEncryption = true;
+        
         [Header("AES 加密使用的密钥")]
         [Tooltip("AES 加密使用的密钥（请务必根据项目需求自行修改）。注意：不建议在正式线上版本中使用简单字符串，建议将密钥外部化或混淆处理。")]
         public string Password = "finkkk";
+        
         [Header("框架生成的加密数据文件的后缀名")]
         [Tooltip("框架生成的加密数据文件的后缀名。用于存档、配置文件、数据表等加密存储。")]
         public string EncryptedExtension = ".fink";
         
-        /// <summary>
-        /// 将 ScriptableObject 中的数据同步到运行时 EnvironmentState
-        /// </summary>
-        public void ApplyToRuntime()
-        {
-            EnvironmentState.ForceDisableXR = ForceDisableXR;
-            EnvironmentState.ForceDisableNewInputSystem = ForceDisableNewInputSystem;
-            EnvironmentState.ForceDisableURP = ForceDisableURP;
-
-            EnvironmentState.EnableEditorUrlCheck = EnableEditorUrlCheck;
-            
-            EnvironmentState.CurrentUIMode = CurrentUIMode;
-
-            EnvironmentState.PASSWORD = Password;
-            EnvironmentState.ENCRYPTED_FILE_EXTENSION = EncryptedExtension;
-        }
-
+        #endregion
+        
         /// <summary>
         /// 当用户在 Inspector 修改字段时自动同步到运行时
         /// </summary>
+#if UNITY_EDITOR
         private void OnValidate()
         {
-            ApplyToRuntime();
+            // 检查是否存在多个实例
+            string[] guids = UnityEditor.AssetDatabase.FindAssets("t:GlobalSettingsAsset");
+
+            if (guids.Length > 1)
+            {
+                LogUtil.Error("FinkFramework","检测到多个 GlobalSettingsAsset，框架只允许存在一个全局设置的 SO 文件！");
+
+                // 高级：可以自动删除重复的，但为了安全不建议立即删除
+            }
         }
+#endif
     }
 }

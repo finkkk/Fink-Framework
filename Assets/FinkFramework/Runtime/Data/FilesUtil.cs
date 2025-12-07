@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 
@@ -22,7 +22,7 @@ namespace FinkFramework.Runtime.Data
         /// 读取默认数据（只读 只从 StreamingAssets 读取）
         /// 可不传路径，会自动根据类名匹配文件。
         /// </summary>
-        public static T LoadDefaultData<T>(string relativePath = null, bool decrypt = true)
+        public static T LoadDefaultData<T>(string relativePath = null)
         {
             try
             {
@@ -41,7 +41,7 @@ namespace FinkFramework.Runtime.Data
                     return default;
                 }
 
-                T data = DataUtil.Load<T>(fullPath, decrypt);
+                T data = DataUtil.Load<T>(fullPath);
                 return data;
             }
             catch (Exception ex)
@@ -55,7 +55,7 @@ namespace FinkFramework.Runtime.Data
         /// 读取本地数据（可读可写 适合存档等）
         /// 若本地文件不存在，则从 StreamingAssets 拷贝默认文件。
         /// </summary>
-        public static T LoadLocalData<T>(string relativePath = null, bool decrypt = true)
+        public static T LoadLocalData<T>(string relativePath = null)
         {
             try
             {
@@ -74,7 +74,7 @@ namespace FinkFramework.Runtime.Data
                     return default;
                 }
 
-                T data = DataUtil.Load<T>(fullPath, decrypt);
+                T data = DataUtil.Load<T>(fullPath);
                 return data;
             }
             catch (Exception ex)
@@ -88,7 +88,7 @@ namespace FinkFramework.Runtime.Data
         /// 覆盖保存本地数据（可读可写）
         /// 可不传路径，会自动匹配类型对应文件。
         /// </summary>
-        public static void SaveLocalData<T>(T data,string relativePath = null, bool encrypt = true)
+        public static void SaveLocalData<T>(T data,string relativePath = null)
         {
             try
             {
@@ -103,7 +103,7 @@ namespace FinkFramework.Runtime.Data
                 relativePath = EnsureDataPrefix(relativePath);
                 string fullPath = BuildFullPath(Application.persistentDataPath, relativePath,true);
                 EnsureDirectory(Path.GetDirectoryName(fullPath));
-                DataUtil.Save(fullPath, data, encrypt);
+                DataUtil.Save(fullPath, data);
                 LogUtil.Success("FilesUtil", $"已保存本地数据：{relativePath}");
             }
             catch (Exception ex)
@@ -164,7 +164,7 @@ namespace FinkFramework.Runtime.Data
         {
             string normalized = NormalizePath(relativePath);
             string withoutExt = Path.ChangeExtension(normalized, null);
-            return NormalizePath(Path.Combine(basePath, isAddExtension ? (NormalizePath(withoutExt) + EnvironmentState.ENCRYPTED_FILE_EXTENSION) : NormalizePath(withoutExt)));
+            return NormalizePath(Path.Combine(basePath, isAddExtension ? (NormalizePath(withoutExt) + GlobalSettings.Current.EncryptedExtension) : NormalizePath(withoutExt)));
         }
 
         /// <summary>
@@ -234,7 +234,7 @@ namespace FinkFramework.Runtime.Data
             }
 
             // 搜索所有 加密后缀 文件
-            var files = Directory.GetFiles(searchRoot, "*" + EnvironmentState.ENCRYPTED_FILE_EXTENSION, SearchOption.AllDirectories);
+            var files = Directory.GetFiles(searchRoot, "*" + GlobalSettings.Current.EncryptedExtension, SearchOption.AllDirectories);
             var match = files.FirstOrDefault(f =>
                 Path.GetFileNameWithoutExtension(f)
                     .Equals(searchName, StringComparison.OrdinalIgnoreCase));
@@ -272,7 +272,6 @@ namespace FinkFramework.Runtime.Data
         public static void ClearCache()
         {
             cache.Clear();
-            LogUtil.Info("已清空自动路径缓存。");
         }
  
         #endregion

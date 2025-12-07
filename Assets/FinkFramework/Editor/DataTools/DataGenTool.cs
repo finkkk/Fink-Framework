@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using FinkFramework.Runtime.Data;
+using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -25,10 +26,8 @@ namespace FinkFramework.Editor.DataTools
     {
         #region 字段定义
 
-        private static readonly string SOURCE_DIR = Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "DataTables");
-        private static readonly string OUTPUT_DIR = Path.Combine(Application.dataPath, "Scripts/Data/AutoGen");
-        private static readonly string CLASS_ROOT = Path.Combine(OUTPUT_DIR, "DataClass");
-        private static readonly string JSON_ROOT  = Path.Combine(OUTPUT_DIR, "DataJson");
+        private static string SOURCE_DIR => DataPipelinePath.ExcelRoot;
+        private static string CLASS_ROOT => DataPipelinePath.CSharpRoot;
         private static readonly string[] ALLOWED_EXTS = { ".xlsx" };
         private static int totalCount;
         private static int successCount;
@@ -60,7 +59,6 @@ namespace FinkFramework.Editor.DataTools
                 LogUtil.Error("DataGenTool", $"数据源目录不存在：{SOURCE_DIR}");
                 return (0, 0);
             }
-            FilesUtil.EnsureDirectory(OUTPUT_DIR);
 
             // ---------- 搜索所有表格 ----------
             var excelFiles = Directory
@@ -83,11 +81,6 @@ namespace FinkFramework.Editor.DataTools
                 expectedClassFiles.Add($"{className}.cs");
                 expectedClassFiles.Add($"{className}Container.cs");
             }
-            
-            // 生成前仅清空一次 JSON 根目录
-            if (Directory.Exists(JSON_ROOT))
-                Directory.Delete(JSON_ROOT, true);
-            Directory.CreateDirectory(JSON_ROOT);
 
             successCount = 0;
             totalCount = excelFiles.Length;
@@ -107,7 +100,7 @@ namespace FinkFramework.Editor.DataTools
             }
 
             // ---------- 清理已失效的旧文件 ----------
-            var allFiles = Directory.GetFiles(OUTPUT_DIR, "*.cs", SearchOption.AllDirectories);
+            var allFiles = Directory.GetFiles(CLASS_ROOT, "*.cs", SearchOption.AllDirectories);
             int removedCount = 0;
             foreach (var file in allFiles)
             {
@@ -123,33 +116,30 @@ namespace FinkFramework.Editor.DataTools
 
             // ---------- 刷新资源 ----------
             AssetDatabase.Refresh();
+            
+            bool isInternalOutput = !GlobalSettings.Current.CSharpUseExternal;
 
+            
             if (!silent)
             {
-                string summary1 = $"部分数据生成失败！状态: {successCount}/{totalCount}";
-                string summary2 = $"数据文件生成完成！状态: {successCount}/{totalCount}";
-                EditorPrefs.SetString("Fink_LastGenResult", successCount != totalCount ? summary1 : summary2);
+                if (isInternalOutput)
+                {
+                    // 内部输出 → 写 EditorPrefs 用于编译后再打印
+                    string summary1 = $"部分数据生成失败！状态: {successCount}/{totalCount}";
+                    string summary2 = $"数据文件生成完成！状态: {successCount}/{totalCount}";
+                    EditorPrefs.SetString("Fink_LastGenResult", successCount != totalCount ? summary1 : summary2);
+                }
+                else
+                {
+                    // 外部输出 → 不走 EditorPrefs，直接打印
+                    if (successCount != totalCount)
+                        LogUtil.Error("DataGenTool", $"部分数据生成失败！状态: {successCount}/{totalCount}");
+                    else
+                        LogUtil.Success("DataGenTool", $"数据文件生成完成！状态: {successCount}/{totalCount}");
+                }
             }
 
             return (successCount, totalCount);
-        }
-        
-        /// <summary>
-        /// 防止因为编译导致打印代码生成完成的信息丢失
-        /// </summary>
-        [InitializeOnLoadMethod]
-        private static void DataGenToolLogger()
-        {
-            string msg = EditorPrefs.GetString("Fink_LastGenResult", "");
-            if (!string.IsNullOrEmpty(msg) && !EditorApplication.isCompiling)
-            {
-                EditorPrefs.DeleteKey("Fink_LastGenResult");
-                if (msg.Contains("失败"))
-                {
-                    LogUtil.Error("DataGenTool", msg);
-                }
-                LogUtil.Success("DataGenTool", msg);
-            }
         }
         
         #endregion
@@ -170,9 +160,6 @@ namespace FinkFramework.Editor.DataTools
 
             // STEP 3：生成容器类
             GenerateContainerClass(meta);
-
-            // STEP 4：生成 JSON 模板
-            GenerateJsonTemplate(meta);  
         }
         
         #endregion
@@ -205,11 +192,7 @@ namespace FinkFramework.Editor.DataTools
             string[] fieldDescs = header.fieldDescs;
             
             // ---------- 5. 输出到目标路径 ----------
-            string jsonOutputDir = GetJsonOutputDir(excelPath);
             string classOutputDir = GetClassOutputDir(excelPath);
-            // 确保两个输出目录都存在
-            Directory.CreateDirectory(classOutputDir);
-            Directory.CreateDirectory(jsonOutputDir);
             ExcelMeta meta = new ExcelMeta
             {
                 ExcelPath = excelPath,
@@ -270,6 +253,7 @@ namespace FinkFramework.Editor.DataTools
 
             // ---------- 输出到目标路径 ----------
             string classOutputDir = GetClassOutputDir(excelPath);
+            Directory.CreateDirectory(classOutputDir); 
             string outputPath = Path.Combine(classOutputDir, $"{className}.cs");
             File.WriteAllText(outputPath, code, Encoding.UTF8);
         }
@@ -304,6 +288,7 @@ namespace FinkFramework.Editor.DataTools
             
             // ---------- 2. 输出路径 ----------
             string classOutputDir = GetClassOutputDir(excelPath);
+            Directory.CreateDirectory(classOutputDir); 
             
             // ---------- 3. 替换模板变量 ----------
             string containerCode = templateAsset.text
@@ -318,142 +303,23 @@ namespace FinkFramework.Editor.DataTools
         }
 
         #endregion
-        
-        #region Step 4：Json 模板生成
-
-        /// <summary>
-        /// 生成对应 JSON 模板文件（用于示例）
-        /// </summary>
-        private static void GenerateJsonTemplate(ExcelMeta meta)
-        {
-            try
-            {
-                // ---------- 1. 创建 JSON 目录 ----------
-                string className   = meta.ClassName;
-                string excelPath   = meta.ExcelPath;
-                // 1. 获取目录
-                string jsonDir = GetJsonOutputDir(excelPath);
-                // 2. 建目录（不会删 root，不会相互覆盖）
-                Directory.CreateDirectory(jsonDir);
-                // 3. 生成 xxx.json（确保是文件，不是文件夹）
-                string jsonPath = Path.Combine(jsonDir, $"{className}.json");
-                
-                string[] fieldNames = meta.FieldNames;
-                string[] fieldTypes = meta.FieldTypes;
-                
-                // ---------- 2. 构造 JSON 数据 ----------
-                var jsonObj = new Dictionary<string, object>();
-                for (int i = 0; i < fieldNames.Length; i++)
-                {
-                    if (string.IsNullOrEmpty(fieldNames[i])) continue;
-                    Type? t = DataUtil.FindType(fieldTypes[i]);
-                    jsonObj[fieldNames[i]] = BuildJsonSkeleton(t);
-                }
-                var wrapper = new { items = new[] { jsonObj } };
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(wrapper, Newtonsoft.Json.Formatting.Indented);
-                
-                // ---------- 3. 写入 JSON 文件 ----------
-       
-                File.WriteAllText(jsonPath, json, Encoding.UTF8);
-                LogUtil.Info("DataGenTool", $"已生成 JSON 模板：{jsonPath}");
-            }
-            catch (Exception ex)
-            {
-                LogUtil.Warn("DataGenTool", $"生成 JSON 模板失败：{ex.Message}");
-            }
-        }
-        
-        private static object BuildJsonSkeleton(Type? t, string fieldName = "")
-        {
-            if (t == null)
-            {
-                LogUtil.Error("DataGenTool", $"字段 '{fieldName}' 类型不存在，无法生成 JSON 模板");
-                return null!;
-            }
-            
-            // === 1. 基础类型 ===
-            if (t == typeof(int)) return 0;
-            if (t == typeof(float)) return 0f;
-            if (t == typeof(double)) return 0.0;
-            if (t == typeof(long)) return 0L;
-            if (t == typeof(bool)) return false;
-            if (t == typeof(string)) return "";
-            if (t == typeof(short)) return (short)0;
-            if (t == typeof(ushort)) return (ushort)0;
-            if (t == typeof(byte)) return (byte)0;
-            if (t == typeof(sbyte)) return (sbyte)0;
-            if (t == typeof(decimal)) return 0m;
-            if (t == typeof(char)) return "";
-            if (t == typeof(DateTime)) return "2000-01-01";
-            
-            // === 2. Unity 结构体 ===
-            if (t == typeof(Vector2)) return new { x = 0, y = 0 };
-            if (t == typeof(Vector3)) return new { x = 0, y = 0, z = 0 };
-            if (t == typeof(Vector4)) return new { x = 0, y = 0, z = 0, w = 0 };
-            if (t == typeof(Color)) return new { r = 1, g = 1, b = 1, a = 1 };
-            if (t == typeof(Matrix4x4))
-            {
-                return new
-                {
-                    m00 = 1, m01 = 0, m02 = 0, m03 = 0,
-                    m10 = 0, m11 = 1, m12 = 0, m13 = 0,
-                    m20 = 0, m21 = 0, m22 = 1, m23 = 0,
-                    m30 = 0, m31 = 0, m32 = 0, m33 = 1
-                };
-            }
-
-            // === 3. 数组 ===
-            if (t is { IsArray: true })
-            {
-                Type? elemType = t.GetElementType();
-                return new[] { BuildJsonSkeleton(elemType, fieldName) };
-            }
-
-            // === 4. List<T> ===
-            if (t is { IsGenericType: true } && t.GetGenericTypeDefinition() == typeof(List<>))
-            {
-                Type elemType = t.GetGenericArguments()[0];
-                return new[] { BuildJsonSkeleton(elemType, fieldName) };
-            }
-
-            // === 5. Dictionary<K,V> ===
-            if (t is { IsGenericType: true } && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-            {
-                Type keyT = t.GetGenericArguments()[0];
-                Type valT = t.GetGenericArguments()[1];
-                string sampleKey =
-                    keyT == typeof(string) ? "Key" :
-                    keyT == typeof(int) ? "1" :
-                    keyT == typeof(long) ? "1" :
-                    keyT == typeof(short) ? "1" :
-                    keyT == typeof(ushort) ? "1" :
-                    keyT == typeof(byte) ? "1" :
-                    keyT == typeof(sbyte) ? "1" :
-                    keyT.IsEnum ? Enum.GetNames(keyT).First() :
-                    "SampleKey";
-                return new Dictionary<string, object>
-                {
-                    [sampleKey] = BuildJsonSkeleton(valT, sampleKey)
-                };
-            }
-
-            // === 6. 自定义类（用反射递归字段） ===
-            if (t.IsClass || t is { IsValueType: true, IsPrimitive: false })
-            {
-                var obj = new Dictionary<string, object?>();
-                foreach (var f in t.GetFields())
-                    obj[f.Name] = BuildJsonSkeleton(f.FieldType, f.Name);
-                return obj;
-            }
-
-            // === 7. 兜底 ===
-            LogUtil.Warn("DataGenTool", $"未知类型 '{t.FullName}'，生成空结构");
-            return null!;
-        }
-
-        #endregion
 
         #region 工具方法
+        
+        [InitializeOnLoadMethod]
+        private static void DataGenToolLogger()
+        {
+            string msg = EditorPrefs.GetString("Fink_LastGenResult", "");
+            if (!string.IsNullOrEmpty(msg) && !EditorApplication.isCompiling)
+            {
+                EditorPrefs.DeleteKey("Fink_LastGenResult");
+                if (msg.Contains("失败"))
+                {
+                    LogUtil.Error("DataGenTool", msg);
+                }
+                LogUtil.Success("DataGenTool", msg);
+            }
+        }
 
         /// <summary>
         /// 基于变量类型判断是否需要添加引用命名空间
@@ -473,7 +339,7 @@ namespace FinkFramework.Editor.DataTools
                     type.Equals("Color", StringComparison.OrdinalIgnoreCase))
                     needUnity = true;
 
-                if (type.Contains("Dictionary") || type.Contains("List") || type.EndsWith("[]"))
+                if (type.Contains("Dictionary") || type.Contains("List"))
                     needGeneric = true;
             }
 
@@ -491,16 +357,6 @@ namespace FinkFramework.Editor.DataTools
         private static string GetClassOutputDir(string excelPath)
         {
             return Path.Combine(CLASS_ROOT, GetRelativePath(excelPath));
-        }
-
-        /// <summary>
-        /// 获取Json文件输出路径
-        /// </summary>
-        private static string GetJsonOutputDir(string excelPath)
-        {
-            // 返回最终 json 应该写入的目标文件夹
-            string relative = GetRelativePath(excelPath);
-            return Path.Combine(JSON_ROOT, relative);
         }
         
         /// <summary>
