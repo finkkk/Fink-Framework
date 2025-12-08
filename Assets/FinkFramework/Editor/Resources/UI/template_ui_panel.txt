@@ -1,0 +1,44 @@
+﻿// ===============================================
+// 自动生成文件（请勿手动修改）
+// 生成时间：#DATE#
+// 面板名称：#CLASSNAME#
+// ===============================================
+
+using FinkFramework.Runtime.UI.Base;
+
+namespace #NAMESPACE#
+{
+    public class #CLASSNAME# : BasePanel
+    {
+        protected override void Awake()
+        {
+            base.Awake();
+            // 初始化控件引用（自动绑定逻辑来自 BasePanel）
+        }
+
+        public override void ShowMe()
+        {
+            // 首次显示时执行
+        }
+
+        public override void HideMe()
+        {
+            // 隐藏时执行
+        }
+
+        public override void OnShow()
+        {
+            // 每次显示时刷新内容
+        }
+
+        public override void OnHide()
+        {
+            // 每次隐藏时执行
+        }
+
+        public override void OnDestroyPanel()
+        {
+            // 销毁前释放监听与资源
+        }
+    }
+}

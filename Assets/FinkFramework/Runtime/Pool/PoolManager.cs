@@ -92,12 +92,12 @@ namespace FinkFramework.Runtime.Pool
             // 1. 存在池子的时候
             if (poolObjectDic.TryGetValue(poolName, out var value))
             {
-                BasePoolStorage<T> basePool = value as BasePoolStorage<T>;
+                PoolStorage<T> pool = value as PoolStorage<T>;
                 // 若池子不为空
-                if (basePool.poolObjs.Count > 0)
+                if (pool.poolObjs.Count > 0)
                 {
                     // 从队列中取出对象进行复用
-                    T obj = basePool.poolObjs.Dequeue();
+                    T obj = pool.poolObjs.Dequeue();
                     return obj;
                 }
                 else // 若池子为空
@@ -134,21 +134,21 @@ namespace FinkFramework.Runtime.Pool
             }
             // 池子的名字是根据类的类名来决定的
             string poolName = nameSpace + "_" + typeof(T).Name;
-            BasePoolStorage<T> basePool;
+            PoolStorage<T> pool;
             if (poolObjectDic.TryGetValue(poolName,out var value))// 1. 存在池子的时候
             {
                 // 取出池子
-                basePool = value as BasePoolStorage<T>;
+                pool = value as PoolStorage<T>;
             }
             else// 2. 不存在池子的时候
             {
-                basePool = new BasePoolStorage<T>();
-                poolObjectDic.Add(poolName,basePool);
+                pool = new PoolStorage<T>();
+                poolObjectDic.Add(poolName,pool);
             }
             // 在放回池子之前 先重置对象的数据（这里的重置方法为继承的对象池接口提供的）
             obj.ResetInfo();
             // 压入对象
-            basePool.poolObjs.Enqueue(obj);
+            pool.poolObjs.Enqueue(obj);
         }
         
         /// <summary>

@@ -9,20 +9,20 @@ using UnityEngine;
 namespace FinkFramework.Editor.DataTools
 {
     /// <summary>
-    /// Êı¾İ½âÎö¹¤¾ß£¨DataParseTool£©
+    /// æ•°æ®è§£æå·¥å…·ï¼ˆDataParseToolï¼‰
     /// ------------------------------------------------------------
-    /// ¹¦ÄÜÖ°Ôğ£º
-    /// 1. ½« Excel µ¥Ôª¸ñµÄ×Ö·û´®½âÎöÎªÊµ¼Ê¶ÔÏó£»
-    /// 2. Ö§³Ö»ù´¡ÀàĞÍ¡¢Êı×é¡¢List¡¢Vector2/3/4¡¢Color¡¢Dictionary¡¢JSON¡¢×Ô¶¨ÒåÀà£»
+    /// åŠŸèƒ½èŒè´£ï¼š
+    /// 1. å°† Excel å•å…ƒæ ¼çš„å­—ç¬¦ä¸²è§£æä¸ºå®é™…å¯¹è±¡ï¼›
+    /// 2. æ”¯æŒåŸºç¡€ç±»å‹ã€æ•°ç»„ã€Listã€Vector2/3/4ã€Colorã€Dictionaryã€JSONã€è‡ªå®šä¹‰ç±»ï¼›
     /// </summary>
     public static class DataParseTool
     {
         /// <summary>
-        /// ¶¥²ãÈë¿Ú
+        /// é¡¶å±‚å…¥å£
         /// </summary>
         public static ParseResult ConvertValue(object value, string type, string fieldName = "?", string tableName = "?")
         {
-            // ĞèÒª·µ»ØµÄ½âÎö½á¹û
+            // éœ€è¦è¿”å›çš„è§£æç»“æœ
             var result = new ParseResult();
 
             if (value == null)
@@ -34,7 +34,7 @@ namespace FinkFramework.Editor.DataTools
             string str = value.ToString().Trim();
             type = type.Trim();
             str = TextsUtil.NormalizePunctuation(str);
-            // ±ÜÃâ×Ö·û´® "null" ±»ÎóÅĞÎªÓĞĞ§
+            // é¿å…å­—ç¬¦ä¸² "null" è¢«è¯¯åˆ¤ä¸ºæœ‰æ•ˆ
             if (string.IsNullOrEmpty(str) || str.Equals("null", StringComparison.OrdinalIgnoreCase))
             {
                 result.success = true ;
@@ -44,7 +44,7 @@ namespace FinkFramework.Editor.DataTools
             try
             { 
                 object parsed = null;
-                // ---------- Êı×é ----------
+                // ---------- æ•°ç»„ ----------
                 if (type.EndsWith("[]"))
                 {
                     parsed =  ParseCollection(str, type[..^2], true, fieldName, tableName, result);
@@ -59,7 +59,7 @@ namespace FinkFramework.Editor.DataTools
                 {
                     parsed =  ParseDictionary(str, type, fieldName, tableName, result);
                 }
-                // ---------- µ¥Öµ ----------
+                // ---------- å•å€¼ ----------
                 else
                 {
                     parsed =  ParseSingleValue(str, type, fieldName, tableName, result);
@@ -71,7 +71,7 @@ namespace FinkFramework.Editor.DataTools
             catch (Exception ex)
             {
                 result.success = false;
-                result.errors.Add($"[{tableName}] {fieldName} ({type}) ½âÎöÊ§°Ü: {ex.Message}");
+                result.errors.Add($"[{tableName}] {fieldName} ({type}) è§£æå¤±è´¥: {ex.Message}");
                 result.value = GetDefaultValue(type);
             }
             
@@ -79,7 +79,7 @@ namespace FinkFramework.Editor.DataTools
         }
         
         /// <summary>
-        /// µ¥Öµ½âÎö£¨»ù´¡ÀàĞÍ + Unity½á¹¹Ìå + JSONÀà£©
+        /// å•å€¼è§£æï¼ˆåŸºç¡€ç±»å‹ + Unityç»“æ„ä½“ + JSONç±»ï¼‰
         /// </summary>
         private static object ParseSingleValue(string str, string type, string fieldName, string tableName, ParseResult result)
         {
@@ -96,7 +96,7 @@ namespace FinkFramework.Editor.DataTools
                 return GetDefaultValue(type);
             try
             {
-                // --- »ù´¡ÀàĞÍ ---
+                // --- åŸºç¡€ç±»å‹ ---
                 switch (type)
                 {
                     case "string": return str;
@@ -111,14 +111,14 @@ namespace FinkFramework.Editor.DataTools
                     case "decimal": return SafeParseDecimal(str);
                     case "char": return SafeParseChar(str);
                     case "bool": return str == "1" || str.Equals("true", StringComparison.OrdinalIgnoreCase);
-                    case "DateTime": try { return DateTime.Parse(str); }catch (Exception ex) { throw new FormatException($"·Ç·¨Ê±¼ä¸ñÊ½: '{str}'", ex); }
+                    case "DateTime": try { return DateTime.Parse(str); }catch (Exception ex) { throw new FormatException($"éæ³•æ—¶é—´æ ¼å¼: '{str}'", ex); }
                 }
                 
-                // --- Unity½á¹¹Ìå ---
+                // --- Unityç»“æ„ä½“ ---
                 if (type.StartsWith("Vector", StringComparison.OrdinalIgnoreCase))
                 {
-                    // ===== Ö§³ÖÁ½ÖÖĞ´·¨ =====
-                    // ¢Ù ±ê×¼ JSON: {"x":1,"y":2} / {"x":1,"y":2,"z":3}
+                    // ===== æ”¯æŒä¸¤ç§å†™æ³• =====
+                    // â‘  æ ‡å‡† JSON: {"x":1,"y":2} / {"x":1,"y":2,"z":3}
                     if (str.StartsWith("{") && str.EndsWith("}") && str.Contains("\"x\""))
                     {
                         try
@@ -127,12 +127,12 @@ namespace FinkFramework.Editor.DataTools
                         }
                         catch (Exception ex)
                         {
-                            result.warnings.Add($"[{tableName}] JSON Vector3 ½âÎöÊ§°Ü: {ex.Message}");
+                            result.warnings.Add($"[{tableName}] JSON Vector3 è§£æå¤±è´¥: {ex.Message}");
                         }
                     }
                     else
                     {
-                        // ¢Ú ¼òĞ´: (1,2,3) / {1,2,3} / [1,2,3]
+                        // â‘¡ ç®€å†™: (1,2,3) / {1,2,3} / [1,2,3]
                         try
                         {
                             str = str.Trim('(', ')', '{', '}', '[', ']');
@@ -147,25 +147,25 @@ namespace FinkFramework.Editor.DataTools
                         }
                         catch (Exception ex)
                         {
-                            throw new FormatException($"·Ç·¨ÏòÁ¿¸ñÊ½: '{str}'", ex);
+                            throw new FormatException($"éæ³•å‘é‡æ ¼å¼: '{str}'", ex);
                         }
                     }
                 }
                 
                 if (type == "Color")
                 {
-                    // ===== Ö§³ÖÁ½ÖÖĞ´·¨ =====
-                    // ¢Ù ±ê×¼ JSON: {"r":1,"g":0.5,"b":0.2,"a":1}
+                    // ===== æ”¯æŒä¸¤ç§å†™æ³• =====
+                    // â‘  æ ‡å‡† JSON: {"r":1,"g":0.5,"b":0.2,"a":1}
                     if (str.StartsWith("{") && str.EndsWith("}") && str.Contains("\"r\""))
                     {
                         try { return JsonConvert.DeserializeObject<Color>(str); }
                         catch (Exception ex)
                         {
-                            result.warnings.Add($"[{tableName}] {fieldName} JSON ÑÕÉ«¸ñÊ½½âÎöÊ§°Ü ({ex.Message})");
+                            result.warnings.Add($"[{tableName}] {fieldName} JSON é¢œè‰²æ ¼å¼è§£æå¤±è´¥ ({ex.Message})");
                         }
                     }
 
-                    // ¢Ú ¼òĞ´: (1,0.5,0.2,1) / "#RRGGBB"
+                    // â‘¡ ç®€å†™: (1,0.5,0.2,1) / "#RRGGBB"
                     try
                     {
                         if (str.StartsWith("#") && ColorUtility.TryParseHtmlString(str, out var htmlColor))
@@ -177,11 +177,11 @@ namespace FinkFramework.Editor.DataTools
                     }
                     catch (Exception ex)
                     {
-                        throw new FormatException($"·Ç·¨ÑÕÉ«¸ñÊ½: '{str}'", ex);
+                        throw new FormatException($"éæ³•é¢œè‰²æ ¼å¼: '{str}'", ex);
                     }
                 }
                 
-                // --- ÆäÓàÀàĞÍÍ³Ò»×ß±ê×¼ JSON ---
+                // --- å…¶ä½™ç±»å‹ç»Ÿä¸€èµ°æ ‡å‡† JSON ---
                 if ((str.StartsWith("{") && str.EndsWith("}")) || (str.StartsWith("[") && str.EndsWith("]")))
                 {
                     try
@@ -195,19 +195,19 @@ namespace FinkFramework.Editor.DataTools
                     }
                     catch (Exception jsonEx)
                     {
-                        result.warnings.Add($"[{tableName}] {fieldName} ·Ç±ê×¼ JSON ¸ñÊ½»ò½á¹¹´íÎó ({jsonEx.Message})");
+                        result.warnings.Add($"[{tableName}] {fieldName} éæ ‡å‡† JSON æ ¼å¼æˆ–ç»“æ„é”™è¯¯ ({jsonEx.Message})");
                     }
                 }
                 else
                 {
-                    // ²»ÊÇ JSON£¬¸ø³ö¾¯¸æ
-                    result.warnings.Add($"[{tableName}] {fieldName} ÆÚÍû JSON ¸ñÊ½ ({type})£¬µ«ÊäÈë·Ç JSON ¡ú '{str}'");
+                    // ä¸æ˜¯ JSONï¼Œç»™å‡ºè­¦å‘Š
+                    result.warnings.Add($"[{tableName}] {fieldName} æœŸæœ› JSON æ ¼å¼ ({type})ï¼Œä½†è¾“å…¥é JSON â†’ '{str}'");
                 }
             
             }
             catch (Exception e)
             {
-                result.errors.Add($"µ¥Öµ½âÎö´íÎó! [{tableName}] {fieldName} ({type}) ¡û '{str}' ½âÎöÊ§°Ü£º{e.Message}");
+                result.errors.Add($"å•å€¼è§£æé”™è¯¯! [{tableName}] {fieldName} ({type}) â† '{str}' è§£æå¤±è´¥ï¼š{e.Message}");
                 throw;
             }
 
@@ -215,15 +215,15 @@ namespace FinkFramework.Editor.DataTools
         }
         
         /// <summary>
-        /// Í¨ÓÃ¼¯ºÏ½âÎöº¯Êı£¨Êı×é / List ¹²ÓÃ£©
+        /// é€šç”¨é›†åˆè§£æå‡½æ•°ï¼ˆæ•°ç»„ / List å…±ç”¨ï¼‰
         /// ------------------------------------------------------------
-        /// Ö´ĞĞË³Ğò£º
-        /// 1. ÄÚÖÃÌØÊâÀàĞÍ£¨Color¡¢Vector£©
-        /// 2. ÆÕÍ¨ÀàĞÍ²ğ·Ö (, ·Ö¸î)
-        /// 3. JSON ¶µµ×½âÎö ([{...}] / [1,2,3])
-        /// 4. Ä¬ÈÏ·µ»Ø¿ÕÈİÆ÷
+        /// æ‰§è¡Œé¡ºåºï¼š
+        /// 1. å†…ç½®ç‰¹æ®Šç±»å‹ï¼ˆColorã€Vectorï¼‰
+        /// 2. æ™®é€šç±»å‹æ‹†åˆ† (, åˆ†å‰²)
+        /// 3. JSON å…œåº•è§£æ ([{...}] / [1,2,3])
+        /// 4. é»˜è®¤è¿”å›ç©ºå®¹å™¨
         /// ------------------------------------------------------------
-        /// Ö§³Ö¸ñÊ½Ê¾Àı£º
+        /// æ”¯æŒæ ¼å¼ç¤ºä¾‹ï¼š
         /// - (1,2,3),(4,5,6)
         /// - #FF0000,#00FF00
         /// - [1,2,3]
@@ -239,10 +239,10 @@ namespace FinkFramework.Editor.DataTools
                     : (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(emptyType));
             }
             
-            // ±£ÁôÔ­Ê¼×Ö·û´®¸±±¾£¬·ÀÖ¹È¥À¨ºÅÆÆ»µ JSON ¸ñÊ½
+            // ä¿ç•™åŸå§‹å­—ç¬¦ä¸²å‰¯æœ¬ï¼Œé˜²æ­¢å»æ‹¬å·ç ´å JSON æ ¼å¼
             string originalStr = str.Trim();
             
-            // --- È¥³ıÍâ²ãÀ¨ºÅ£¨¿íËÉ¼æÈİ [ ] { } ( )£©---
+            // --- å»é™¤å¤–å±‚æ‹¬å·ï¼ˆå®½æ¾å…¼å®¹ [ ] { } ( )ï¼‰---
             while ((str.StartsWith("[") && str.EndsWith("]")) ||
                    (str.StartsWith("{") && str.EndsWith("}")) ||
                    (str.StartsWith("(") && str.EndsWith(")")))
@@ -251,11 +251,11 @@ namespace FinkFramework.Editor.DataTools
             }
             var elemType = FindTypeCached(elementType) ?? typeof(string);
             // ========================
-            // DateTime ÌØÊâÀàĞÍÓÅÏÈ½âÎö
+            // DateTime ç‰¹æ®Šç±»å‹ä¼˜å…ˆè§£æ
             // ========================
             if (elementType == "DateTime")
             {
-                // È¥³ı×îÍâ²ãÀ¨ºÅ£¬²»ÆÆ»µÄÚ²¿½á¹¹
+                // å»é™¤æœ€å¤–å±‚æ‹¬å·ï¼Œä¸ç ´åå†…éƒ¨ç»“æ„
                 string cleaned = originalStr;
                 while ((cleaned.StartsWith("[") && cleaned.EndsWith("]")) ||
                        (cleaned.StartsWith("(") && cleaned.EndsWith(")")) ||
@@ -289,11 +289,11 @@ namespace FinkFramework.Editor.DataTools
             }
             
             // ========================
-            // ColorÌØÊâÀàĞÍÓÅÏÈ½âÎö
+            // Colorç‰¹æ®Šç±»å‹ä¼˜å…ˆè§£æ
             // ========================
             if (elementType == "Color")
             {
-                // ---------- ¢Ù JSON Êı×é¸ñÊ½ ---------- 
+                // ---------- â‘  JSON æ•°ç»„æ ¼å¼ ---------- 
                 if ((originalStr.StartsWith("[") && originalStr.EndsWith("]") && originalStr.Contains("\"r\"")) ||
                     (originalStr.StartsWith("[{") && originalStr.EndsWith("}]")))
                 {
@@ -316,10 +316,10 @@ namespace FinkFramework.Editor.DataTools
                     catch (Exception ex)
                     {
                         result.warnings.Add(
-                            $"[{tableName}] {fieldName} JSON ColorÊı×é½âÎöÊ§°Ü ({ex.Message})");
+                            $"[{tableName}] {fieldName} JSON Coloræ•°ç»„è§£æå¤±è´¥ ({ex.Message})");
                     }
                 }
-                // ¼ì²âÔ­Ê¼×Ö·û´®ÊÇ·ñÎª¶à×éÀ¨ºÅ¸ñÊ½ 
+                // æ£€æµ‹åŸå§‹å­—ç¬¦ä¸²æ˜¯å¦ä¸ºå¤šç»„æ‹¬å·æ ¼å¼ 
                 if (!originalStr.Contains("#") && originalStr.Contains("(") && originalStr.Contains("),"))
                 {
                     try
@@ -376,7 +376,7 @@ namespace FinkFramework.Editor.DataTools
                     }
                     catch (Exception ex)
                     {
-                        result.warnings.Add($"[{tableName}] {fieldName} ¶àÀ¨ºÅColorÊı×é½âÎöÊ§°Ü ({ex.Message})");
+                        result.warnings.Add($"[{tableName}] {fieldName} å¤šæ‹¬å·Coloræ•°ç»„è§£æå¤±è´¥ ({ex.Message})");
                     }
                 }
                 List<string> groups = new();
@@ -439,13 +439,13 @@ namespace FinkFramework.Editor.DataTools
             }
             
             // ========================
-            // VectorÌØÊâÀàĞÍÓÅÏÈ½âÎö
+            // Vectorç‰¹æ®Šç±»å‹ä¼˜å…ˆè§£æ
             // ========================
             if (elementType is "Vector2" or "Vector3" or "Vector4")
             {
                 Type vecType = FindTypeCached(elementType) ?? typeof(Vector3);
 
-                // --- ¢Ù JSON Êı×é¸ñÊ½ ---  [{"x":1,"y":2,"z":3}]
+                // --- â‘  JSON æ•°ç»„æ ¼å¼ ---  [{"x":1,"y":2,"z":3}]
                 if ((originalStr.StartsWith("[") && originalStr.Contains("\"x\"")) || (originalStr.StartsWith("[{") && originalStr.EndsWith("}]")))
                 {
                     try
@@ -466,11 +466,11 @@ namespace FinkFramework.Editor.DataTools
                     }
                     catch (Exception ex)
                     {
-                        result.warnings.Add($"[{tableName}] {fieldName} JSON Vector½âÎöÊ§°Ü: {ex.Message}");
+                        result.warnings.Add($"[{tableName}] {fieldName} JSON Vectorè§£æå¤±è´¥: {ex.Message}");
                     }
                 }
 
-                // --- ¢Ú ¼òĞ´¸ñÊ½ ---  (1,2,3),(4,5,6)
+                // --- â‘¡ ç®€å†™æ ¼å¼ ---  (1,2,3),(4,5,6)
                 List<string> groups = new();
                 int depth = 0, start = -1;
                 for (int i = 0; i < str.Length; i++)
@@ -492,7 +492,7 @@ namespace FinkFramework.Editor.DataTools
                     }
                 }
 
-                // --- ¼æÈİ JSON ÑùÊ½µ«ÎŞÒıºÅ£º{x:1,y:2,z:3},{x:4,y:5,z:6} ---
+                // --- å…¼å®¹ JSON æ ·å¼ä½†æ— å¼•å·ï¼š{x:1,y:2,z:3},{x:4,y:5,z:6} ---
                 if (groups.Count == 0 && str.Contains("{x:"))
                 {
                     var jsonLike = "[" + str.Replace("}{", "},{") + "]";
@@ -515,7 +515,7 @@ namespace FinkFramework.Editor.DataTools
                     }
                 }
 
-                // --- Èİ´í£ºÈôÎ´Æ¥ÅäÈÎºÎÀ¨ºÅ£¬³¢ÊÔÓÃ¶ººÅ²ğ·Ö ---
+                // --- å®¹é”™ï¼šè‹¥æœªåŒ¹é…ä»»ä½•æ‹¬å·ï¼Œå°è¯•ç”¨é€—å·æ‹†åˆ† ---
                 if (groups.Count == 0)
                 {
                     var parts = str.Split("),", StringSplitOptions.RemoveEmptyEntries)
@@ -524,7 +524,7 @@ namespace FinkFramework.Editor.DataTools
                     groups.AddRange(parts);
                 }
 
-                // --- ×ª»»ÎªÄ¿±ê¶ÔÏó ---
+                // --- è½¬æ¢ä¸ºç›®æ ‡å¯¹è±¡ ---
                 var listGeneric = typeof(List<>).MakeGenericType(vecType);
                 var listInstance = (System.Collections.IList)Activator.CreateInstance(listGeneric);
 
@@ -536,7 +536,7 @@ namespace FinkFramework.Editor.DataTools
                     }
                     catch
                     {
-                        listInstance.Add(Activator.CreateInstance(vecType)); // °²È«Ìî³ä
+                        listInstance.Add(Activator.CreateInstance(vecType)); // å®‰å…¨å¡«å……
                     }
                 }
 
@@ -551,11 +551,11 @@ namespace FinkFramework.Editor.DataTools
             }
             
             // ========================
-            // ÅĞ¶ÏÀàĞÍÊÇ·ñÊÇ¡°ÄÚÖÃ»ù´¡ÀàĞÍ¡±
+            // åˆ¤æ–­ç±»å‹æ˜¯å¦æ˜¯â€œå†…ç½®åŸºç¡€ç±»å‹â€
             // ========================
             string[] primitiveTypes = { "int", "float", "double", "long", "bool", "string", "short", "ushort", "byte", "sbyte", "decimal", "char" };
             bool isPrimitive = primitiveTypes.Contains(elementType);
-            // 1. ÄÚÖÃÀàĞÍ ¡ú ¿íËÉ²ğ·Ö
+            // 1. å†…ç½®ç±»å‹ â†’ å®½æ¾æ‹†åˆ†
             if (isPrimitive)
             {
                 string trimmed = str
@@ -585,10 +585,10 @@ namespace FinkFramework.Editor.DataTools
                     return list;
                 }
             }
-            // 2. ·ÇÄÚÖÃÀàĞÍ ¡ú JSON ½âÎö
+            // 2. éå†…ç½®ç±»å‹ â†’ JSON è§£æ
             try
             {
-                // Ê¹ÓÃÎ´È¥À¨ºÅÇ°µÄÔ­Ê¼×Ö·û´®½øĞĞ JSON ³¢ÊÔ
+                // ä½¿ç”¨æœªå»æ‹¬å·å‰çš„åŸå§‹å­—ç¬¦ä¸²è¿›è¡Œ JSON å°è¯•
                 Type jsonType = FindTypeCached(elementType) ?? typeof(object);
                 var listType = typeof(List<>).MakeGenericType(jsonType);
                 var deserialized = JsonConvert.DeserializeObject(originalStr, listType);
@@ -607,39 +607,39 @@ namespace FinkFramework.Editor.DataTools
             }
             catch (Exception ex)
             {
-                result.warnings.Add($"[{tableName}] [¼¯ºÏ½âÎö] {fieldName} JSON½âÎöÊ§°Ü ({ex.Message})");
+                result.warnings.Add($"[{tableName}] [é›†åˆè§£æ] {fieldName} JSONè§£æå¤±è´¥ ({ex.Message})");
             }
-            // Ä¬ÈÏ¿ÕÈİÆ÷
+            // é»˜è®¤ç©ºå®¹å™¨
             return asArray
                 ? Array.CreateInstance(elemType, 0)
                 : (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elemType));
         }
 
         /// <summary>
-        /// ×Öµä½âÎö£¨Ö§³Ö Vector/Color/Ç¶Ì×ÀàĞÍ£©
+        /// å­—å…¸è§£æï¼ˆæ”¯æŒ Vector/Color/åµŒå¥—ç±»å‹ï¼‰
         /// ------------------------------------------------------------
-        /// ÌØĞÔ£º
-        /// - ÓÅÏÈ³¢ÊÔ Json.NET ·ºĞÍ·´ĞòÁĞ»¯£»
-        /// ¡ª ÈôÊ§°Ü£¬×Ô¶¯»ØÍË¿íËÉ½âÎö£¨ManualSplitDict£©£»
-        /// ¡ª Ö§³Ö¼üÖµ¶ÔÀàĞÍ×Ô¶¯×ª»»£»
-        /// ¡ª Ö§³ÖÇ¶Ì× Vector¡¢Color¡¢×Ô¶¨ÒåÀàµÈ½á¹¹¡£
+        /// ç‰¹æ€§ï¼š
+        /// - ä¼˜å…ˆå°è¯• Json.NET æ³›å‹ååºåˆ—åŒ–ï¼›
+        /// â€” è‹¥å¤±è´¥ï¼Œè‡ªåŠ¨å›é€€å®½æ¾è§£æï¼ˆManualSplitDictï¼‰ï¼›
+        /// â€” æ”¯æŒé”®å€¼å¯¹ç±»å‹è‡ªåŠ¨è½¬æ¢ï¼›
+        /// â€” æ”¯æŒåµŒå¥— Vectorã€Colorã€è‡ªå®šä¹‰ç±»ç­‰ç»“æ„ã€‚
         /// </summary>
         private static object ParseDictionary(string str, string type, string fieldName, string tableName, ParseResult result)
         {
             if (string.IsNullOrWhiteSpace(str))
             {
-                result.warnings.Add($"[{tableName}] [×Öµä½âÎö] {fieldName} JSON Îª¿Õ»òÎŞĞ§£¡");
+                result.warnings.Add($"[{tableName}] [å­—å…¸è§£æ] {fieldName} JSON ä¸ºç©ºæˆ–æ— æ•ˆï¼");
                 return new Dictionary<string, object>();
             }
 
             try
             {
-                // °²È«²ğ·Ö Dictionary<key,value> ÄÚ²¿ÀàĞÍ
+                // å®‰å…¨æ‹†åˆ† Dictionary<key,value> å†…éƒ¨ç±»å‹
                 string inner = type[11..^1];
                 string[] parts = DataUtil.SplitGenericArgs(inner);  
         
                 if (parts.Length != 2)
-                    throw new FormatException($"·Ç·¨×Öµä¶¨Òå: {type}");
+                    throw new FormatException($"éæ³•å­—å…¸å®šä¹‰: {type}");
 
                 string keyType = parts[0].Trim();
                 string valueType = parts[1].Trim();
@@ -653,9 +653,9 @@ namespace FinkFramework.Editor.DataTools
                 }
 
                 if (!str.TrimStart().StartsWith("{"))
-                    throw new FormatException($"[{tableName}] {fieldName} JSON ¸ñÊ½²»ºÏ·¨£¬ÆÚÍû¶ÔÏó {{...}}");
+                    throw new FormatException($"[{tableName}] {fieldName} JSON æ ¼å¼ä¸åˆæ³•ï¼ŒæœŸæœ›å¯¹è±¡ {{...}}");
 
-                // ==== ÑÏ¸ñÄ£Ê½ ====
+                // ==== ä¸¥æ ¼æ¨¡å¼ ====
                 try
                 {
                     var dictType = typeof(Dictionary<,>).MakeGenericType(keyTypeResolved, valueTypeResolved);
@@ -663,7 +663,7 @@ namespace FinkFramework.Editor.DataTools
                 }
                 catch
                 {
-                    // ==== ¿íËÉÄ£Ê½ ====
+                    // ==== å®½æ¾æ¨¡å¼ ====
                     var raw = JsonConvert.DeserializeObject<Dictionary<string, object>>(str);
                     if (raw == null)
                         return new Dictionary<string, object>();
@@ -684,7 +684,7 @@ namespace FinkFramework.Editor.DataTools
                         }
                         catch (Exception e)
                         {
-                            result.warnings.Add($"[×Öµä½âÎö] ±í:{tableName}  {fieldName}  ¼ü:{kv.Key} ×ª»»Ê§°Ü:{e.Message}");
+                            result.warnings.Add($"[å­—å…¸è§£æ] è¡¨:{tableName}  {fieldName}  é”®:{kv.Key} è½¬æ¢å¤±è´¥:{e.Message}");
                         }
                     }
 
@@ -693,12 +693,12 @@ namespace FinkFramework.Editor.DataTools
             }
             catch (Exception ex)
             {
-                result.warnings.Add($"[{tableName}] [×Öµä½âÎö] {fieldName} JSON ½âÎöÊ§°Ü£º{ex.Message}");
+                result.warnings.Add($"[{tableName}] [å­—å…¸è§£æ] {fieldName} JSON è§£æå¤±è´¥ï¼š{ex.Message}");
                 return new Dictionary<string, object>();
             }
         }
         
-        #region ¸¨Öúº¯Êı
+        #region è¾…åŠ©å‡½æ•°
         
         private static int SafeParseInt(string s)
         {
@@ -780,7 +780,7 @@ namespace FinkFramework.Editor.DataTools
         };
         #endregion
         
-        #region ÀàĞÍ²éÕÒ»º´æ
+        #region ç±»å‹æŸ¥æ‰¾ç¼“å­˜
         private static readonly Dictionary<string, Type> TypeCache = new();
         public static Type FindTypeCached(string name)
         {
@@ -796,11 +796,11 @@ namespace FinkFramework.Editor.DataTools
             }
             catch (Exception ex)
             {
-                // ÌØÊâ´¦Àí£ººöÂÔ¡°Value cannot be null¡±ÕâÖÖµÍ¼¶´íÎó
+                // ç‰¹æ®Šå¤„ç†ï¼šå¿½ç•¥â€œValue cannot be nullâ€è¿™ç§ä½çº§é”™è¯¯
                 if (ex.Message.Contains("Value cannot be null"))
                     return null;
-                // ÆäËûÀàĞÍ½âÎöÎÊÌâÈÔÈ»ÌáÊ¾
-                LogUtil.Warn("DataParseTool", $"ÀàĞÍ²éÕÒÊ§°Ü: {name} ({ex.Message})");
+                // å…¶ä»–ç±»å‹è§£æé—®é¢˜ä»ç„¶æç¤º
+                LogUtil.Warn("DataParseTool", $"ç±»å‹æŸ¥æ‰¾å¤±è´¥: {name} ({ex.Message})");
                 t = null;
             }
 
@@ -814,12 +814,12 @@ namespace FinkFramework.Editor.DataTools
         }
         #endregion
 
-        #region ½âÎö½á¹ûÊı¾İ½á¹¹
+        #region è§£æç»“æœæ•°æ®ç»“æ„
 
         public class ParseResult
         {
-            public bool success;      // true:³É¹¦ false:Ê§°Ü
-            public object value;      // ×îºó½âÎö³öµÄÖµ
+            public bool success;      // true:æˆåŠŸ false:å¤±è´¥
+            public object value;      // æœ€åè§£æå‡ºçš„å€¼
             public List<string> warnings = new();
             public List<string> errors = new();
         }

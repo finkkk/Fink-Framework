@@ -6,7 +6,7 @@ namespace FinkFramework.Editor.Windows.Common
     public static class FFEditorStyles
     {
         /// <summary>
-        /// ´°¿Ú Ö÷±êÌâ
+        /// çª—å£ ä¸»æ ‡é¢˜
         /// </summary>
         public static GUIStyle Title
         {
@@ -21,7 +21,7 @@ namespace FinkFramework.Editor.Windows.Common
                         textColor = new Color(0.85f,0.85f,0.85f )
                     }
                 };
-                // ======== È¡Ïû hover / active / focused Ğ§¹û =========
+                // ======== å–æ¶ˆ hover / active / focused æ•ˆæœ =========
                 style.hover.textColor   = style.normal.textColor;
                 style.active.textColor  = style.normal.textColor;
                 style.focused.textColor = style.normal.textColor;
@@ -34,7 +34,7 @@ namespace FinkFramework.Editor.Windows.Common
         }
         
         /// <summary>
-        /// ´°¿Ú Ğ¡±êÌâ
+        /// çª—å£ å°æ ‡é¢˜
         /// </summary>
         public static GUIStyle SubTitle =>
             new(EditorStyles.boldLabel)
@@ -49,7 +49,7 @@ namespace FinkFramework.Editor.Windows.Common
             };
         
         /// <summary>
-        /// ´°¿Ú ÕıÎÄ
+        /// çª—å£ æ­£æ–‡
         /// </summary>
         public static GUIStyle Description
         {
@@ -66,7 +66,7 @@ namespace FinkFramework.Editor.Windows.Common
                     }
                 };
 
-                // ======== È¡Ïû hover / active / focused Ğ§¹û =========
+                // ======== å–æ¶ˆ hover / active / focused æ•ˆæœ =========
                 style.hover.textColor   = style.normal.textColor;
                 style.active.textColor  = style.normal.textColor;
                 style.focused.textColor = style.normal.textColor;
@@ -80,7 +80,7 @@ namespace FinkFramework.Editor.Windows.Common
         }
 
         /// <summary>
-        /// ´°¿Ú Ñ¡Ïî±êÌâ
+        /// çª—å£ é€‰é¡¹æ ‡é¢˜
         /// </summary>
         public static GUIStyle SectionTitle =>
             new(EditorStyles.boldLabel)
@@ -89,7 +89,7 @@ namespace FinkFramework.Editor.Windows.Common
             };
 
         /// <summary>
-        /// ÄÚÇ¶´°¿Ú
+        /// å†…åµŒçª—å£
         /// </summary>
         public static GUIStyle SectionBox =>
             new("HelpBox")
@@ -98,7 +98,7 @@ namespace FinkFramework.Editor.Windows.Common
             };
         
         /// <summary>
-        /// ´°¿Ú ´óĞÍ°´Å¥
+        /// çª—å£ å¤§å‹æŒ‰é’®
         /// </summary>
         public static GUIStyle BigButton =>
             new(GUI.skin.button)
@@ -111,7 +111,7 @@ namespace FinkFramework.Editor.Windows.Common
             };
 
         /// <summary>
-        /// ´°¿Ú Ò³½Å
+        /// çª—å£ é¡µè„š
         /// </summary>
         public static GUIStyle Footer =>
             new(EditorStyles.centeredGreyMiniLabel)

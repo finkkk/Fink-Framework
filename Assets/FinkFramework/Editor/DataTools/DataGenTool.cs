@@ -173,10 +173,10 @@ namespace FinkFramework.Editor.DataTools
             string className = TextsUtil.ToPascalCase(fileName);
             
             // ---------- 2. 读取模板 ----------
-            var templateAsset = Resources.Load<TextAsset>("Data/template_data");
+            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/Resources/Data/template_data.txt");
             if (!templateAsset)
             {
-                LogUtil.Error("DataGenTool", "未找到模板文件：Resources/Data/template_data.txt");
+                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/Resources/Data/template_data.txt");
             }
             string template = templateAsset.text;
 
@@ -264,10 +264,10 @@ namespace FinkFramework.Editor.DataTools
 
         private static void GenerateContainerClass(ExcelMeta meta)
         {
-            var templateAsset = Resources.Load<TextAsset>("Data/template_container");
+            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/Resources/Data/Data/template_container.txt");
             if (!templateAsset)
             {
-                LogUtil.Error("DataGenTool", "未找到模板文件：Resources/Data/template_container.txt");
+                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/Resources/Data/template_container.txt");
                 return;
             }
             string className  = meta.ClassName;

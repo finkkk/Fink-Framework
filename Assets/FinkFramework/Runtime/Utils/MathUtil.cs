@@ -189,10 +189,14 @@ namespace FinkFramework.Runtime.Utils
         /// </summary>
         /// <param name="pos">世界坐标系下的一个点的位置</param>
         /// <returns>如果在可见范围外返回true，否则返回false</returns>
-        public static bool IsWorldPosOutScreen(Vector3 pos)
+        public static bool IsWorldPosOutScreen(Vector3 pos,Camera cam = null)
         {
+            if (cam == null)
+            {
+                cam = Camera.main;
+            }
             //将世界坐标转为屏幕坐标
-            Vector3 screenPos = Camera.main.WorldToScreenPoint(pos);
+            Vector3 screenPos = cam.WorldToScreenPoint(pos);
             if (screenPos.z <= 0) return true; // 在相机背面
             //判断是否在屏幕范围内
             return !(screenPos.x >= 0) || !(screenPos.x <= Screen.width) ||
@@ -297,7 +301,7 @@ namespace FinkFramework.Runtime.Utils
             if (hit)
             {
                 if (typeof(T) == typeof(RaycastHit))
-                    callBack(hitInfo as T);  // 直接把 hitInfo 传出去
+                    callBack((T)(object)hitInfo);  // 直接把 hitInfo 传出去
                 else if (typeof(T) == typeof(GameObject))
                     callBack(hitInfo.collider.gameObject as T);
                 else if (typeof(T) == typeof(Collider))
@@ -336,7 +340,7 @@ namespace FinkFramework.Runtime.Utils
             foreach (var hitInfo in hitInfos)
             {
                 if (typeof(T) == typeof(RaycastHit))
-                    callBack(hitInfo as T);
+                    callBack((T)(object)hitInfo);
                 else if (typeof(T) == typeof(GameObject))
                     callBack(hitInfo.collider.gameObject as T);
                 else if (typeof(T) == typeof(Collider))

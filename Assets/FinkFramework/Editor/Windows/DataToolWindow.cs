@@ -5,13 +5,16 @@ using UnityEngine;
 
 namespace FinkFramework.Editor.Windows
 {
+    /// <summary>
+    /// 数据工具面板
+    /// </summary>
     public class DataToolWindow : EditorWindow
     {
         private Vector2 scroll;
         private string logOutput = "";
         private GUIStyle logStyle; 
 
-        [MenuItem("Fink Framework/数据工具面板", priority = 50)]
+        [MenuItem("Fink Framework/数据工具面板")]
         public static void Open()
         {
             var window = GetWindow<DataToolWindow>("数据工具面板");
