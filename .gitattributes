@@ -1,11 +1,52 @@
-# 强制所有 C# 文件使用 UTF-8
-*.cs text working-tree-encoding=UTF-8
 
-# 强制 Unity 文本文件也用 UTF-8
-*.shader text working-tree-encoding=UTF-8
-*.cginc text working-tree-encoding=UTF-8
-*.asmdef text working-tree-encoding=UTF-8
-*.json text working-tree-encoding=UTF-8
-*.xml text working-tree-encoding=UTF-8
-*.txt text working-tree-encoding=UTF-8
-*.md text working-tree-encoding=UTF-8
+###############################################
+# 1. 默认所有文本文件使用 LF 换行符，禁止 CRLF
+###############################################
+* text eol=lf
+
+###############################################
+# 2. Unity 关键文本文件（绝不能被 Git 转码）
+#    —— 只控制换行符，不强制 encoding
+#    —— 否则会导致 Unity reimport、diff 混乱
+###############################################
+*.meta     text eol=lf
+*.mat      text eol=lf
+*.anim     text eol=lf
+*.prefab   text eol=lf
+*.unity    text eol=lf
+*.shader   text eol=lf
+*.cginc    text eol=lf
+*.compute  text eol=lf
+*.asmdef   text eol=lf
+*.json     text eol=lf
+*.xml      text eol=lf
+*.txt      text eol=lf
+*.md       text eol=lf
+
+###############################################
+# 3. C# 文件强制 UTF-8（唯一安全可转码的类型）
+#    —— IDE 可能保存为 ANSI，因此必须强制
+#    —— 不会影响 Unity，不会 reimport
+###############################################
+*.cs text working-tree-encoding=UTF-8 eol=lf
+
+###############################################
+# 4. 二进制文件（防止被 diff / 转码）
+###############################################
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.exr binary
+*.tga binary
+*.psd binary
+*.fbx binary
+*.obj binary
+*.dll binary
+*.exe binary
+*.zip binary
+*.7z binary
+*.gz binary
+*.unitypackage binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
