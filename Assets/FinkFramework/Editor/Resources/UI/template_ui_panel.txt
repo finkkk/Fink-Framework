@@ -4,41 +4,95 @@
 // 面板名称：#CLASSNAME#
 // ===============================================
 
-using FinkFramework.Runtime.UI.Base;
+#USINGS#
 
 namespace #NAMESPACE#
 {
+    /// <summary>
+    /// UI 面板：#CLASSNAME#
+    /// 自动生成的基础逻辑，请在本类中扩展业务代码。
+    /// </summary>
     public class #CLASSNAME# : BasePanel
     {
+        #FIELDS#
+        
         protected override void Awake()
         {
             base.Awake();
-            // 初始化控件引用（自动绑定逻辑来自 BasePanel）
+
+            // 自动生成：控件绑定
+            // BasePanel 内部自动扫描控件并加入 controlDic，
+            // 这里通过 GetControl<T>(name) 获取引用。
+            #ASSIGN#
         }
 
         public override void ShowMe()
         {
-            // 首次显示时执行
+            // 首次显示时执行一次
         }
 
         public override void HideMe()
         {
-            // 隐藏时执行
+            // 首次隐藏时执行一次（一般用于退出动画等）
         }
 
         public override void OnShow()
         {
-            // 每次显示时刷新内容
+            // 每次显示时执行（用于刷新 UI）
         }
 
         public override void OnHide()
         {
-            // 每次隐藏时执行
+            // 每次隐藏时执行（用于暂停 UI、停止动画等）
         }
 
         public override void OnDestroyPanel()
         {
-            // 销毁前释放监听与资源
+            // 面板销毁前执行（用于释放引用、防止内存泄漏）
+        }
+
+        // ============================================================
+        // 以下事件由 BasePanel 统一分发
+        // 若该面板存在对应类型的控件则自动触发
+        // ============================================================
+
+        /// <summary>
+        /// 按钮点击事件回调
+        /// btnName = 按钮对象名
+        /// </summary>
+        protected override void ClickBtn(string btnName)
+        {
+            #LOGIC_BUTTON#
+        }
+
+        /// <summary>
+        /// 滑动条数值改变回调
+        /// sliderName = 滑条对象名
+        /// value = 当前值
+        /// </summary>
+        protected override void SliderValueChange(string sliderName, float value)
+        {
+            #LOGIC_SLIDER#
+        }
+
+        /// <summary>
+        /// InputField 内容改变回调
+        /// inputName = 输入框对象名
+        /// value = 内容
+        /// </summary>
+        protected override void InputValueChange(string inputName, string value)
+        {
+            #LOGIC_INPUT#
+        }
+        
+        /// <summary>
+        /// Toggle 勾选状态变化回调
+        /// toggleName = 控件对象名
+        /// value = 是否勾选
+        /// </summary>
+        protected override void ToggleValueChange(string toggleName, bool value)
+        {
+            #LOGIC_TOGGLE#
         }
     }
 }

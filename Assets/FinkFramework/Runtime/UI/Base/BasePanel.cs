@@ -33,24 +33,39 @@ namespace FinkFramework.Runtime.UI.Base
                                                                        "Scrollbar Vertical"};
         protected virtual void Awake()
         {
-            //为了避免 某一个对象上存在两种控件的情况
-            //我们应该优先查找重要的组件
+            // ========== 交互控件（事件绑定优先） ==========
             FindChildrenControl<Button>();
             FindChildrenControl<Toggle>();
             FindChildrenControl<Slider>();
+            FindChildrenControl<Scrollbar>();   
+
+            // ========== 输入框（Legacy + TMP） ==========
             FindChildrenControl<InputField>();
-            FindChildrenControl<ScrollRect>();
+            FindChildrenControl<TMP_InputField>();
+
+            // ========== 下拉框（Legacy + TMP Dropdown） ==========
             FindChildrenControl<Dropdown>();
+            FindChildrenControl<TMP_Dropdown>();
+
+            // ========== ScrollView 系列 ==========
+            FindChildrenControl<ScrollRect>();
+
+            // ========== Toggle 组 ==========
             FindChildrenControl<ToggleGroup>();
-            //即使对象上挂在了多个组件 只要优先找到了重要组件
-            //之后也可以通过重要组件得到身上其他挂载的内容
+
+            // ========== 文本（Legacy + TMP） ==========
             FindChildrenControl<Text>();
             FindChildrenControl<TextMeshProUGUI>();
+
+            // ========== 图片 ==========
             FindChildrenControl<Image>();
+
+            // ========== 布局组件 ==========
             FindChildrenControl<VerticalLayoutGroup>();
             FindChildrenControl<HorizontalLayoutGroup>();
             FindChildrenControl<GridLayoutGroup>();
         }
+
 
         /// <summary>
         /// 面板显示时会调用的逻辑(仅首次创建时调用一次）
@@ -101,17 +116,41 @@ namespace FinkFramework.Runtime.UI.Base
             return null;
         }
 
+        /// <summary>
+        /// 按钮点击时调用
+        /// </summary>
+        /// <param name="btnName">按钮对象名称</param>
         protected virtual void ClickBtn(string btnName)
         {
 
         }
 
+        /// <summary>
+        /// 滑动条改变时调用
+        /// </summary>
+        /// <param name="sliderName">滑动条对象名称</param>
+        /// <param name="value">当前滑动条的值</param>
         protected virtual void SliderValueChange(string sliderName, float value)
         {
 
         }
 
+        /// <summary>
+        /// 复选框改变时调用
+        /// </summary>
+        /// <param name="toggleName">输入框对象名称</param>
+        /// <param name="value">当前复选框是否选中</param>
         protected virtual void ToggleValueChange(string toggleName, bool value)
+        {
+
+        }
+        
+        /// <summary>
+        /// 输入框文本改变时调用（支持 InputField + TMP_InputField）
+        /// </summary>
+        /// <param name="inputName">输入框对象名称</param>
+        /// <param name="value">当前文本内容</param>
+        protected virtual void InputValueChange(string inputName, string value)
         {
 
         }
@@ -149,6 +188,18 @@ namespace FinkFramework.Runtime.UI.Base
                                 toggle.onValueChanged.AddListener((value) =>
                                 {
                                     ToggleValueChange(controlName, value);
+                                });
+                                break;
+                            case InputField inputField:
+                                inputField.onValueChanged.AddListener((value) =>
+                                {
+                                    InputValueChange(controlName, value);
+                                });
+                                break;
+                            case TMP_InputField tmpInput:
+                                tmpInput.onValueChanged.AddListener((value) =>
+                                {
+                                    InputValueChange(controlName, value);
                                 });
                                 break;
                         }
