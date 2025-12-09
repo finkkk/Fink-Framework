@@ -264,7 +264,7 @@ namespace FinkFramework.Editor.DataTools
 
         private static void GenerateContainerClass(ExcelMeta meta)
         {
-            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/Resources/Data/Data/template_container.txt");
+            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/Resources/Data/template_container.txt");
             if (!templateAsset)
             {
                 LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/Resources/Data/template_container.txt");
