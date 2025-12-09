@@ -1,3 +1,4 @@
+using FinkFramework.Editor.Utils;
 using FinkFramework.Editor.Windows.Common;
 using FinkFramework.Runtime.Environments;
 using UnityEditor;
@@ -80,84 +81,91 @@ namespace FinkFramework.Editor.Windows
         }
 
         private void OnGUI()
+        {
+            float ww = position.width;
+
+            GUILayout.Space(20);
+
+            // ===== Logo =====
+            if (logo)
+            {
+                FFEditorGUI.Center(() =>
                 {
-                    float ww = position.width;
+                    GUILayout.Label(logo, GUILayout.Width(128), GUILayout.Height(128));
+                });
+                GUILayout.Space(10);
+            }
 
-                    GUILayout.Space(20);
+            // ===== 标题 =====
+            GUILayout.Label("欢迎使用 Fink Framework", FFEditorStyles.Title);
 
-                    // ===== Logo =====
-                    if (logo)
-                    {
-                        FFEditorGUI.Center(() =>
-                        {
-                            GUILayout.Label(logo, GUILayout.Width(128), GUILayout.Height(128));
-                        });
-                        GUILayout.Space(10);
-                    }
+            // ===== 版本号 =====
+            GUILayout.Label($"当前版本：v{EnvironmentState.FrameworkVersion}",
+                EditorStyles.centeredGreyMiniLabel);
 
-                    // ===== 标题 =====
-                    GUILayout.Label("欢迎使用 Fink Framework", FFEditorStyles.Title);
+            GUILayout.Space(18);
+            FFEditorGUI.Separator();
+            GUILayout.Space(15);
 
-                    // ===== 版本号 =====
-                    GUILayout.Label($"当前版本：v{EnvironmentState.FrameworkVersion}",
-                        EditorStyles.centeredGreyMiniLabel);
+            FFEditorGUI.Center(() =>
+            {
+                GUILayout.Label(
+                    "感谢您使用 Fink Framework —— Unity 模块化开发框架！\n\n" +
+                    "Fink Framework 提供：数据驱动管线、UI 系统、资源加载、对象池、事件系统、" +
+                    "输入系统、计时器等基础设施，适用于中小型项目的快速研发。\n\n" +
+                    "<b>首次使用请前往 Project Settings → Fink Framework 进行基础配置。</b>",
+                    FFEditorStyles.Description,
+                    GUILayout.Width(ww * 0.78f)
+                );
+            });
 
-                    GUILayout.Space(18);
-                    FFEditorGUI.Separator();
-                    GUILayout.Space(15);
+            GUILayout.Space(30);
 
-                    FFEditorGUI.Center(() =>
-                    {
-                        GUILayout.Label(
-                            "感谢您使用 Fink Framework —— Unity 模块化开发框架！\n\n" +
-                            "Fink Framework 提供：数据驱动管线、UI 系统、资源加载、对象池、事件系统、" +
-                            "输入系统、计时器等基础设施，适用于中小型项目的快速研发。\n\n" +
-                            "<b>首次使用请前往 Project Settings → Fink Framework 进行基础配置。</b>",
-                            FFEditorStyles.Description,
-                            GUILayout.Width(ww * 0.78f)
-                        );
-                    });
+            // ===== 按钮组 =====
+            FFEditorGUI.Center(() =>
+            {
+                GUILayout.BeginVertical(GUILayout.Width(ww * 0.70f));
 
-                    GUILayout.Space(30);
+                if (GUILayout.Button("查看使用文档（Documentation）", FFEditorStyles.BigButton))
+                    Application.OpenURL("https://finkkk.cn/docs/fink-framework");
 
-                    // ===== 按钮组 =====
-                    FFEditorGUI.Center(() =>
-                    {
-                        GUILayout.BeginVertical(GUILayout.Width(ww * 0.70f));
+                GUILayout.Space(10);
 
-                        if (GUILayout.Button("查看使用文档（Documentation）", FFEditorStyles.BigButton))
-                            Application.OpenURL("https://finkkk.cn/docs/fink-framework");
+                if (GUILayout.Button("打开框架设置（Project Settings）", FFEditorStyles.BigButton))
+                    SettingsService.OpenProjectSettings("Project/Fink Framework");
 
-                        GUILayout.Space(10);
+                GUILayout.Space(10);
 
-                        if (GUILayout.Button("打开框架设置（Project Settings）", FFEditorStyles.BigButton))
-                            SettingsService.OpenProjectSettings("Project/Fink Framework");
+                if (GUILayout.Button("联系作者 / 个人博客（finkkk.cn）", FFEditorStyles.BigButton))
+                    Application.OpenURL("https://finkkk.cn");
+                
+                GUILayout.Space(10);
 
-                        GUILayout.Space(10);
-
-                        if (GUILayout.Button("联系作者 / 个人博客（finkkk.cn）", FFEditorStyles.BigButton))
-                            Application.OpenURL("https://finkkk.cn");
-
-                        GUILayout.EndVertical();
-                    });
-
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Space(20);
-
-                    // ===== 关闭按钮 =====
-                    FFEditorGUI.Center(() =>
-                    {
-                        if (GUILayout.Button("关闭", GUILayout.Height(28), GUILayout.Width(140)))
-                            Close();
-                    });
-
-                    GUILayout.Space(8);
-
-                    // ===== 页脚 =====
-                    GUILayout.Label("Copyright \u00A9 2025 Fink Framework",
-                        FFEditorStyles.Footer, GUILayout.ExpandWidth(true));
-
-                    GUILayout.Space(8);
+                if (GUILayout.Button("立即检查更新（Check Update）", FFEditorStyles.BigButton))
+                {
+                    UpdateCheckUtil.CheckUpdateManual();
                 }
+
+                GUILayout.EndVertical();
+            });
+
+            GUILayout.FlexibleSpace();
+            GUILayout.Space(20);
+
+            // ===== 关闭按钮 =====
+            FFEditorGUI.Center(() =>
+            {
+                if (GUILayout.Button("关闭", GUILayout.Height(28), GUILayout.Width(140)))
+                    Close();
+            });
+
+            GUILayout.Space(8);
+
+            // ===== 页脚 =====
+            GUILayout.Label("Copyright \u00A9 2025 Fink Framework",
+                FFEditorStyles.Footer, GUILayout.ExpandWidth(true));
+
+            GUILayout.Space(8);
+        }
     }
 }

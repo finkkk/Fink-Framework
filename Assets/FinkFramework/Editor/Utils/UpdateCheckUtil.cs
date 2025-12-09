@@ -17,28 +17,32 @@ namespace FinkFramework.Editor.Utils
 
         private const string LastCheckKey = "FinkFramework_LastUpdateCheck";
 
+        // 自动检查（InitializeOnLoad）
         [InitializeOnLoadMethod]
-        private static void CheckUpdate() => _ = CheckUpdateAsync();
+        private static void CheckUpdateOnLoad() => _ = CheckUpdateAsync(false);
         
-        private static async Task CheckUpdateAsync()
+        // 手动触发：不需要检查间隔、不写入 EditorPrefs
+        public static void CheckUpdateManual() => _ = CheckUpdateAsync(true);
+        
+        private static async Task CheckUpdateAsync(bool isManual)
         {
             var settings = GlobalSettings.Current;
 
             // 开关：关闭则不检查
-            if (!settings.EnableUpdateCheck)
+            if (!settings.EnableUpdateCheck && !isManual)
                 return;
 
-            // 是否到了检查日期
-            var lastTicks = EditorPrefs.GetString(LastCheckKey, "");
-            if (DateTime.TryParse(lastTicks, out DateTime lastTime))
+            // 自动检查才需要检查间隔
+            if (!isManual)
             {
-                if ((DateTime.Now - lastTime).TotalDays < settings.UpdateCheckIntervalDays)
-                    return; // 未到检查时间
+                string last = EditorPrefs.GetString(LastCheckKey, "");
+                if (DateTime.TryParse(last, out DateTime lastTime) &&
+                    (DateTime.Now - lastTime).TotalDays < settings.UpdateCheckIntervalDays)
+                    return;
+
+                // 自动检查才更新 lastCheck
+                EditorPrefs.SetString(LastCheckKey, DateTime.Now.ToString(CultureInfo.InvariantCulture));
             }
-
-            // 记录本次检查时间
-            EditorPrefs.SetString(LastCheckKey, DateTime.Now.ToString(CultureInfo.InvariantCulture));
-
             try
             {
                 using var client = new HttpClient();
@@ -51,6 +55,10 @@ namespace FinkFramework.Editor.Utils
                 string latestVersion = data["latest"]?.ToString();
                 const string currentVersion = EnvironmentState.FrameworkVersion;
 
+                if (latestVersion == currentVersion && isManual)
+                {
+                    LogUtil.Success("版本检查", $"当前版本已是最新版本：{currentVersion}");
+                }
                 // 有新版本 → 提示
                 if (!string.IsNullOrEmpty(latestVersion) && latestVersion != currentVersion)
                 {

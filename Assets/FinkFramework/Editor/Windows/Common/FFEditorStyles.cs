@@ -109,6 +109,18 @@ namespace FinkFramework.Editor.Windows.Common
                 alignment = TextAnchor.MiddleCenter,
                 padding = new RectOffset(12, 12, 4, 4)
             };
+        
+        /// <summary>
+        /// 窗口 小型按钮
+        /// </summary>
+        public static GUIStyle SmallButton =>
+            new(GUI.skin.button)
+            {
+                fontSize = 10,
+                fixedHeight = 28,
+                alignment = TextAnchor.MiddleCenter,
+                padding = new RectOffset(8, 8, 2, 2)
+            };
 
         /// <summary>
         /// 窗口 页脚

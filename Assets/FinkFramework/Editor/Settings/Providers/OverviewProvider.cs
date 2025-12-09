@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using FinkFramework.Editor.Utils;
+using UnityEditor;
 using UnityEngine;
 using FinkFramework.Editor.Windows.Common;
 
@@ -80,6 +81,13 @@ namespace FinkFramework.Editor.Settings.Providers
             EditorGUILayout.LabelField($"Framework Version: {Runtime.Environments.EnvironmentState.FrameworkVersion}",
                 FFEditorStyles.Description);
 
+            GUILayout.Space(6);
+            
+            if (GUILayout.Button("立即检查更新（Check Update）", FFEditorStyles.SmallButton))
+            {
+                UpdateCheckUtil.CheckUpdateManual();
+            }
+            
             GUILayout.Space(14);
 
             // ===== Footer =====
