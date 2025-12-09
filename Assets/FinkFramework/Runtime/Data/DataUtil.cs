@@ -324,14 +324,43 @@ namespace FinkFramework.Runtime.Data
             Type type = Type.GetType(typeName);
             if (type != null) return type;
 
+            // === 优先查找框架自动生成的数据类（避免与 UnityEditor 内部类冲突） ===
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 try
                 {
-                    type = asm.GetTypes().FirstOrDefault(x => x.Name == typeName);
-                    if (type != null) return type;
+                    type = asm.GetTypes().FirstOrDefault(x =>
+                            x.Name == typeName &&
+                            x.Namespace != null &&
+                            x.Namespace.Contains("Data.AutoGen.DataClass")  // 优先你的数据类
+                    );
+
+                    if (type != null)
+                        return type;
                 }
-                catch { /* 某些动态程序集可能抛异常 */ }
+                catch
+                {
+                    // ignored
+                }
+            }
+
+            // === 再退而求其次查找所有同名类型（但排除 UnityEditor.* 命名空间） ===
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
+                {
+                    type = asm.GetTypes().FirstOrDefault(x =>
+                        x.Name == typeName &&
+                        (x.Namespace == null || !x.Namespace.StartsWith("UnityEditor"))
+                    );
+
+                    if (type != null)
+                        return type;
+                }
+                catch
+                {
+                    // ignored
+                }
             }
             return null;
         }
@@ -349,14 +378,11 @@ namespace FinkFramework.Runtime.Data
                 string inner = fullName[(start + 1)..end].Trim();
 
                 string[] args = SplitGenericArgs(inner);
-                Type[] argTypes = args.Select(FindType).ToArray();
+                var argTypes = args.Select(FindType).ToArray();
 
                 var mainType = FindType(mainTypeName);
 
-                if (mainType is { IsGenericTypeDefinition: true })
-                    return mainType.MakeGenericType(argTypes);
-
-                return null;
+                return mainType is { IsGenericTypeDefinition: true } ? mainType.MakeGenericType(argTypes) : null;
             }
             catch (Exception ex)
             {
