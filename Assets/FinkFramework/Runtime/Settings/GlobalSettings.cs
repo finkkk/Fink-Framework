@@ -31,5 +31,28 @@ namespace FinkFramework.Runtime.Settings
                 return _instance;
             }
         }
+        
+        public static bool TryGet(out GlobalSettingsAsset settings)
+        {
+            // 已经加载成功
+            if (_instance != null)
+            {
+                settings = _instance;
+                return true;
+            }
+
+            // 尝试加载
+            _instance = Resources.Load<GlobalSettingsAsset>("GlobalSettingsAsset");
+
+            // 如果仍然没有，表示还没加载到，但不是错误（例如首次导入）
+            if (_instance == null)
+            {
+                settings = null;
+                return false;
+            }
+
+            settings = _instance;
+            return true;
+        }
     }
 }

@@ -26,7 +26,8 @@ namespace FinkFramework.Editor.Utils
         
         private static async Task CheckUpdateAsync(bool isManual)
         {
-            var settings = GlobalSettings.Current;
+            if (!GlobalSettings.TryGet(out var settings))
+                return; // 首次导入时不报错，直接跳过检查
 
             // 开关：关闭则不检查
             if (!settings.EnableUpdateCheck && !isManual)
