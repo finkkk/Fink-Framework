@@ -16,6 +16,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 
+#pragma warning disable CS0618 // 类型或成员已过时
 namespace FinkFramework.Odin.OdinSerializer
 {
     using System;
