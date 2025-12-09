@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9fb8a045a93243b8989c9ae9075d5899, type: 3}
   m_Name: GlobalSettingsAsset
   m_EditorClassIdentifier: 
+  EnableUpdateCheck: 1
+  UpdateCheckIntervalDays: 0
   ForceDisableXR: 0
   ForceDisableNewInputSystem: 0
   ForceDisableURP: 0

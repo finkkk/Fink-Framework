@@ -7,19 +7,19 @@ using UnityEngine.UIElements;
 
 namespace FinkFramework.Editor.Settings.Providers
 {
-    public class EnvironmentSettingsProvider : SettingsProvider
+    public class FrameworkSettingsProvider : SettingsProvider
     {
         private GlobalSettingsAsset asset;
 
-        public EnvironmentSettingsProvider(string path, SettingsScope scope)
+        public FrameworkSettingsProvider(string path, SettingsScope scope)
             : base(path, scope) { }
 
         [SettingsProvider]
         public static SettingsProvider CreateProvider()
         {
-            return new EnvironmentSettingsProvider("Project/Fink Framework/Environment", SettingsScope.Project)
+            return new FrameworkSettingsProvider("Project/Fink Framework/Framework", SettingsScope.Project)
             {
-                keywords = new[] { "Fink", "Framework", "Environment", "Setting" }
+                keywords = new[] { "Fink", "Framework", "Framework", "Setting" }
             };
         }
 
@@ -45,17 +45,34 @@ namespace FinkFramework.Editor.Settings.Providers
               // ===== 标题 =====
             FFEditorGUI.Center(() =>
             {
-                GUILayout.Label("环境配置 (Environment Settings)", FFEditorStyles.Title);
+                GUILayout.Label("框架配置 (Framework Settings)", FFEditorStyles.Title);
             });
 
             GUILayout.Space(8);
             EditorGUILayout.LabelField(
-                "控制框架的环境行为，包括 XR、输入系统、渲染管线等基础环境控制开关。",
+                "控制框架的全局设置，包括 XR、输入系统、渲染管线和版本更新等基础框架设置。",
                 FFEditorStyles.Description);
             GUILayout.Space(12);
 
             // ===== 主区域 =====
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+
+            // 更新检查
+            EditorGUILayout.LabelField("框架更新 设置", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+
+            asset.EnableUpdateCheck =
+                EditorGUILayout.Toggle("启用版本更新检查", asset.EnableUpdateCheck);
+            EditorGUILayout.LabelField(
+                "启用后，编辑器会自动从 GitHub 检查框架新版本。若关闭则不再提示。",
+                FFEditorStyles.Description);
+
+            asset.UpdateCheckIntervalDays =
+                EditorGUILayout.IntSlider("检查间隔（天）", asset.UpdateCheckIntervalDays, 0, 30);
+            EditorGUILayout.LabelField(
+                "设置编辑器多久执行一次更新检查。（默认 1 天）",
+                FFEditorStyles.Description);
+            GUILayout.Space(8);
 
             // XR
             EditorGUILayout.LabelField("XR 设置", FFEditorStyles.SectionTitle);
