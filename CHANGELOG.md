@@ -4,6 +4,17 @@
 
 ---
 
+### v0.2.1 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-09</span>
+
+本次更新聚焦于编辑器工具链的稳定性修复，并对欢迎界面、全局配置系统、UI Builder 等模块进行了重要的可靠性提升，确保框架在复杂工程场景下的编辑体验更加顺畅与可控。
+
+- **欢迎面板（WelcomeWindow）**：修复了在 Unity 打开 Project Settings 时会重复触发 [InitializeOnLoad] 回调、导致编辑器卡死的问题。
+- **全局配置（GlobalSettingsAsset）**：修复自动创建 ScriptableObject 时，当父目录不存在会报错的问题；新增递归目录创建机制，确保配置文件路径始终有效并可正确生成。
+- **Odin 集成修正**：清理了数个与 Unity 2022/2023 版本相关的过期 API 警告；优化 Unity Serialization Utility 中 PrefabRoot 检测逻辑以适配最新 API。
+- **UI Builder（代码生成）**：修复生成的 UI 脚本中字段与方法缩进错位的问题；模板输出格式现已严格对齐 C# 规范，便于 IDE 自动格式化与团队协作。
+
+---
+
 ### v0.2.0 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-09</span>
 
 **架构级重构与生态扩展**
