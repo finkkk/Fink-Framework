@@ -14,7 +14,7 @@ namespace #NAMESPACE#
     /// </summary>
     public class #CLASSNAME# : BasePanel
     {
-        #FIELDS#
+#FIELDS#
         
         protected override void Awake()
         {
@@ -23,7 +23,7 @@ namespace #NAMESPACE#
             // 自动生成：控件绑定
             // BasePanel 内部自动扫描控件并加入 controlDic，
             // 这里通过 GetControl<T>(name) 获取引用。
-            #ASSIGN#
+#ASSIGN#
         }
 
         public override void ShowMe()
