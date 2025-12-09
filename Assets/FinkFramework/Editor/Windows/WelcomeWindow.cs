@@ -5,18 +5,55 @@ using UnityEngine;
 
 namespace FinkFramework.Editor.Windows
 {
+    /// <summary>
+    /// 欢迎界面安全初始化（仅工程第一次加载时弹一次）
+    /// </summary>
     [InitializeOnLoad]
-    public class FrameworkWelcome
+    public static class FrameworkWelcome
     {
         private const string Key = "Framework_WelcomePanel_Shown";
 
         static FrameworkWelcome()
         {
-            if (!SessionState.GetBool(Key, false))
+            // 如果不是第一次，不做任何事
+            if (EditorPrefs.GetBool(Key, false))
+                return;
+
+            // 延迟到 Editor 完全初始化之后执行
+            EditorApplication.delayCall += SafeInit;
+        }
+
+        private static void SafeInit()
+        {
+            // 再次确保延迟执行不会重复
+            if (EditorPrefs.GetBool(Key, false))
+                return;
+
+            // 设置已显示标记
+            EditorPrefs.SetBool(Key, true);
+
+            // 如果当前 Editor 正在打开 Project Settings，则不要弹出
+            if (IsProjectSettingsOpening())
+                return;
+
+            WelcomeWindow.ShowWindow();
+        }
+
+        /// <summary>
+        /// 更可靠的 Project Settings 打开检测
+        /// </summary>
+        private static bool IsProjectSettingsOpening()
+        {
+            var win = EditorWindow.focusedWindow;
+
+            if (win == null)
             {
-                SessionState.SetBool(Key, true);
-                EditorApplication.delayCall += WelcomeWindow.ShowWindow;
+                // 重点：如果窗口为空，不要贸然弹窗（避免初始化早期和 Settings 打开中）
+                return true;
             }
+
+            string title = win.titleContent.text;
+            return title.Contains("Project Settings");
         }
     }
 
