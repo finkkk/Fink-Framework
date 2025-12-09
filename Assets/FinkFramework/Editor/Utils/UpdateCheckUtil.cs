@@ -58,6 +58,7 @@ namespace FinkFramework.Editor.Utils
                 if (latestVersion == currentVersion && isManual)
                 {
                     LogUtil.Success("版本检查", $"当前版本已是最新版本：{currentVersion}");
+                    return;
                 }
                 // 有新版本 → 提示
                 if (!string.IsNullOrEmpty(latestVersion) && latestVersion != currentVersion)
