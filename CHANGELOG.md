@@ -4,6 +4,17 @@
 
 ---
 
+### v0.2.3 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-10</span>
+
+本次更新新增了框架的版本更新检查功能，并在全局配置面板中加入对应开关与检查间隔设置，帮助开发者在 Unity 编辑器内及时获知框架新版本。
+
+- 新增版本更新检查模块（UpdateCheckUtil），支持编辑器启动时自动检测新版本。
+- 新增 GlobalSettings 中的更新检查开关与检查频率设置。
+- 版本信息改为从自有服务器 version.json 获取，避免 GitHub API 限流问题。
+- 新增手动检测是否是最新版本的按钮，放置在欢迎面板和项目全局配置中的框架配置面板中。
+
+---
+
 ### v0.2.2 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-09</span>
 
 本次更新重点解决数据管线在实际使用中出现的类型解析冲突、模板路径错误等影响工作流的问题。
