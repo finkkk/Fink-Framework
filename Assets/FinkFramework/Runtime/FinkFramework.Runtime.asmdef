@@ -24,6 +24,11 @@
             "name": "com.unity.xr.interaction.toolkit",
             "define": "ENABLE_XRI",
             "expression": ""
+        },
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "define": "ENABLE_URP",
+            "expression": ""
         }
     ],
     "noEngineReferences": false

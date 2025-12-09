@@ -58,7 +58,7 @@ namespace FinkFramework.Runtime.Environments
         /// 自动检测：当前项目是否启用了 URP。
         /// 根据 UNITY_RENDER_PIPELINE_URP 宏判断。
         /// </summary>
-        #if UNITY_RENDER_PIPELINE_URP
+        #if ENABLE_URP
         public const bool AutoURP = true;
         #else
         public const bool AutoURP = false;
