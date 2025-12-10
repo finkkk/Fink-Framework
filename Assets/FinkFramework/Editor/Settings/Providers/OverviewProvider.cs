@@ -83,10 +83,8 @@ namespace FinkFramework.Editor.Settings.Providers
 
             GUILayout.Space(6);
             
-            if (GUILayout.Button("立即检查更新（Check Update）", FFEditorStyles.SmallButton))
-            {
+            if (GUILayout.Button("立即检查更新", FFEditorStyles.SmallButton, GUILayout.Width(120)))
                 UpdateCheckUtil.CheckUpdateManual();
-            }
             
             GUILayout.Space(14);
 

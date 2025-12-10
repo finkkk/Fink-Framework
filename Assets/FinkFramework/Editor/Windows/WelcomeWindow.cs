@@ -12,49 +12,37 @@ namespace FinkFramework.Editor.Windows
     [InitializeOnLoad]
     public static class FrameworkWelcome
     {
-        private const string Key = "Framework_WelcomePanel_Shown";
+        private const string DisableKey = "FinkFramework_Welcome_Disabled";
+        private static int _waitCounter = 0;
 
         static FrameworkWelcome()
         {
-            // 如果不是第一次，不做任何事
-            if (EditorPrefs.GetBool(Key, false))
+            // 若用户选择了永久关闭 → 直接不再弹
+            if (EditorPrefs.GetBool(DisableKey, false))
                 return;
 
-            // 延迟到 Editor 完全初始化之后执行
-            EditorApplication.delayCall += SafeInit;
+            // 每次打开项目都尝试弹出欢迎窗口
+            EditorApplication.update += WaitForEditorReady;
         }
 
-        private static void SafeInit()
+        private static void WaitForEditorReady()
         {
-            // 再次确保延迟执行不会重复
-            if (EditorPrefs.GetBool(Key, false))
+            _waitCounter++;
+
+            // 等待 Editor UI 初始化完全稳定
+            if (_waitCounter < 30)
                 return;
 
-            // 设置已显示标记
-            EditorPrefs.SetBool(Key, true);
-
-            // 如果当前 Editor 正在打开 Project Settings，则不要弹出
-            if (IsProjectSettingsOpening())
+            if (EditorApplication.isCompiling ||
+                EditorApplication.isUpdating ||
+                EditorApplication.isPlayingOrWillChangePlaymode)
                 return;
 
+            // 停止循环
+            EditorApplication.update -= WaitForEditorReady;
+
+            // 打开欢迎界面
             WelcomeWindow.ShowWindow();
-        }
-
-        /// <summary>
-        /// 更可靠的 Project Settings 打开检测
-        /// </summary>
-        private static bool IsProjectSettingsOpening()
-        {
-            var win = EditorWindow.focusedWindow;
-
-            if (win == null)
-            {
-                // 重点：如果窗口为空，不要贸然弹窗（避免初始化早期和 Settings 打开中）
-                return true;
-            }
-
-            string title = win.titleContent.text;
-            return title.Contains("Project Settings");
         }
     }
 
@@ -65,16 +53,20 @@ namespace FinkFramework.Editor.Windows
     {
         private static Texture2D logo;
         private GUIStyle footerStyle;
+        private const string DisableKey = "FinkFramework_Welcome_Disabled";
+        private bool dontShowAgain = false;
 
         [MenuItem("Fink Framework/欢迎使用面板")]
         public static void ShowWindow()
         {
             var window = GetWindow<WelcomeWindow>(true, "欢迎使用 Fink Framework");
-            window.minSize = new Vector2(540, 440);
+            window.minSize = new Vector2(560, 460);
+            window.Show();
         }
 
         private void OnEnable()
         {
+            dontShowAgain = EditorPrefs.GetBool(DisableKey, false);
             logo = AssetDatabase.LoadAssetAtPath<Texture2D>(
                 "Assets/FinkFramework/Resources/FinkFramework_logo.png"
             );
@@ -150,6 +142,20 @@ namespace FinkFramework.Editor.Windows
             });
 
             GUILayout.FlexibleSpace();
+            
+            // ====== 永久关闭选项 ======
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            bool newValue = GUILayout.Toggle(dontShowAgain, "下次不再显示此窗口");
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+
+            if (newValue != dontShowAgain)
+            {
+                dontShowAgain = newValue;
+                EditorPrefs.SetBool(DisableKey, dontShowAgain);
+            }
+            
             GUILayout.Space(20);
 
             // ===== 关闭按钮 =====

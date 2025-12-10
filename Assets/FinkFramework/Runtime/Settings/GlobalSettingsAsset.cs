@@ -9,7 +9,7 @@ namespace FinkFramework.Runtime.Settings
     /// </summary>
     public class GlobalSettingsAsset : ScriptableObject
     {
-        #region ===== 框架更新检查 =====
+        #region ===== 框架配置 =====
 
         [Header("是否启用版本更新检查")]
         [Tooltip("若为 false，则编辑器不会自动检查 GitHub 是否有新版本。")]
@@ -17,11 +17,8 @@ namespace FinkFramework.Runtime.Settings
 
         [Header("版本检查间隔（天）")]
         [Tooltip("编辑器多久检查一次更新。默认 0 天检查一次。")]
-        public int UpdateCheckIntervalDays = 0;
+        public int UpdateCheckIntervalDays = 1;
 
-        #endregion
-        
-        #region ===== 环境配置 =====
         [Header("是否强制关闭 XR")]
         [Tooltip("是否强制关闭 XR（比自动检测优先级更高）。若为 true，则即使已安装 XRI 也会禁用 XR 相关系统。若为 false，则按自动检测结果处理。")]
         public bool ForceDisableXR = false;

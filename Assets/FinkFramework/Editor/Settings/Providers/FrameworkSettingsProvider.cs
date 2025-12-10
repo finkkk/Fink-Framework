@@ -68,7 +68,7 @@ namespace FinkFramework.Editor.Settings.Providers
                 FFEditorStyles.Description);
 
             asset.UpdateCheckIntervalDays =
-                EditorGUILayout.IntSlider("检查间隔（天）", asset.UpdateCheckIntervalDays, 0, 30);
+                EditorGUILayout.IntSlider("检查间隔（天）", asset.UpdateCheckIntervalDays, 1, 30);
             EditorGUILayout.LabelField(
                 "设置编辑器多久执行一次更新检查。（默认 1 天）",
                 FFEditorStyles.Description);

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: GlobalSettingsAsset
   m_EditorClassIdentifier: 
   EnableUpdateCheck: 1
-  UpdateCheckIntervalDays: 0
+  UpdateCheckIntervalDays: 1
   ForceDisableXR: 0
   ForceDisableNewInputSystem: 0
   ForceDisableURP: 0

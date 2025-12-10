@@ -113,14 +113,21 @@ namespace FinkFramework.Editor.Windows.Common
         /// <summary>
         /// 窗口 小型按钮
         /// </summary>
-        public static GUIStyle SmallButton =>
-            new(GUI.skin.button)
+        public static GUIStyle SmallButton
+        {
+            get
             {
-                fontSize = 10,
-                fixedHeight = 28,
-                alignment = TextAnchor.MiddleCenter,
-                padding = new RectOffset(8, 8, 2, 2)
-            };
+                var style = new GUIStyle(GUI.skin.button)
+                {
+                    fontSize = 11,
+                    fixedHeight = 22,
+                    alignment = TextAnchor.MiddleCenter,
+                    padding = new RectOffset(6, 6, 2, 2),
+                    fixedWidth = 0 // 不强制铺满
+                };
+                return style;
+            }
+        }
 
         /// <summary>
         /// 窗口 页脚
