@@ -120,7 +120,7 @@ namespace FinkFramework.Runtime.Scene
         /// <summary>
         /// 异步切换场景：句柄方式（通过场景名）
         /// </summary>
-        public SceneOperation LoadSceneHandle(string name)
+        public SceneOperation LoadSceneAsyncHandle(string name)
         {
             var op = new SceneOperation();
             _ = LoadSceneHandleWrapper(name, op);
@@ -132,7 +132,7 @@ namespace FinkFramework.Runtime.Scene
         /// </summary>
         public async UniTask LoadSceneAsync(string name)
         {
-            var op = LoadSceneHandle(name);
+            var op = LoadSceneAsyncHandle(name);
             await op.WaitUntilDone();
         }
         
@@ -141,7 +141,7 @@ namespace FinkFramework.Runtime.Scene
         /// </summary>
         public void LoadSceneAsyncCallback(string name, UnityAction onComplete = null, UnityAction<float> onProgress = null)
         {
-            var op = LoadSceneHandle(name);
+            var op = LoadSceneAsyncHandle(name);
 
             // 完成监听
             op.Completed += _ => onComplete?.Invoke();

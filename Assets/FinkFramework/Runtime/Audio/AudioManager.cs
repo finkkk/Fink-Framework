@@ -123,7 +123,7 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         /// <param name="path">带前缀的完整资源路径</param>
         /// <param name="callback">加载并播放成功后的回调，返回 AudioSource</param>
-        public void PlayMusicAsync(string path, UnityAction<AudioSource> callback)
+        public void PlayMusicAsyncCallback(string path, UnityAction<AudioSource> callback = null)
         {
             if (!musicGroup)
             {
@@ -142,7 +142,7 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         /// <param name="fullPath">带前缀的完整资源路径</param>
         /// <returns>音频异步播放操作句柄</returns>
-        public AudioOperation PlayMusicHandle(string fullPath)
+        public AudioOperation PlayMusicAsyncHandle(string fullPath)
         {
             if (!musicGroup)
             {
@@ -154,8 +154,7 @@ namespace FinkFramework.Runtime.Audio
         /// <summary>
         /// 停止音乐
         /// </summary>
-        /// <param name="name">音乐名</param>
-        public void StopMusic(string name)
+        public void StopMusic()
         {
             if (!musicPlayer)
             {

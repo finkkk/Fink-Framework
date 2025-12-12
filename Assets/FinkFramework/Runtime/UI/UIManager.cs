@@ -49,7 +49,7 @@ namespace FinkFramework.Runtime.UI
     public class UIManager : Singleton<UIManager>
     {
         #region 常量定义
-        private const string PANEL_PATH = "FinkFramework/UI/Panels/";
+        private const string PANEL_PATH = "UI/Panels/";
         private const string BASE_PATH = "FinkFramework/UI/Base/";
         private const string DEFAULT_PREFIX = "Default";
         #endregion
