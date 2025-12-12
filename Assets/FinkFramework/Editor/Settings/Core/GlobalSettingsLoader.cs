@@ -13,7 +13,7 @@ namespace FinkFramework.Editor.Settings.Core
         /// <summary>
         /// 全局配置文件的存储路径
         /// </summary>
-        public const string AssetPath = "Assets/FinkFramework/Runtime/Resources/GlobalSettingsAsset.asset";
+        public const string AssetPath = "Assets/FinkFramework/Runtime/Resources/FinkFramework/GlobalSettingsAsset.asset";
         
         /// <summary>
         /// 加载全局设置 SO，如果不存在就自动创建。
@@ -42,7 +42,7 @@ namespace FinkFramework.Editor.Settings.Core
         /// </summary>
         private static void EnsureParentDirectoryExists(string assetPath)
         {
-            string folderPath = assetPath.Substring(0, assetPath.LastIndexOf('/'));
+            string folderPath = assetPath[..assetPath.LastIndexOf('/')];
 
             if (AssetDatabase.IsValidFolder(folderPath))
                 return;

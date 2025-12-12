@@ -39,7 +39,7 @@ namespace FinkFramework.Editor.Windows
 
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("清空加密数据",GUILayout.Height(26)))
-                    LogAndRun("清空加密数据", DataExportTool.ClearExportedData);
+                    LogAndRun("清空加密数据", DataCleanTool.ClearExportedData);
 
                 if (GUILayout.Button("仅生成数据文件",GUILayout.Height(26)))
                     LogAndRun("仅生成数据文件", () => DataGenTool.GenerateAllData());

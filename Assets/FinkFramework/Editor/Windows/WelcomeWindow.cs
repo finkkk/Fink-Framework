@@ -13,15 +13,22 @@ namespace FinkFramework.Editor.Windows
     public static class FrameworkWelcome
     {
         private const string DisableKey = "FinkFramework_Welcome_Disabled";
+        private const string SessionShownKey = "FinkFramework_Welcome_SessionShown";
         private static int _waitCounter = 0;
 
         static FrameworkWelcome()
         {
-            // 若用户选择了永久关闭 → 直接不再弹
+            // 1. 用户选择永久关闭 → 永远不自动弹
             if (EditorPrefs.GetBool(DisableKey, false))
                 return;
 
-            // 每次打开项目都尝试弹出欢迎窗口
+            // 2. 本次 Unity 会话已经弹过 → 不再弹（防止编译重复）
+            if (SessionState.GetBool(SessionShownKey, false))
+                return;
+
+            // 3. 标记：本次会话已经安排过欢迎页
+            SessionState.SetBool(SessionShownKey, true);
+            
             EditorApplication.update += WaitForEditorReady;
         }
 
@@ -54,6 +61,7 @@ namespace FinkFramework.Editor.Windows
         private static Texture2D logo;
         private GUIStyle footerStyle;
         private const string DisableKey = "FinkFramework_Welcome_Disabled";
+       
         private bool dontShowAgain = false;
 
         [MenuItem("Fink Framework/欢迎使用面板")]
@@ -67,8 +75,7 @@ namespace FinkFramework.Editor.Windows
         private void OnEnable()
         {
             dontShowAgain = EditorPrefs.GetBool(DisableKey, false);
-            logo = AssetDatabase.LoadAssetAtPath<Texture2D>(
-                "Assets/FinkFramework/Resources/FinkFramework_logo.png"
+            logo = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/FinkFramework/Editor/EditorResources/Icon/FinkFramework_logo.png"
             );
         }
 

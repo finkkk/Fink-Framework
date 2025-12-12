@@ -27,6 +27,19 @@ namespace FinkFramework.Editor.Settings.Providers
         public override void OnGUI(string searchContext)
         {
             GUILayout.Space(10);
+            
+            // ===== Logo =====
+            var logo = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/FinkFramework/Editor/EditorResources/Icon/FinkFramework_logo.png");
+            
+            if (logo != null)
+            {
+                GUILayout.Space(10);
+                FFEditorGUI.Center(() =>
+                {
+                    GUILayout.Label(logo, GUILayout.Width(128), GUILayout.Height(128));
+                });
+                GUILayout.Space(10);
+            }
 
             // ===== Title =====
             FFEditorGUI.Center(() =>

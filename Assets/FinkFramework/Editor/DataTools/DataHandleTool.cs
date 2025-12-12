@@ -35,7 +35,7 @@ namespace FinkFramework.Editor.DataTools
         public static void HandleAllData()
         {
             // 清空导出数据
-            DataExportTool.ClearExportedData();
+            DataCleanTool.ClearExportedData();
             EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Cleared);
 
             // 生成数据类

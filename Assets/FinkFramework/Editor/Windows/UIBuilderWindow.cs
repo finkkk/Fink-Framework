@@ -137,9 +137,30 @@ namespace FinkFramework.Editor.Windows
         /// </summary>
         private void CreatePanel()
         {
-            if (string.IsNullOrEmpty(panelName))
+            // ====== PanelName 合法性校验 ======
+            if (!ValidatePanelName(panelName, out var error))
             {
-                EditorUtility.DisplayDialog("Error", "面板名称不能为空!", "OK");
+                EditorUtility.DisplayDialog(
+                    "非法的面板名称",
+                    error,
+                    "确认"
+                );
+                return;
+            }
+    
+            if (CheckPrefabConflict(panelName, prefabPath))
+            {
+                string fullPrefabPath = $"{prefabPath}/{panelName}.prefab";
+
+                EditorUtility.DisplayDialog(
+                    "Prefab 已存在",
+                    $"检测到已存在同名 UI Prefab：\n\n{fullPrefabPath}\n\n" +
+                    "请更换面板名称，或手动删除已有 Prefab 后再创建。",
+                    "确认"
+                );
+
+                LogUtil.Warn("UIBuilderWindow",
+                    $"检测到同名 Prefab，已完全中断 UI 面板创建流程：{fullPrefabPath}");
                 return;
             }
 
@@ -162,7 +183,7 @@ namespace FinkFramework.Editor.Windows
 
             EditorUtility.DisplayDialog("提示",
                 "脚本已生成，点击确认后 Unity 将开始重新编译。\n重编译期间请勿操作，等待编译完成。\n编译结束后将自动创建 prefab 并挂载脚本。",
-                "OK");
+                "确认");
         }
 
         #endregion
@@ -176,12 +197,12 @@ namespace FinkFramework.Editor.Windows
 
             // 加载模板
             TextAsset templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(
-                "Assets/FinkFramework/Editor/Resources/UI/template_ui_panel.txt"
+                "Assets/FinkFramework/Editor/EditorResources/UI/template_ui_panel.txt"
             );
 
             if (!templateAsset)
             {
-                LogUtil.Error("UIBuilderWindow", "模板文件未找到：Assets/FinkFramework/Editor/Resources/UI/template_ui_panel.txt");
+                LogUtil.Error("UIBuilderWindow", "模板文件未找到：Assets/FinkFramework/Editor/EditorResources/UI/template_ui_panel.txt");
                 return;
             }
 
@@ -427,15 +448,29 @@ namespace FinkFramework.Editor.Windows
             // 5. 保存 Prefab
             // ==========================================================
             string fullPrefabPath = $"{prefabPath}/{panelName}.prefab";
-            // 这里使用 GenerateUniqueAssetPath 防止覆盖已有 Prefab（可选，看你需求，如果想覆盖就不加这个）
-            fullPrefabPath = AssetDatabase.GenerateUniqueAssetPath(fullPrefabPath);
+            // === 同名 Prefab 检测 ===
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(fullPrefabPath) != null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Prefab 已存在",
+                    $"检测到已存在同名 UI Prefab：\n\n{fullPrefabPath}\n\n" +
+                    "请更换面板名称，或手动删除已有 Prefab 后再创建。",
+                    "确认"
+                );
+
+                LogUtil.Warn("UIBuilderWindow",
+                    $"UI Prefab 已存在，已中断创建：{fullPrefabPath}");
+
+                // 中断流程
+                return;
+            }
             
             PrefabUtility.SaveAsPrefabAsset(root, fullPrefabPath);
 
             // 销毁场景中的临时对象
             GameObject.DestroyImmediate(root);
 
-            EditorUtility.DisplayDialog("Success", $"UI面板 {panelName} 创建完毕!", "OK");
+            EditorUtility.DisplayDialog("Success", $"UI面板 {panelName} 创建完毕!", "确认");
             
             // 高亮选中新文件
             EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<GameObject>(fullPrefabPath));
@@ -444,6 +479,44 @@ namespace FinkFramework.Editor.Windows
         #endregion
 
         #region 工具方法
+        
+        private bool ValidatePanelName(string name, out string error)
+        {
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                error = "面板名称不能为空。";
+                return false;
+            }
+
+            if (name.Contains(" "))
+            {
+                error = "面板名称不能包含空格。";
+                return false;
+            }
+
+            // C# 标识符规则：字母或下划线开头，后续字母/数字/下划线
+            if (!System.Text.RegularExpressions.Regex.IsMatch(
+                    name, @"^[A-Za-z_][A-Za-z0-9_]*$"))
+            {
+                error =
+                    "面板名称不合法。\n\n" +
+                    "命名规则：\n" +
+                    "· 必须以字母或下划线开头\n" +
+                    "· 只能包含字母、数字、下划线\n" +
+                    "· 不能包含中文或特殊字符";
+                return false;
+            }
+
+            return true;
+        }
+        
+        private bool CheckPrefabConflict(string panelName, string prefabPath)
+        {
+            string fullPrefabPath = $"{prefabPath}/{panelName}.prefab";
+            return AssetDatabase.LoadAssetAtPath<GameObject>(fullPrefabPath) != null;
+        }
         
         private string BuildNamespace(string scriptFolder)
         {
@@ -512,7 +585,7 @@ namespace FinkFramework.Editor.Windows
         {
             string typeFolder = useTMP ? "TMP" : "Legacy";
 
-            return $"Assets/FinkFramework/Editor/Resources/UI/UIBuilder/{typeFolder}/{prefabName}.prefab";
+            return $"Assets/FinkFramework/Editor/EditorResources/UI/UIBuilder/{typeFolder}/{prefabName}.prefab";
         }
 
         private static void CreateDemoControl(string prefabName, bool useTMP, Transform parent)

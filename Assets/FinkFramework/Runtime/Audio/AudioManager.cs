@@ -29,7 +29,7 @@ namespace FinkFramework.Runtime.Audio
         private void InitMixer()
         {
             // 1. 加载 Mixer 资源
-            masterMixer = ResManager.Instance.Load<AudioMixer>("res://Audio/MasterMixer");
+            masterMixer = ResManager.Instance.Load<AudioMixer>("res://FinkFramework/Audio/MasterMixer");
             if (!masterMixer)
             {
                 LogUtil.Error("AudioManager", "无法加载 AudioMixer：Audio/MasterMixer");
@@ -235,7 +235,7 @@ namespace FinkFramework.Runtime.Audio
             {
                 LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
             }
-            AudioSource source = PoolManager.Instance.Spawn("res://Audio/Base/SoundPlayer").GetComponent<AudioSource>();
+            AudioSource source = PoolManager.Instance.Spawn("res://FinkFramework/Audio/Base/SoundPlayer").GetComponent<AudioSource>();
             source.outputAudioMixerGroup = sfxGroup;
             // 若缓存池达到上限可能会取出之前正在播放的音效 所以可以先执行一次停止播放
             source.Stop();
@@ -483,7 +483,7 @@ namespace FinkFramework.Runtime.Audio
             }
 
             // --- 音效 ---
-            AudioSource source = PoolManager.Instance.Spawn("res://Audio/Base/SoundPlayer").GetComponent<AudioSource>();
+            AudioSource source = PoolManager.Instance.Spawn("res://FinkFramework/Audio/Base/SoundPlayer").GetComponent<AudioSource>();
             source.outputAudioMixerGroup = sfxGroup;
             // 若缓存池达到上限可能会取出之前正在播放的音效 所以可以先执行一次停止播放
             source.Stop();

@@ -49,8 +49,8 @@ namespace FinkFramework.Runtime.UI
     public class UIManager : Singleton<UIManager>
     {
         #region 常量定义
-        private const string PANEL_PATH = "UI/Panels/";
-        private const string BASE_PATH = "UI/Base/";
+        private const string PANEL_PATH = "FinkFramework/UI/Panels/";
+        private const string BASE_PATH = "FinkFramework/UI/Base/";
         private const string DEFAULT_PREFIX = "Default";
         #endregion
         
@@ -411,7 +411,7 @@ namespace FinkFramework.Runtime.UI
             // 只是最后不调 OnShow，只返回面板实例
 
             if (string.IsNullOrEmpty(fullPath))
-                fullPath = $"res://UI/Panels/{typeof(T).Name}";
+                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
 
             op.SetProgress(0.2f);
 

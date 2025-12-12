@@ -20,7 +20,7 @@ namespace FinkFramework.Runtime.Settings
                 if (_instance)
                     return _instance;
 
-                _instance = Resources.Load<GlobalSettingsAsset>("GlobalSettingsAsset");
+                _instance = Resources.Load<GlobalSettingsAsset>("FinkFramework/GlobalSettingsAsset");
 
 #if UNITY_EDITOR
                 if (!_instance)
@@ -42,10 +42,10 @@ namespace FinkFramework.Runtime.Settings
             }
 
             // 尝试加载
-            _instance = Resources.Load<GlobalSettingsAsset>("GlobalSettingsAsset");
+            _instance = Resources.Load<GlobalSettingsAsset>("FinkFramework/GlobalSettingsAsset");
 
             // 如果仍然没有，表示还没加载到，但不是错误（例如首次导入）
-            if (_instance == null)
+            if (!_instance)
             {
                 settings = null;
                 return false;

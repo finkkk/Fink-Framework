@@ -41,7 +41,7 @@ namespace FinkFramework.Editor.DataTools
             public string[] FieldTypes;
             public string[] FieldDescs;
 
-            public string Template;
+            public string? Template;
         }
 
         #endregion
@@ -173,12 +173,12 @@ namespace FinkFramework.Editor.DataTools
             string className = TextsUtil.ToPascalCase(fileName);
             
             // ---------- 2. 读取模板 ----------
-            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/Resources/Data/template_data.txt");
+            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/EditorResources/Data/template_data.txt");
             if (!templateAsset)
             {
-                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/Resources/Data/template_data.txt");
+                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/EditorResources/Data/template_data.txt");
             }
-            string template = templateAsset.text;
+            string? template = templateAsset?.text;
 
             // ---------- 3. 打开 Excel 文件 ----------
             using var stream = File.Open(excelPath, FileMode.Open, FileAccess.Read);
@@ -216,7 +216,7 @@ namespace FinkFramework.Editor.DataTools
             string[] fieldNames = meta.FieldNames;
             string[] fieldTypes = meta.FieldTypes;
             string[] fieldDescs = meta.FieldDescs;
-            string template     = meta.Template;
+            string? template     = meta.Template;
             
             // ---------- 拼接字段字符串 ----------
             StringBuilder fieldBuilder = new();
@@ -243,8 +243,7 @@ namespace FinkFramework.Editor.DataTools
             }
             string usings = CollectRequiredUsings(fieldTypes);
             // ---------- 替换模板变量 ----------
-            string code = template
-                .Replace("{Usings}", usings)
+            string? code = template?.Replace("{Usings}", usings)
                 .Replace("{DateTime}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
                 .Replace("{SourceFile}", Path.GetFileName(excelPath))
                 .Replace("{Namespace}", namespaceSuffix)
@@ -264,10 +263,10 @@ namespace FinkFramework.Editor.DataTools
 
         private static void GenerateContainerClass(ExcelMeta meta)
         {
-            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/Resources/Data/template_container.txt");
+            var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/EditorResources/Data/template_container.txt");
             if (!templateAsset)
             {
-                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/Resources/Data/template_container.txt");
+                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/EditorResources/Data/template_container.txt");
                 return;
             }
             string className  = meta.ClassName;
@@ -291,7 +290,7 @@ namespace FinkFramework.Editor.DataTools
             Directory.CreateDirectory(classOutputDir); 
             
             // ---------- 3. 替换模板变量 ----------
-            string containerCode = templateAsset.text
+            string? containerCode = templateAsset?.text
                 .Replace("{DateTime}", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
                 .Replace("{SourceFile}", Path.GetFileName(excelPath))
                 .Replace("{Namespace}", namespaceSuffix)
