@@ -8,7 +8,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
     /// <summary>
     /// Resources 加载资源方式的提供器
     /// </summary>
-    public class ResourcesProvider : IResProvider
+    public sealed class ResourcesProvider : IResProvider
     {
         #region 同步加载资源
         /// <summary>

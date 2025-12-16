@@ -11,7 +11,7 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// <summary>
         /// 同步加载资源方法
         /// </summary>
-        /// <param name="path">路径</param>
+        /// <param name="path">Provider 专用路径，不包含协议前缀（如 res:// / ab:// / addr://）</param>
         /// <typeparam name="T">资源类型</typeparam>
         /// <returns>返回加载完毕的资源</returns>
         T Load<T>(string path) where T : Object;
@@ -19,7 +19,7 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// <summary>
         /// 异步加载资源方法
         /// </summary>
-        /// <param name="path">路径</param>
+        /// <param name="path">Provider 专用路径，不包含协议前缀（如 res:// / ab:// / addr://）</param>
         /// <param name="callback">加载完毕执行的回调 在回调处返回加载完毕的资源</param>
         /// <typeparam name="T">资源类型</typeparam>
         UniTask<T> LoadAsync<T>(string path) where T : Object;
@@ -27,14 +27,14 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// <summary>
         /// 检测资源是否存在
         /// </summary>
-        /// <param name="path">路径</param>
+        /// <param name="path">Provider 专用路径，不包含协议前缀（如 res:// / ab:// / addr://）</param>
         /// <returns>是否存在</returns>
         bool Exists(string path);
         
         /// <summary>
         /// Provider 的底层卸载，不处理引用计数  (其中针对 Resources 的情况应该空实现 直接由ResManager实现卸载)
         /// </summary>
-        /// <param name="path">路径</param>
+        /// <param name="path">Provider 专用路径，不包含协议前缀（如 res:// / ab:// / addr://）</param>
         void Unload(string path);
         
         /// <summary>

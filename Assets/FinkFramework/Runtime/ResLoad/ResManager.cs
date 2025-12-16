@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Cysharp.Threading.Tasks;
-using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.ResLoad.Base;
 using FinkFramework.Runtime.ResLoad.Providers;
 using FinkFramework.Runtime.Singleton;
@@ -38,6 +38,13 @@ namespace FinkFramework.Runtime.ResLoad
             AddProvider("http", new WebProvider());
             AddProvider("https", new WebProvider());
             
+            // 注册 AssetBundle 加载模块
+            AddProvider("ab", new ABProvider(Path.Combine(Application.streamingAssetsPath, "AssetBundles")));
+            
+            // 注册 addressables 加载模块
+            AddProvider("addr",new AddressablesProvider());
+            AddProvider("addressables",new AddressablesProvider());
+            
             // 注册 Editor 加载模块
 #if UNITY_EDITOR
             AddProvider("editor", new EditorProvider());
@@ -72,7 +79,7 @@ namespace FinkFramework.Runtime.ResLoad
         private (string prefix, string realPath) ParsePath(string fullPath)
         {
             // 规范化路径
-            fullPath = FilesUtil.NormalizePath(fullPath);
+            fullPath = PathUtil.NormalizePath(fullPath);
             // 1) 禁止以 :// 开头（前缀为空导致格式异常）
             if (fullPath.StartsWith("://"))
             {
@@ -95,7 +102,7 @@ namespace FinkFramework.Runtime.ResLoad
             // 4) 解析合法前缀
             string prefix = fullPath.Substring(0, idx);
             string real = fullPath.Substring(idx + 3);
-            real = FilesUtil.NormalizePath(real);
+            real = PathUtil.NormalizePath(real);
             // 5) 返回前缀和真实路径
             return (prefix, real);
         }

@@ -18,7 +18,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
     /// - AssetBundle
     /// - Raw bytes
     /// </summary>
-    public class WebProvider : IResProvider
+    public sealed class WebProvider : IResProvider
     {
         /// <summary> 保存正在运行的请求（用于获取下载进度） </summary>
         private readonly Dictionary<string, UnityWebRequestAsyncOperation> ops = new();
@@ -28,7 +28,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         public T Load<T>(string url) where T : Object
         {
-            Debug.LogError($"[WebProvider] 不支持同步加载网络资源，请使用 LoadAsync！URL = {url}");
+            LogUtil.Error("WebProvider",$"不支持同步加载网络资源，请使用 LoadAsync！URL = {url}");
             return null;
         }
 
@@ -43,7 +43,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
             if (req == null)
             {
-                LogUtil.Error($"不支持的资源类型: {t.Name}");
+                LogUtil.Error("WebProvider",$"不支持的资源类型: {t.Name}");
                 return null;
             }
             // 记录请求（用于进度条）
@@ -55,7 +55,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                LogUtil.Error($"网络加载失败: {url} => {req.error}");
+                LogUtil.Error("WebProvider",$"网络加载失败: {url} => {req.error}");
                 req.Dispose();
                 return null;
             }
@@ -133,7 +133,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
                 return req.downloadHandler.data as T;
             }
 
-            Debug.LogError($"[WebProvider] 不支持的解析类型: {t.Name}");
+            LogUtil.Error("WebProvider",$"不支持的解析类型: {t.Name}");
             return null;
         }
 

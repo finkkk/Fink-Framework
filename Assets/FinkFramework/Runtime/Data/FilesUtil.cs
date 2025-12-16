@@ -103,7 +103,7 @@ namespace FinkFramework.Runtime.Data
                 // 构造最终保存路径（根据数据源模式自动附加 .json / .fink）
                 string fullPath = BuildFullPath(Application.persistentDataPath, relativePath,true);
                 // 创建目录
-                EnsureDirectory(Path.GetDirectoryName(fullPath));
+                PathUtil.EnsureDirectory(Path.GetDirectoryName(fullPath));
                 // 保存数据（DataUtil.Save 内部根据扩展名选择 JSON 或 Binary）
                 DataUtil.Save(fullPath, data);
                 LogUtil.Success("FilesUtil", $"已保存本地数据（模式：{GlobalSettings.Current.CurrentDataLoadMode}）：{relativePath}");
@@ -118,26 +118,6 @@ namespace FinkFramework.Runtime.Data
         #region 路径工具
         
         /// <summary>
-        /// 标准化路径字符串：
-        /// 1. 统一分隔符为 '/';
-        /// 2. 去除多余空格;
-        /// 3. 保留绝对路径前缀（不误删）
-        /// </summary>
-        public static string NormalizePath(string path)
-        {
-            path = TextsUtil.NormalizePunctuation(path);
-            if (string.IsNullOrEmpty(path)) return string.Empty;
-
-            // 统一分隔符
-            path = path.Trim().Replace('\\', '/');
-
-            // 只有当不是完整带前缀的路径且以“/”开头的时候，才去掉前导斜杠
-            if (path.StartsWith("/") && !path.Contains("://"))
-                path = path[1..];
-            return path;
-        }
-        
-        /// <summary>
         /// 拼接创建完整路径（包括自定义后缀名）
         /// </summary>
         /// <param name="basePath">基础路径</param>
@@ -146,22 +126,11 @@ namespace FinkFramework.Runtime.Data
         /// <returns></returns>
         public static string BuildFullPath(string basePath, string relativePath, bool isAddExtension = false)
         {
-            string normalized = NormalizePath(relativePath);
+            string normalized = PathUtil.NormalizePath(relativePath);
             string withoutExt = Path.ChangeExtension(normalized, null);
             // 根据当前数据源模式返回扩展名
             string ext = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json ? ".json" : GlobalSettings.Current.EncryptedExtension;
-            return NormalizePath(Path.Combine(basePath, isAddExtension ? NormalizePath(withoutExt) + ext : NormalizePath(withoutExt)));
-        }
-
-        /// <summary>
-        /// 确保路径文件夹存在
-        /// </summary>
-        /// <param name="path">路径</param>
-        public static void EnsureDirectory(string path)
-        {
-            string dir = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
+            return PathUtil.NormalizePath(Path.Combine(basePath, isAddExtension ? PathUtil.NormalizePath(withoutExt) + ext : PathUtil.NormalizePath(withoutExt)));
         }
         
         /// <summary>
@@ -176,7 +145,7 @@ namespace FinkFramework.Runtime.Data
                 string streamingPath = BuildFullPath(Application.streamingAssetsPath, relativePath,true);
                 if (File.Exists(streamingPath))
                 {
-                    EnsureDirectory(persistentPath);
+                    PathUtil.EnsureDirectory(persistentPath);
                     File.Copy(streamingPath, persistentPath);
                     LogUtil.Info("FilesUtil", $"已初始化文件：{persistentPath}");
                 }
@@ -222,7 +191,7 @@ namespace FinkFramework.Runtime.Data
             string folder = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
                 ? "FinkFramework_Data/DataJson"
                 : "FinkFramework_Data/DataBinary";
-            string searchRoot = NormalizePath(Path.Combine(Application.streamingAssetsPath, folder));
+            string searchRoot = PathUtil.NormalizePath(Path.Combine(Application.streamingAssetsPath, folder));
             if (!Directory.Exists(searchRoot))
             {
                 LogUtil.Warn($"搜索目录不存在：{searchRoot}");
@@ -242,8 +211,8 @@ namespace FinkFramework.Runtime.Data
             }
 
             // ----------- 计算相对路径（以 StreamingAssets 为锚点） -----------
-            string normalized = NormalizePath(match);
-            string root = NormalizePath(Application.streamingAssetsPath);
+            string normalized = PathUtil.NormalizePath(match);
+            string root = PathUtil.NormalizePath(Application.streamingAssetsPath);
 
             if (!normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             {

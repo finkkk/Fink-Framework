@@ -1,53 +1,44 @@
 ﻿#if UNITY_EDITOR
-using System.IO;
 using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.ResLoad.Base;
+using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using Object = UnityEngine.Object;
 
 namespace FinkFramework.Runtime.ResLoad.Providers
 {
     /// <summary>
-    /// 编辑器下使用 AssetDatabase 来加载资源的 Provider
-    /// 开发期使用，打包前请替换为其他 Provider（如 Resources / AB / Web）
+    /// Editor 环境下使用 AssetDatabase 加载任意 Assets 路径资源的 Provider
+    /// 仅用于开发期，打包前请使用其他 Provider（Resources / AB / Addressables）
     /// </summary>
-    public class EditorProvider : IResProvider
+    public sealed class EditorProvider : IResProvider
     {
-        // 你的编辑器资源根目录，可自由修改
-        private const string ROOT = "Assets/Editor/";
-
-        // 拼接完整路径
-        private string BuildPath(string path)
+        private static readonly string[] TryExtensions =
         {
-            // 例如 path=UI/MainPanel 会得到：
-            // Assets/Editor/ArtRes/UI/MainPanel
-            string full = Path.Combine(ROOT, path).Replace("\\", "/");
-
-            return full;
-        }
-
+            "",
+            ".prefab",
+            ".asset",
+            ".mat",
+            ".png",
+            ".jpg",
+            ".mp3",
+            ".wav"
+        };
+        
         /// <summary>
         /// 同步加载资源
         /// </summary>
         public T Load<T>(string path) where T : Object
         {
-            string fullPath = BuildPath(path);
-
-            T asset = AssetDatabase.LoadAssetAtPath<T>(fullPath);
-
-            if (!asset)
+            foreach (var ext in TryExtensions)
             {
-                // 尝试无后缀查一次后缀资源
-                asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".prefab");
-                if (!asset) asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".asset");
-                if (!asset) asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".mat");
-                if (!asset) asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".png");
-                if (!asset) asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".jpg");
-                if (!asset) asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".mp3");
-                if (!asset) asset = AssetDatabase.LoadAssetAtPath<T>(fullPath + ".wav");
+                var asset = AssetDatabase.LoadAssetAtPath<T>(path + ext);
+                if (asset)
+                    return asset;
             }
 
-            return asset;
+            LogUtil.Warn("EditorProvider", $"资源不存在: {path}");
+            return null;
         }
 
         /// <summary>
@@ -55,7 +46,6 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         public async UniTask<T> LoadAsync<T>(string path) where T : Object
         {
-            // Editor 不支持真正异步，仍然立即加载，但对外保持异步接口一致
             await UniTask.Yield();
             return Load<T>(path);
         }
@@ -65,14 +55,12 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         public bool Exists(string path)
         {
-            string fullPath = BuildPath(path);
-            return AssetDatabase.LoadAssetAtPath<Object>(fullPath) != null ||
-                   AssetDatabase.LoadAssetAtPath<Object>(fullPath + ".prefab") != null ||
-                   AssetDatabase.LoadAssetAtPath<Object>(fullPath + ".asset") != null ||
-                   AssetDatabase.LoadAssetAtPath<Object>(fullPath + ".png") != null ||
-                   AssetDatabase.LoadAssetAtPath<Object>(fullPath + ".jpg") != null ||
-                   AssetDatabase.LoadAssetAtPath<Object>(fullPath + ".wav") != null ||
-                   AssetDatabase.LoadAssetAtPath<Object>(fullPath + ".mp3") != null;
+            foreach (var ext in TryExtensions)
+            {
+                if (AssetDatabase.LoadAssetAtPath<Object>(path + ext))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>

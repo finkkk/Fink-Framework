@@ -186,7 +186,7 @@ namespace FinkFramework.Editor.Modules.Data
                 {
                     string targetRoot = DataPipelinePath.BinaryRoot;
                     // 获取相对路径
-                    string relativePath = FilesUtil.NormalizePath(Path.GetRelativePath(sourceRoot, excelPath));
+                    string relativePath = PathUtil.NormalizePath(Path.GetRelativePath(sourceRoot, excelPath));
                     // 使用 streamingAssetsPath 作为 root（Binary 模式）
                     string binaryFullPath = FilesUtil.BuildFullPath(targetRoot, relativePath, true);
                     BinaryExportTool.ExportBinary(container, binaryFullPath);

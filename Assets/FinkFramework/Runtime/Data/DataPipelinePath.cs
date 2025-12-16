@@ -2,6 +2,7 @@
 using UnityEngine;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Utils;
 
 namespace FinkFramework.Runtime.Data
 {
@@ -42,8 +43,8 @@ namespace FinkFramework.Runtime.Data
             get
             {
                 string path = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-                FilesUtil.EnsureDirectory(path);
-                return FilesUtil.NormalizePath(path);
+                PathUtil.EnsureDirectory(path);
+                return PathUtil.NormalizePath(path);
             }
         }
         
@@ -55,8 +56,8 @@ namespace FinkFramework.Runtime.Data
             get
             {
                 string path = Path.Combine(ProjectRoot, "FinkFramework_Data/DataTables");
-                FilesUtil.EnsureDirectory(path);
-                return FilesUtil.NormalizePath(path);
+                PathUtil.EnsureDirectory(path);
+                return PathUtil.NormalizePath(path);
             }
         }
 
@@ -72,8 +73,8 @@ namespace FinkFramework.Runtime.Data
                     : InternalCSharpRoot;
 
                 string path = Path.Combine(baseRoot, "DataClass");
-                FilesUtil.EnsureDirectory(path);
-                return FilesUtil.NormalizePath(path);
+                PathUtil.EnsureDirectory(path);
+                return PathUtil.NormalizePath(path);
             }
         }
 
@@ -91,8 +92,8 @@ namespace FinkFramework.Runtime.Data
                     : ExternalAutoExportRoot;                 // Binary 模式 → 永远外部 JSON
 
                 string path = Path.Combine(baseRoot, "DataJson");
-                FilesUtil.EnsureDirectory(path);
-                return FilesUtil.NormalizePath(path);
+                PathUtil.EnsureDirectory(path);
+                return PathUtil.NormalizePath(path);
             }
         }
         
@@ -113,8 +114,8 @@ namespace FinkFramework.Runtime.Data
                 string baseRoot = InternalStreamingRoot;
 
                 string path = Path.Combine(baseRoot, "DataBinary");
-                FilesUtil.EnsureDirectory(path);
-                return FilesUtil.NormalizePath(path);
+                PathUtil.EnsureDirectory(path);
+                return PathUtil.NormalizePath(path);
             }
         }
     }

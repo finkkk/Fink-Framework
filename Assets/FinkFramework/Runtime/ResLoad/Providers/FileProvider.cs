@@ -18,7 +18,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
     /// - AssetBundle
     /// - Raw byte[]
     /// </summary>
-    public class FileProvider : IResProvider
+    public sealed class FileProvider : IResProvider
     {
         /// <summary>
         /// 同步加载（仅用于小文件，不建议加载大资源 可加载 wav，但不支持 mp3/ogg）
@@ -29,7 +29,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
             if (!File.Exists(path))
             {
-                LogUtil.Error($"[FileProvider] 文件不存在: {path}");
+                LogUtil.Error("FileProvider",$"文件不存在: {path}");
                 return null;
             }
             
@@ -38,7 +38,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
                 string ext = Path.GetExtension(path).ToLower();
                 if (ext != ".wav")
                 {
-                    LogUtil.Error("[FileProvider] AudioClip 同步加载仅支持 .wav，请使用 LoadAsync 加载 mp3/ogg！");
+                    LogUtil.Error("FileProvider","AudioClip 同步加载仅支持 .wav，请使用 LoadAsync 加载 mp3/ogg！");
                     return null;
                 }
 
@@ -60,7 +60,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
             if (!File.Exists(path))
             {
-                LogUtil.Error($"[FileProvider] 文件不存在: {path}");
+                LogUtil.Error("FileProvider",$"文件不存在: {path}");
                 return null;
             }
 
@@ -80,7 +80,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
                 if (req.result != UnityWebRequest.Result.Success)
                 {
-                    LogUtil.Error($"[FileProvider] 音频加载失败: {path} => {req.error}");
+                    LogUtil.Error("FileProvider",$"音频加载失败: {path} => {req.error}");
                     return null;
                 }
 
@@ -156,11 +156,11 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
             if (t == typeof(Object))
             {
-                LogUtil.Error("[FileProvider] 不允许使用 Object 类型加载资源，请指定具体类型！");
+                LogUtil.Error("FileProvider","不允许使用 Object 类型加载资源，请指定具体类型！");
                 return null;
             }
 
-            LogUtil.Error($"[FileProvider] 不支持同步加载类型: {t.Name}");
+            LogUtil.Error("FileProvider",$"不支持同步加载类型: {t.Name}");
             return null;
         }
 

@@ -4,8 +4,9 @@
     "references": [
         "GUID:6055be8ebefd69e48b49212b09b47b2f",
         "GUID:f51ebe6a0ceec4240a699833d6309b23",
-        "GUID:e4f40b57c161c5c7be0e34e9f0dafcb1",
-        "GUID:35bff18a6690063e5e902b85502aaf17"
+        "GUID:35bff18a6690063e5e902b85502aaf17",
+        "GUID:9e24947de15b9834991c9d8411ea37cf",
+        "GUID:84651a3751eca9349aac36a66bba901b"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -17,18 +18,23 @@
     "versionDefines": [
         {
             "name": "com.unity.inputsystem",
-            "define": "ENABLE_INPUT_SYSTEM",
-            "expression": ""
+            "expression": "",
+            "define": "ENABLE_INPUT_SYSTEM"
         },
         {
             "name": "com.unity.xr.interaction.toolkit",
-            "define": "ENABLE_XRI",
-            "expression": ""
+            "expression": "",
+            "define": "ENABLE_XRI"
         },
         {
             "name": "com.unity.render-pipelines.universal",
-            "define": "ENABLE_URP",
-            "expression": ""
+            "expression": "",
+            "define": "ENABLE_URP"
+        },
+        {
+            "name": "com.unity.addressables",
+            "expression": "",
+            "define": "ENABLE_ADDRESSABLES"
         }
     ],
     "noEngineReferences": false
