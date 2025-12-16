@@ -4,6 +4,18 @@
 
 ---
 
+### v0.2.5 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-11</span>
+
+本次更新主要聚焦于 UIBuilder 工具链的安全性与稳定性，并对 Resources 目录结构进行规范化调整，以避免资源命名冲突和无关资源被错误打包的问题。
+
+- 优化 UIBuilder 面板生成流程，新增 PanelName 合法性校验，禁止空格、数字开头及非法字符，避免生成无效脚本。
+- 增加 UI Prefab 重名前置检测机制，在生成脚本与触发编译前进行硬中断，防止产生半成品资源。
+- 调整 Editor 侧资源目录结构，将编辑器专用资源统一迁移至 EditorResources，避免被错误打包进运行时。
+- 规范 Runtime 侧 Resources 目录结构，统一包裹 FinkFramework 命名空间层级，降低与用户项目资源发生命名冲突的风险。
+- 细化 UIBuilder 内部校验与异常处理逻辑，提升工具在复杂工程环境下的可靠性与可维护性。
+
+---
+
 ### v0.2.4 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-11</span>
 
 本次更新主要改进了欢迎面板系统与框架的设置面板交互体验，提升首次使用与日常开发时的易用性与视觉一致性。
