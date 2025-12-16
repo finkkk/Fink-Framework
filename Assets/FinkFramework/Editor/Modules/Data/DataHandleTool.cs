@@ -4,7 +4,7 @@ using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 数据全流程处理工具（清空 → 生成类 → 等待编译(可选) → 导出 → 汇总打印）

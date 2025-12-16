@@ -5,7 +5,7 @@ using ExcelDataReader;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Utils;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 数据 QA 验证工具

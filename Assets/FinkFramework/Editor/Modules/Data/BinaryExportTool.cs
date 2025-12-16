@@ -3,7 +3,7 @@ using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 独立的二进制导出工具（支持加密 / 明文）。

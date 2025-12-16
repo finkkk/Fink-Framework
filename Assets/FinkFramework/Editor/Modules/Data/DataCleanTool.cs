@@ -5,7 +5,7 @@ using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     public class DataCleanTool
     {

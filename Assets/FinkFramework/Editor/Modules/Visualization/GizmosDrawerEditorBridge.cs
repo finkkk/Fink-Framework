@@ -2,7 +2,7 @@
 using FinkFramework.Runtime.Visualization;
 using UnityEditor;
 
-namespace FinkFramework.Editor.Visualization
+namespace FinkFramework.Editor.Modules.Visualization
 {
     /// <summary>
     /// Editor GizmosDrawer 桥接器（Bridge）

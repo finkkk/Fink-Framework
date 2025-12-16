@@ -1,9 +1,9 @@
 ﻿using FinkFramework.Editor.Utils;
+using FinkFramework.Editor.Windows.Common;
 using UnityEditor;
 using UnityEngine;
-using FinkFramework.Editor.Windows.Common;
 
-namespace FinkFramework.Editor.Settings.Providers
+namespace FinkFramework.Editor.Modules.Settings.Providers
 {
     public class OverviewProvider : SettingsProvider
     {

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using ExcelDataReader;
 using FinkFramework.Runtime.Utils;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// Excel 通用读取工具类

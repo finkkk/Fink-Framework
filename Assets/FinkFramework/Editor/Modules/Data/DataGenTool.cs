@@ -10,7 +10,7 @@ using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 数据自动生成工具

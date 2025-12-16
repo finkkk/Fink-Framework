@@ -3,7 +3,7 @@ using FinkFramework.Runtime.Data.JsonConverter;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 负责导出 JSON（真实数据）的独立工具类。

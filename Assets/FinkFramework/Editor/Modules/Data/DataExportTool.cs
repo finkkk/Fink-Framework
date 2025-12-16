@@ -9,7 +9,7 @@ using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 数据导出工具（DataExportTool）

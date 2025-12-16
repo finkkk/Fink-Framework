@@ -1,11 +1,11 @@
-﻿using FinkFramework.Editor.Settings.Core;
-using UnityEditor;
-using UnityEngine;
+﻿using FinkFramework.Editor.Modules.Settings.Core;
 using FinkFramework.Editor.Windows.Common;
 using FinkFramework.Runtime.Settings;
+using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace FinkFramework.Editor.Settings.Providers
+namespace FinkFramework.Editor.Modules.Settings.Providers
 {
     public class FrameworkSettingsProvider : SettingsProvider
     {

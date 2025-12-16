@@ -8,7 +8,7 @@ using UnityEngine;
 // ReSharper disable HeuristicUnreachableCode
 #pragma warning disable CS0162 // 检测到不可到达的代码
 
-namespace FinkFramework.Editor.Visualization
+namespace FinkFramework.Editor.Modules.Visualization
 {
     /// <summary>
     /// 通用调试绘制工具（常驻 Gizmos 绘制）

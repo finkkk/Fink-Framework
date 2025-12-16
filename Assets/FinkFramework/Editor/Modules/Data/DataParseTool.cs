@@ -6,7 +6,7 @@ using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
 
-namespace FinkFramework.Editor.DataTools
+namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
     /// 数据解析工具（DataParseTool）

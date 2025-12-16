@@ -3,7 +3,7 @@ using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
 
-namespace FinkFramework.Editor.Settings.Core
+namespace FinkFramework.Editor.Modules.Settings.Core
 {
     /// <summary>
     /// 全局配置文件加载器（Editor-only）
