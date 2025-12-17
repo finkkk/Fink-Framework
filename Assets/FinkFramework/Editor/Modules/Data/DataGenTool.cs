@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -117,7 +118,7 @@ namespace FinkFramework.Editor.Modules.Data
             // ---------- 刷新资源 ----------
             AssetDatabase.Refresh();
             
-            bool isInternalOutput = !GlobalSettings.Current.CSharpUseExternal;
+            bool isInternalOutput = !GlobalSettingsRuntimeLoader.Current.CSharpUseExternal;
 
             
             if (!silent)

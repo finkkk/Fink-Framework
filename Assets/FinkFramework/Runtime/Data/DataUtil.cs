@@ -7,6 +7,7 @@ using System.Text;
 using FinkFramework.Odin.OdinSerializer;
 using FinkFramework.Runtime.Data.JsonConverter;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -36,7 +37,7 @@ namespace FinkFramework.Runtime.Data
                 return;
             }
 
-            if (GlobalSettings.Current.EnableEncryption)
+            if (GlobalSettingsRuntimeLoader.Current.EnableEncryption)
                 SaveEncrypted(path, data);
             else
                 SavePlain(path, data);
@@ -70,7 +71,7 @@ namespace FinkFramework.Runtime.Data
                 // 1. 序列化对象为二进制
                 byte[] bytes = SerializationUtility.SerializeValue(data, DataFormat.Binary);
                 // 2. AES加密
-                bytes = AESEncrypt(bytes, GlobalSettings.Current.Password);
+                bytes = AESEncrypt(bytes, GlobalSettingsRuntimeLoader.Current.Password);
                 // 3. 写入文件
                 File.WriteAllBytes(path, bytes);
             }
@@ -94,7 +95,7 @@ namespace FinkFramework.Runtime.Data
             if (ext == ".json")
                 return LoadJson<T>(path);
 
-            if (GlobalSettings.Current.EnableEncryption)
+            if (GlobalSettingsRuntimeLoader.Current.EnableEncryption)
                 return LoadEncrypted<T>(path);
 
             return LoadPlain<T>(path);
@@ -133,7 +134,7 @@ namespace FinkFramework.Runtime.Data
                 // 1. 读取文件
                 byte[] bytes = File.ReadAllBytes(path);
                 // 2. AES解密
-                bytes = AESDecrypt(bytes, GlobalSettings.Current.Password);
+                bytes = AESDecrypt(bytes, GlobalSettingsRuntimeLoader.Current.Password);
                 // 3. 反序列化为对象
                 return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary);
             }

@@ -1,14 +1,17 @@
-﻿using FinkFramework.Runtime.Utils;
+﻿using FinkFramework.Runtime.Settings.ScriptableObjects;
+using FinkFramework.Runtime.Utils;
 using UnityEngine;
 
-namespace FinkFramework.Runtime.Settings
+namespace FinkFramework.Runtime.Settings.Loaders
 {
     /// <summary>
     /// 全局配置 SO 只读加载器（Runtime专用）
     /// </summary>
-    public static class GlobalSettings
+    public static class GlobalSettingsRuntimeLoader
     {
         private static GlobalSettingsAsset _instance;
+        
+        private const string ResourcesPath = "FinkFramework/Settings/Global/GlobalSettingsAsset";
         
         /// <summary>
         /// 获取框架的全局配置（只读）
@@ -20,7 +23,7 @@ namespace FinkFramework.Runtime.Settings
                 if (_instance)
                     return _instance;
 
-                _instance = Resources.Load<GlobalSettingsAsset>("FinkFramework/GlobalSettingsAsset");
+                _instance = Resources.Load<GlobalSettingsAsset>(ResourcesPath);
 
 #if UNITY_EDITOR
                 if (!_instance)
@@ -35,14 +38,14 @@ namespace FinkFramework.Runtime.Settings
         public static bool TryGet(out GlobalSettingsAsset settings)
         {
             // 已经加载成功
-            if (_instance != null)
+            if (_instance)
             {
                 settings = _instance;
                 return true;
             }
 
             // 尝试加载
-            _instance = Resources.Load<GlobalSettingsAsset>("FinkFramework/GlobalSettingsAsset");
+            _instance = Resources.Load<GlobalSettingsAsset>(ResourcesPath);
 
             // 如果仍然没有，表示还没加载到，但不是错误（例如首次导入）
             if (!_instance)

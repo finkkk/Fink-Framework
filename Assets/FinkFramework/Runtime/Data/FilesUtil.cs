@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 
@@ -106,7 +107,7 @@ namespace FinkFramework.Runtime.Data
                 PathUtil.EnsureDirectory(Path.GetDirectoryName(fullPath));
                 // 保存数据（DataUtil.Save 内部根据扩展名选择 JSON 或 Binary）
                 DataUtil.Save(fullPath, data);
-                LogUtil.Success("FilesUtil", $"已保存本地数据（模式：{GlobalSettings.Current.CurrentDataLoadMode}）：{relativePath}");
+                LogUtil.Success("FilesUtil", $"已保存本地数据（模式：{GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode}）：{relativePath}");
             }
             catch (Exception ex)
             {
@@ -129,7 +130,7 @@ namespace FinkFramework.Runtime.Data
             string normalized = PathUtil.NormalizePath(relativePath);
             string withoutExt = Path.ChangeExtension(normalized, null);
             // 根据当前数据源模式返回扩展名
-            string ext = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json ? ".json" : GlobalSettings.Current.EncryptedExtension;
+            string ext = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json ? ".json" : GlobalSettingsRuntimeLoader.Current.EncryptedExtension;
             return PathUtil.NormalizePath(Path.Combine(basePath, isAddExtension ? PathUtil.NormalizePath(withoutExt) + ext : PathUtil.NormalizePath(withoutExt)));
         }
         
@@ -181,14 +182,14 @@ namespace FinkFramework.Runtime.Data
                 : className;
             
             // 根据数据源模式决定扩展名
-            string ext = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
+            string ext = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
                 ? ".json"
-                : GlobalSettings.Current.EncryptedExtension;
+                : GlobalSettingsRuntimeLoader.Current.EncryptedExtension;
             
             // 根据模式决定搜索根目录
             // Binary → StreamingAssets/DataBinary/
             // JSON → StreamingAssets/DataJson/
-            string folder = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
+            string folder = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
                 ? "FinkFramework_Data/DataJson"
                 : "FinkFramework_Data/DataBinary";
             string searchRoot = PathUtil.NormalizePath(Path.Combine(Application.streamingAssetsPath, folder));

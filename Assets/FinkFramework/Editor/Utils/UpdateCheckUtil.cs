@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using Unity.Plastic.Newtonsoft.Json.Linq;
 using UnityEditor;
@@ -38,7 +39,7 @@ namespace FinkFramework.Editor.Utils
             
             try
             {
-                if (!GlobalSettings.TryGet(out var settings))
+                if (!GlobalSettingsRuntimeLoader.TryGet(out var settings))
                     return; // 首次导入时不报错，直接跳过检查
 
                 // 开关：关闭则不检查

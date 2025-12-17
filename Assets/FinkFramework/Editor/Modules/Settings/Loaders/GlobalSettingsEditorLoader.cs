@@ -1,19 +1,20 @@
 ﻿using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
 
-namespace FinkFramework.Editor.Modules.Settings.Core
+namespace FinkFramework.Editor.Modules.Settings.Loaders
 {
     /// <summary>
     /// 全局配置文件加载器（Editor-only）
     /// </summary>
-    public static class GlobalSettingsLoader
+    public static class GlobalSettingsEditorLoader
     {
         /// <summary>
         /// 全局配置文件的存储路径
         /// </summary>
-        public const string AssetPath = "Assets/FinkFramework/Runtime/Resources/FinkFramework/GlobalSettingsAsset.asset";
+        public const string AssetPath = "Assets/FinkFramework/Runtime/Resources/FinkFramework/Settings/Global/GlobalSettingsAsset.asset";
         
         /// <summary>
         /// 加载全局设置 SO，如果不存在就自动创建。

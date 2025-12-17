@@ -4,6 +4,8 @@ using System.IO;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using FinkFramework.Runtime.ResLoad.Base;
+using FinkFramework.Runtime.Settings.Loaders;
+using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.Utils;
 using Object = UnityEngine.Object;
 
@@ -11,39 +13,88 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 {
     /// <summary>
     /// AssetBundle 资源加载 Provider
+    /// ------------------------------------
+    /// Experimental / Advanced Backend
+    ///
+    /// - 仅负责本地 AssetBundle 加载
+    /// - 不包含资源下载、版本管理、校验逻辑
+    /// - 不推荐新项目首选
+    ///
+    /// 推荐方案：Addressables / Custom Backend
     /// </summary>
     public sealed class ABProvider : IResProvider
     {
-        private readonly string rootPath;
         private AssetBundleManifest manifest;
+        private bool initialized;
+        
+        private string builtInRootPath;
+        private string hotfixRootPath;
+        private bool enableHotfix;
 
         private readonly Dictionary<string, ABBundleInfo> bundleInfos = new();
         private readonly Dictionary<string, float> loadingProgress = new();
         private readonly Dictionary<string, UniTask> loadingTasks = new();
 
-        public ABProvider(string rootPath)
-        {
-            this.rootPath = rootPath;
-            LoadMainManifest();
-        }
-
         #region 初始化
+        
+        /// <summary>
+        /// 初始化 ABProvider（必须先调用）
+        /// </summary>
+        public void Initialize(AssetBundleBackendSettingsAsset settings)
+        {
+            if (initialized)
+                return;
+
+            if (!settings)
+            {
+                LogUtil.Error("ABProvider", "AssetBundleBackendSettingsAsset 为 null");
+                return;
+            }
+
+            builtInRootPath = Path.Combine(
+                Application.streamingAssetsPath,
+                settings.BuiltInRootPath
+            );
+
+            hotfixRootPath = settings.HotfixRootPath;
+            enableHotfix   = settings.EnableHotfix;
+
+            LoadMainManifest();
+            initialized = true;
+        }
+        
+        private string ResolveBundlePath(string bundleName)
+        {
+            if (enableHotfix && !string.IsNullOrEmpty(hotfixRootPath))
+            {
+                string hotfixPath = Path.Combine(hotfixRootPath, bundleName);
+                if (File.Exists(hotfixPath))
+                    return hotfixPath;
+            }
+
+            return Path.Combine(builtInRootPath, bundleName);
+        }
 
         private void LoadMainManifest()
         {
-            string mainName = GetPlatformName();
-            string path = Path.Combine(rootPath, mainName);
+            var platformName = ResBackendSettingsRuntimeLoader.AssetBundle.PlatformName;
+            if (string.IsNullOrEmpty(platformName))
+            {
+                LogUtil.Error("ABProvider", "AssetBundle PlatformName 未配置");
+                return;
+            }
+            string path = Path.Combine(builtInRootPath, platformName);
 
             var bundle = AssetBundle.LoadFromFile(path);
             if (!bundle)
             {
-                LogUtil.Error("ABProvider",$"主包加载失败: {path}");
+                LogUtil.Error("ABProvider", $"主包加载失败: {path}");
                 return;
             }
 
             manifest = bundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
 
-            bundleInfos[mainName] = new ABBundleInfo
+            bundleInfos[platformName] = new ABBundleInfo
             {
                 bundle = bundle,
                 refCount = int.MaxValue,
@@ -58,6 +109,12 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
         public T Load<T>(string path) where T : Object
         {
+            if (!initialized)
+            {
+                LogUtil.Error("ABProvider", "ABProvider 未初始化");
+                return null;
+            }
+            
             ParsePath(path, out var bundleName, out var assetName);
 
             // 1. 确保 AB 及依赖已物理加载
@@ -72,6 +129,12 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
         public async UniTask<T> LoadAsync<T>(string path) where T : Object
         {
+            if (!initialized)
+            {
+                LogUtil.Error("ABProvider", "ABProvider 未初始化");
+                return null;
+            }
+            
             ParsePath(path, out var bundleName, out var assetName);
 
             await EnsureBundleLoadedAsync(bundleName);
@@ -87,7 +150,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         public bool Exists(string path)
         {
             ParsePath(path, out var bundleName, out _);
-            return File.Exists(Path.Combine(rootPath, bundleName));
+            return File.Exists(ResolveBundlePath(bundleName));
         }
 
         public void Unload(string path)
@@ -161,7 +224,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
         private void LoadBundleInternal(string bundleName)
         {
-            string path = Path.Combine(rootPath, bundleName);
+            string path = ResolveBundlePath(bundleName);
             var bundle = AssetBundle.LoadFromFile(path);
 
             if (!bundle)
@@ -187,7 +250,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
         private async UniTask LoadBundleInternalAsync(string bundleName)
         {
-            string path = Path.Combine(rootPath, bundleName);
+            string path = ResolveBundlePath(bundleName);
             var req = AssetBundle.LoadFromFileAsync(path);
 
             while (!req.isDone)
@@ -287,17 +350,6 @@ namespace FinkFramework.Runtime.ResLoad.Providers
 
             bundleName = path[..index];
             assetName  = path[(index + 1)..];
-        }
-
-        private static string GetPlatformName()
-        {
-#if UNITY_ANDROID
-            return "Android";
-#elif UNITY_IOS
-            return "iOS";
-#else
-            return "StandaloneWindows64";
-#endif
         }
 
         #endregion

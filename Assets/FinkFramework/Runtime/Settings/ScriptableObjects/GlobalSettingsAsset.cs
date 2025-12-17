@@ -2,7 +2,7 @@
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 
-namespace FinkFramework.Runtime.Settings
+namespace FinkFramework.Runtime.Settings.ScriptableObjects
 {
     /// <summary>
     /// 全局配置 SO 文件（唯一存在）
@@ -71,6 +71,23 @@ namespace FinkFramework.Runtime.Settings
         [Tooltip("框架生成的加密数据文件的后缀名。用于存档、配置文件、数据表等加密存储。")]
         public string EncryptedExtension = ".fink";
         
+        #endregion
+
+        #region ===== 资源配置 =====
+
+        [Header("资源构建型后端")]
+        [Tooltip("是否启用构建型资源系统（AB / Addressables 等）")]
+        public EnvironmentState.ResourceBackendType ResourceBackend = EnvironmentState.ResourceBackendType.None;
+
+        [Tooltip("AssetBundle 后端配置（仅当 ResourceBackend=AssetBundle 时使用）")]
+        public AssetBundleBackendSettingsAsset AssetBundleSettings;
+
+        [Tooltip("Addressables 后端配置（仅当 ResourceBackend=Addressables 时使用）")]
+        public AddressablesBackendSettingsAsset AddressablesSettings;
+
+        [Tooltip("自定义资源后端配置（仅当 ResourceBackend=Custom 时使用）")]
+        public ScriptableObject CustomBackendSettings;
+
         #endregion
         
         /// <summary>

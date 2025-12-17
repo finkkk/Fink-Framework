@@ -1,5 +1,7 @@
 ﻿// ReSharper disable ConvertToConstant.Global
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
+using FinkFramework.Runtime.Settings.ScriptableObjects;
 
 #pragma warning disable CS0162 // 检测到不可到达的代码
 namespace FinkFramework.Runtime.Environments
@@ -21,7 +23,7 @@ namespace FinkFramework.Runtime.Environments
         /// <summary>
         /// 框架版本号
         /// </summary>
-        public const string FrameworkVersion = "0.2.5";
+        public const string FrameworkVersion = "0.2.6";
 
         #endregion
 
@@ -67,6 +69,17 @@ namespace FinkFramework.Runtime.Environments
         #endregion 
 
         #region 配置枚举-为全局设置所需的枚举定义
+        
+        /// <summary>
+        /// 资源构建型后端 类型（使用ab包还是addressables）
+        /// </summary>
+        public enum ResourceBackendType
+        {
+            None,             // 不启用任何资源构建型后端
+            AssetBundle,      // 传统 AB
+            Addressables,     // 官方推荐
+            Custom            // 用户自定义(如YooAsset / 自研)
+        }
 
         /// <summary>
         /// UI 渲染模式。
@@ -104,7 +117,7 @@ namespace FinkFramework.Runtime.Environments
         /// <summary>
         /// 全局配置 SO 缓存
         /// </summary>
-        private static GlobalSettingsAsset GS => GlobalSettings.Current;
+        private static GlobalSettingsAsset GS => GlobalSettingsRuntimeLoader.Current;
         
         /// <summary>
         /// 最终 VR 模式 = 自动检测 XR 是否存在 且 未被强制关闭

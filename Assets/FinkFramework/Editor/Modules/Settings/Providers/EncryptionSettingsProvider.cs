@@ -1,6 +1,7 @@
-﻿using FinkFramework.Editor.Modules.Settings.Core;
+﻿using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Windows.Common;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -25,7 +26,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
-            asset = GlobalSettingsLoader.LoadOrCreate();
+            asset = GlobalSettingsEditorLoader.LoadOrCreate();
         }
 
         public override void OnGUI(string searchContext)
@@ -35,7 +36,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 EditorGUILayout.HelpBox("GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。", MessageType.Error);
                 if (GUILayout.Button("重新创建配置文件"))
                 {
-                    asset = GlobalSettingsLoader.LoadOrCreate();
+                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
                 }
                 return;
             }

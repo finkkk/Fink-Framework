@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Cysharp.Threading.Tasks;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.ResLoad.Base;
 using FinkFramework.Runtime.ResLoad.Providers;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
@@ -39,12 +40,22 @@ namespace FinkFramework.Runtime.ResLoad
             AddProvider("https", new WebProvider());
             
             // 注册 AssetBundle 加载模块
-            AddProvider("ab", new ABProvider(Path.Combine(Application.streamingAssetsPath, "AssetBundles")));
-            
+            if (GlobalSettingsRuntimeLoader.Current.ResourceBackend == EnvironmentState.ResourceBackendType.AssetBundle)
+            {
+                var settings = GlobalSettingsRuntimeLoader.Current.AssetBundleSettings;
+                var provider = new ABProvider();
+                provider.Initialize(settings);
+                AddProvider("ab", provider);
+            }
             // 注册 addressables 加载模块
-            AddProvider("addr",new AddressablesProvider());
-            AddProvider("addressables",new AddressablesProvider());
-            
+#if ENABLE_ADDRESSABLES
+            if (GlobalSettingsRuntimeLoader.Current.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
+            {
+                var addrProvider = new AddressablesProvider();
+                AddProvider("addr", addrProvider);
+                AddProvider("addressables", addrProvider);
+            }
+#endif
             // 注册 Editor 加载模块
 #if UNITY_EDITOR
             AddProvider("editor", new EditorProvider());
@@ -115,15 +126,32 @@ namespace FinkFramework.Runtime.ResLoad
         private IResProvider GetProvider(string fullPath)
         {
             var (prefix, _) = ParsePath(fullPath);
-            if (providers.TryGetValue(prefix, out var p))
+           
+            // 前缀存在且已注册 → 正常返回
+            if (providers.TryGetValue(prefix, out var provider))
+                return provider;
+
+            // 前缀为空 → 默认 ResourcesProvider
+            if (string.IsNullOrEmpty(prefix))
             {
-                return p;
+                return providers[""];
+            }
+
+            // 前缀非空但未注册 → 明确报错
+            if (prefix == "ab")
+            {
+                LogUtil.Error("请前往全局配置中设置资源后端系统类型为 AssetBundle！");
+            }
+            else if (prefix == "addr" || prefix == "addressables")
+            {
+                LogUtil.Error("请前往全局配置中设置资源后端系统类型为 Addressables！");
             }
             else
             {
                 LogUtil.Error($"未知的资源前缀: {prefix}");
-                return providers[""];
             }
+
+            return null;
         }
 
         #endregion
@@ -149,6 +177,11 @@ namespace FinkFramework.Runtime.ResLoad
             {
                 // 使用 Provider 同步加载资源
                 IResProvider provider = GetProvider(fullPath);
+                if (provider == null)
+                {
+                    LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                    return null;
+                }
                 T res = provider.Load<T>(realPath);
                 // 加载失败，直接返回，不写入缓存
                 if (!res)
@@ -200,6 +233,11 @@ namespace FinkFramework.Runtime.ResLoad
             LogUtil.Warn($"[ResManager] Task 丢失（asset=null & task=null），同步托底重新加载 => {fullPath}");
             // 托底重新加载（同步）
             var providerFallback = GetProvider(fullPath);
+            if (providerFallback == null)
+            {
+                LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                return null;
+            }
             T fallback = providerFallback.Load<T>(realPath);
             infoExist.asset = fallback;
             // 若同步托底加载失败
@@ -242,6 +280,11 @@ namespace FinkFramework.Runtime.ResLoad
                 resDic[resName] = info;  // 使用索引器比add更稳健，不会因旧数据残留崩溃
                 // 开始Provider 异步加载
                 var provider = GetProvider(fullPath);
+                if (provider == null)
+                {
+                    LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                    return null;
+                }
                 // 开始真正的加载任务
                 var loadTask = provider.LoadAsync<T>(realPath);
                 info.task = loadTask;
@@ -285,6 +328,11 @@ namespace FinkFramework.Runtime.ResLoad
             // ===== 以下部分为托底重新加载机制 =====
             // 获取 Provider
             var providerReload = GetProvider(fullPath);
+            if (providerReload == null)
+            {
+                LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                return null;
+            }
             // 重新启动异步加载
             var reloadTask = providerReload.LoadAsync<T>(realPath);
             existInfo.task = reloadTask;
@@ -366,6 +414,11 @@ namespace FinkFramework.Runtime.ResLoad
             // 解析 prefix 和 realPath
             var (prefix, realPath) = ParsePath(fullPath);
             var provider = GetProvider(fullPath);
+            if (provider == null)
+            {
+                LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                return;
+            }
             // 启动真正的加载任务
             var task = LoadAsync<T>(fullPath);
 
@@ -477,6 +530,11 @@ namespace FinkFramework.Runtime.ResLoad
             {
                 // 使用 Provider 移除内存加载的资源
                 var provider = GetProvider(fullPath);
+                if (provider == null)
+                {
+                    LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                    return;
+                }
                 if (provider is ResourcesProvider)
                 {
                     // Resources 必须通过对象卸载
@@ -540,6 +598,11 @@ namespace FinkFramework.Runtime.ResLoad
                     var (prefix, realPath) = ParsePath(fullPath);
                     // 使用 Provider 移除内存加载的资源
                     var provider = GetProvider(fullPath);
+                    if (provider == null)
+                    {
+                        LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
+                        return;
+                    }
                     if (provider is ResourcesProvider)
                     {
                         // Resources 必须通过对象卸载

@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.ResLoad.Base;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -30,6 +31,14 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         public T Load<T>(string path) where T : Object
         {
+            if (!ResBackendSettingsRuntimeLoader.Addressables.AllowSyncLoad)
+            {
+                LogUtil.Error(
+                    "AddressablesProvider",
+                    $"禁止同步加载 Addressables 资源: {path}"
+                );
+                return null;
+            }
             if (handles.TryGetValue(path, out var info))
             {
                 info.refCount++;
@@ -42,6 +51,8 @@ namespace FinkFramework.Runtime.ResLoad.Providers
             if (handle.Status != AsyncOperationStatus.Succeeded)
             {
                 LogUtil.Error("AddressablesProvider",$"同步加载失败: {path}");
+                if (handle.IsValid())
+                    Addressables.Release(handle);
                 return null;
             }
 

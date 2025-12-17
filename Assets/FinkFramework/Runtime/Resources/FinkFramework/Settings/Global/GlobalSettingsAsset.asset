@@ -24,3 +24,7 @@ MonoBehaviour:
   EnableEncryption: 1
   Password: finkkk
   EncryptedExtension: .fink
+  ResourceBackend: 2
+  AssetBundleSettings: {fileID: 11400000, guid: 4507d6202e0fc1844afc74034c62918d, type: 2}
+  AddressablesSettings: {fileID: 11400000, guid: cc98c9b27c5f5d84eb0079f6a381ce03, type: 2}
+  CustomBackendSettings: {fileID: 0}

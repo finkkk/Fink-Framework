@@ -3,6 +3,7 @@ using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.ResLoad;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.UI.Base;
 using FinkFramework.Runtime.UI.Canva;
@@ -91,7 +92,7 @@ namespace FinkFramework.Runtime.UI
             mainCanvas = Object.Instantiate(ResManager.Instance.Load<GameObject>($"res://{BASE_PATH}MainCanvas")).GetComponent<Canvas>();
             Object.DontDestroyOnLoad(mainCanvas.gameObject);
 
-            mainCanvas.renderMode = GlobalSettings.Current.CurrentUIMode switch
+            mainCanvas.renderMode = GlobalSettingsRuntimeLoader.Current.CurrentUIMode switch
             {
                 EnvironmentState.UIMode.ScreenSpace => RenderMode.ScreenSpaceCamera,
                 EnvironmentState.UIMode.WorldSpace => RenderMode.WorldSpace,

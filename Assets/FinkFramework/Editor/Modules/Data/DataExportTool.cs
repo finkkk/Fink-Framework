@@ -6,6 +6,7 @@ using ExcelDataReader;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 
@@ -182,7 +183,7 @@ namespace FinkFramework.Editor.Modules.Data
                 JsonExportTool.ExportJson(container, jsonPath);
                 
                 // ========== 5. 处理二进制数据的输出 ==========
-                if (GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
+                if (GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
                 {
                     string targetRoot = DataPipelinePath.BinaryRoot;
                     // 获取相对路径

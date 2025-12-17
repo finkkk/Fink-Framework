@@ -1,5 +1,6 @@
 using System;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -42,7 +43,7 @@ namespace FinkFramework.Editor.Modules.Data
             var (genSuccess, genTotal) = DataGenTool.GenerateAllData(true);
 
             // 判断是否需要等待编译
-            bool needWaitCompile = !GlobalSettings.Current.CSharpUseExternal;
+            bool needWaitCompile = !GlobalSettingsRuntimeLoader.Current.CSharpUseExternal;
             
             if (needWaitCompile)
             {

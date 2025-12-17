@@ -2,6 +2,7 @@
 using UnityEngine;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 
 namespace FinkFramework.Runtime.Data
@@ -68,7 +69,7 @@ namespace FinkFramework.Runtime.Data
         {
             get
             {
-                string baseRoot = GlobalSettings.Current.CSharpUseExternal
+                string baseRoot = GlobalSettingsRuntimeLoader.Current.CSharpUseExternal
                     ? ExternalCSharpRoot
                     : InternalCSharpRoot;
 
@@ -85,7 +86,7 @@ namespace FinkFramework.Runtime.Data
         {
             get
             {
-                bool useInternal = GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json;
+                bool useInternal = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json;
 
                 string baseRoot = useInternal
                     ? InternalStreamingRoot                   // 运行时读取 → 必须内部
@@ -105,7 +106,7 @@ namespace FinkFramework.Runtime.Data
             get
             {
                 // JSON 模式完全不需要二进制路径，也不应生成目录
-                if (GlobalSettings.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json)
+                if (GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json)
                 {
                     return string.Empty;
                 }
