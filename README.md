@@ -62,7 +62,7 @@
 
 ### • 资源加载系统
 提供统一的同步/异步接口、内存缓存策略。  
-支持 Editor 模式加载（`EditorResManager`）与运行时加载（`ResManager`）双通道。
+采用provider插件前缀形式加载，支持 Resources、Editor、file、ab包、http(s)、和addressables等方式。
 
 ### • 可配置对象池系统
 自动注册、预加载、复用上限、自动清理，并带有调试可视化布局。
@@ -107,6 +107,12 @@ https://github.com/finkkk/Fink-Framework
 - **GitHub：** https://github.com/finkkk  
 
 你也可以在仓库 Issue 区或文章底部留言。
+
+---
+
+## 4. 框架信息统计
+
+截止v0.3.0版本，本框架的代码量已经达到约14万行，功能丰富按需启用。
 
 ---
 
