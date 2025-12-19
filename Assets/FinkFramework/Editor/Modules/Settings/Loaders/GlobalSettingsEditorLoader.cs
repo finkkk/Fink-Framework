@@ -1,5 +1,4 @@
-﻿using FinkFramework.Runtime.Settings;
-using FinkFramework.Runtime.Settings.ScriptableObjects;
+﻿using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;

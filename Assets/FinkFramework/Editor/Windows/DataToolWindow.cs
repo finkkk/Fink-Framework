@@ -33,14 +33,40 @@ namespace FinkFramework.Editor.Windows
             DrawSection("主功能", () =>
             {
                 if (GUILayout.Button("一键处理全部数据", FFEditorStyles.BigButton))
-                    LogAndRun("一键处理全部数据", DataHandleTool.HandleAllData);
+                {
+                    if (FFEditorGUI.ConfirmAction(
+                            "确认执行一键处理",
+                            "即将执行以下操作：\n\n" +
+                            "1. 清空 FinkFramework_Data/AutoExport 下的全部文件\n" +
+                            "2. 重新生成 Excel 对应的 C# 数据类\n" +
+                            "3. 重新解析并导出所有数据（JSON / Binary）\n\n" +
+                            "此操作不会影响 FinkFramework_Data/DataTables 中的 Excel 文件。\n\n" +
+                            "是否继续？"
+                        ))
+                    {
+                        LogAndRun("一键处理全部数据", DataHandleTool.HandleAllData);
+                    }
+                }
 
                 GUILayout.Space(8);
 
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("清空加密数据",GUILayout.Height(26)))
-                    LogAndRun("清空加密数据", DataCleanTool.ClearExportedData);
-
+                if (GUILayout.Button("清空加密数据", GUILayout.Height(26)))
+                {
+                    if (FFEditorGUI.ConfirmAction(
+                            "危险操作确认",
+                            "即将清空所有已导出的数据文件。\n\n" +
+                            "将影响：\n" +
+                            "- FinkFramework_Data/AutoExport 目录下的全部文件\n" +
+                            "- 持久化数据中FinkFramework_Data目录下的全部文件\n\n" +
+                            "此操作不可撤销。\n\n" +
+                            "是否确认清空？"
+                        ))
+                    {
+                        LogAndRun("清空加密数据", DataCleanTool.ClearExportedData);
+                    }
+                }
+                
                 if (GUILayout.Button("仅生成数据文件",GUILayout.Height(26)))
                     LogAndRun("仅生成数据文件", () => DataGenTool.GenerateAllData());
 

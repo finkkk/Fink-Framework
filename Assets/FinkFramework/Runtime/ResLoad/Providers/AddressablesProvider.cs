@@ -27,7 +27,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         #region IResProvider
 
         /// <summary>
-        /// 同步加载（⚠ 可能阻塞主线程，仅建议在 Editor / 初始化阶段使用）
+        /// 同步加载（可能阻塞主线程，仅建议在 Editor / 初始化阶段使用）
         /// </summary>
         public T Load<T>(string path) where T : Object
         {

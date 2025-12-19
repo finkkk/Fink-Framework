@@ -9,26 +9,21 @@ namespace FinkFramework.Editor.Windows
     /// <summary>
     /// 欢迎界面安全初始化（仅工程第一次加载时弹一次）
     /// </summary>
-    [InitializeOnLoad]
-    public static class FrameworkWelcome
+    internal static class FrameworkWelcomeScheduler
     {
         private const string DisableKey = "FinkFramework_Welcome_Disabled";
         private const string SessionShownKey = "FinkFramework_Welcome_SessionShown";
-        private static int _waitCounter = 0;
+        private static int _waitCounter;
 
-        static FrameworkWelcome()
+        public static void Schedule()
         {
-            // 1. 用户选择永久关闭 → 永远不自动弹
             if (EditorPrefs.GetBool(DisableKey, false))
                 return;
 
-            // 2. 本次 Unity 会话已经弹过 → 不再弹（防止编译重复）
             if (SessionState.GetBool(SessionShownKey, false))
                 return;
 
-            // 3. 标记：本次会话已经安排过欢迎页
             SessionState.SetBool(SessionShownKey, true);
-            
             EditorApplication.update += WaitForEditorReady;
         }
 
@@ -36,7 +31,6 @@ namespace FinkFramework.Editor.Windows
         {
             _waitCounter++;
 
-            // 等待 Editor UI 初始化完全稳定
             if (_waitCounter < 30)
                 return;
 
@@ -45,10 +39,7 @@ namespace FinkFramework.Editor.Windows
                 EditorApplication.isPlayingOrWillChangePlaymode)
                 return;
 
-            // 停止循环
             EditorApplication.update -= WaitForEditorReady;
-
-            // 打开欢迎界面
             WelcomeWindow.ShowWindow();
         }
     }

@@ -22,5 +22,15 @@ namespace FinkFramework.Editor.Windows.Common
                 : new Color(0.6f, 0.6f, 0.6f);
             EditorGUI.DrawRect(rect, new Color(0.6f, 0.6f, 0.6f));
         }
+        
+        public static bool ConfirmAction(string title, string message)
+        {
+            return EditorUtility.DisplayDialog(
+                title,
+                message,
+                "确认执行",
+                "取消"
+            );
+        }
     }
 }
