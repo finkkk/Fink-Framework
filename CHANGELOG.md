@@ -4,6 +4,19 @@
 
 ---
 
+### v0.3.0 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-19</span>
+
+**资源系统成型与项目分析能力补全**
+
+本次更新标志着 Fink Framework 资源系统的正式成型。框架完整接入 AssetBundle 与 Addressables 两套资源后端，并统一纳入 Provider 插件体系。同时新增项目级统计工具，用于量化项目代码规模与资源构成，进一步提升框架在中大型工程中的可控性与工程视角。
+
+- **资源加载后端扩展**：新增 AssetBundleProvider 与 AddressablesProvider，资源加载正式支持 AssetBundle / Addressables 多后端并存，并且新增项目配置中针对资源后端系统的配置。
+- **资源系统架构完善**：ResManager 资源管理器能力补全，后端选择与加载逻辑解耦，为热更新与外部资源扩展奠定基础。
+- **项目统计工具**：新增项目数据统计面板，支持代码行数统计及多类资源（材质、模型、贴图、音频、Prefab、Scene、AB、Addressables）规模分析。
+- **编辑器工具链优化**：优化 EditorProvider、编辑器程序集结构与更新检查输出信息，提升整体稳定性与可维护性。
+
+---
+
 ### v0.2.5 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-11</span>
 
 本次更新主要聚焦于 UIBuilder 工具链的安全性与稳定性，并对 Resources 目录结构进行规范化调整，以避免资源命名冲突和无关资源被错误打包的问题。
