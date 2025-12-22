@@ -1,5 +1,4 @@
 ﻿// ReSharper disable ConvertToConstant.Global
-using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 
@@ -23,7 +22,7 @@ namespace FinkFramework.Runtime.Environments
         /// <summary>
         /// 框架版本号
         /// </summary>
-        public const string FrameworkVersion = "0.3.0";
+        public const string FrameworkVersion = "0.3.1";
 
         #endregion
 
