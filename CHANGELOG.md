@@ -4,6 +4,18 @@
 
 ---
 
+### v0.3.1 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-22</span>
+
+本次更新主要完善场景切换系统，补齐生命周期管理与异步控制能力，提升场景加载过程的安全性与稳定性。
+
+- 重构 ScenesManager 场景切换流程，统一同步与异步加载行为。
+- 新增场景切换生命周期事件（Before / After），支持场景加载前后扩展逻辑。
+- 引入场景加载并发防护，防止重复或同时触发场景切换。
+- 完善 SceneOperation，支持取消机制，避免异步等待卡死。
+- 优化异步加载进度回调，统一对外暴露 0~1 的平滑进度值。
+
+---
+
 ### v0.3.0 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-19</span>
 
 **资源系统成型与项目分析能力补全**
