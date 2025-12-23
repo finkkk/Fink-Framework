@@ -177,18 +177,16 @@ namespace FinkFramework.Editor.Modules.Data
                 containerType.GetField("items")?.SetValue(container, listInstance);
                 
                 // ========== 4. 永远导出 JSON ==========
-                string jsonPath = Path.Combine(DataPipelinePath.JsonRoot, tableName + ".json");
-                Directory.CreateDirectory(Path.GetDirectoryName(jsonPath) ?? string.Empty);
+                string relativePath = PathUtil.NormalizePath(Path.GetRelativePath(sourceRoot, excelPath));
+                string jsonPath = FilesUtil.BuildFullPath(DataPipelinePath.JsonRoot, relativePath, ".json");
                 JsonExportTool.ExportJson(container, jsonPath);
                 
                 // ========== 5. 处理二进制数据的输出 ==========
                 if (GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
                 {
                     string targetRoot = DataPipelinePath.BinaryRoot;
-                    // 获取相对路径
-                    string relativePath = PathUtil.NormalizePath(Path.GetRelativePath(sourceRoot, excelPath));
                     // 使用 streamingAssetsPath 作为 root（Binary 模式）
-                    string binaryFullPath = FilesUtil.BuildFullPath(targetRoot, relativePath, true);
+                    string binaryFullPath = FilesUtil.BuildFullPath(targetRoot, relativePath, GlobalSettingsRuntimeLoader.Current.EncryptedExtension);
                     BinaryExportTool.ExportBinary(container, binaryFullPath);
                 }
                 
