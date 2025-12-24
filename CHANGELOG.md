@@ -4,6 +4,17 @@
 
 ---
 
+### v0.3.2 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-24</span>
+
+数据系统稳定化与路径机制完善
+
+- 数据导出结构统一：JSON / Binary 数据导出继承 Excel 原始目录结构，消除扁平化路径问题。
+- 文件路径逻辑重构：重构数据路径拼接与扩展名处理，明确路径职责边界，避免模式耦合。
+- 数据文件自动定位：升级数据文件查找机制，支持 Binary / JSON 共存，Binary 优先、JSON 兜底。
+- 运行时加载稳定性提升：修复 Binary 模式下 JSON 不可见问题，增强多模式切换可靠性。
+
+---
+
 ### v0.3.1 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-22</span>
 
 本次更新主要完善场景切换系统，补齐生命周期管理与异步控制能力，提升场景加载过程的安全性与稳定性。
