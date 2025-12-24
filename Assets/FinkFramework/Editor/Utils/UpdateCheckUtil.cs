@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Net.Http;
 using System.Threading.Tasks;
 using FinkFramework.Runtime.Environments;
-using FinkFramework.Runtime.Settings;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using Unity.Plastic.Newtonsoft.Json.Linq;
