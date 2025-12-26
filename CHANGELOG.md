@@ -4,6 +4,17 @@
 
 ---
 
+### v0.3.3 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-26</span>
+
+项目统计与数据归档工具完善
+
+- 项目统计面板升级：新增统一的「项目数据统计与归档」编辑器面板，整合代码与资源统计能力。
+- 统计维度补全：支持代码行数、Shader 行数及多类型资源（Prefab / 场景 / 纹理 / Addressables / AssetBundle）统计。
+- 数据归档能力引入：新增统计报告与项目源码的文本归档导出，用于项目留档与技术材料整理。
+- 归档流程安全化：引入完整参数校验与确认弹窗，避免误操作与无效导出。
+
+---
+
 ### v0.3.2 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-24</span>
 
 数据系统稳定化与路径机制完善

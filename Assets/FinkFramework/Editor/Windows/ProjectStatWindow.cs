@@ -1,72 +1,145 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using FinkFramework.Editor.Utils;
 using FinkFramework.Editor.Windows.Common;
+using FinkFramework.Runtime.Utils;
+using Newtonsoft.Json;
 
 namespace FinkFramework.Editor.Windows
 {
     public class ProjectStatWindow : EditorWindow
     {
         private readonly ProjectStatUtil.StatOptions options = new();
+        private const string PrefKey = "FinkFramework_ProjectStat_";
+        private Vector2 _scrollPos;
 
-        private Vector2 scroll;
-        private string result;
-
-        [MenuItem("Fink Framework/项目统计面板")]
+        [MenuItem("Fink Framework/统计归档面板")]
         public static void Open()
         {
-            var window = GetWindow<ProjectStatWindow>("项目数据统计");
-            window.minSize = new Vector2(480, 360);
+            var window = GetWindow<ProjectStatWindow>("项目数据统计与归档");
+            window.minSize = new Vector2(420, 560);
         }
 
         private void OnEnable()
         {
-            options.countCode = true;
-            options.onlyTargetScriptFolder = true;
-            options.scriptFolderPath = "Scripts";
+            options.countCode = EditorPrefs.GetBool(PrefKey + "countCode", true);
+            options.onlyTargetScriptFolder = EditorPrefs.GetBool(PrefKey + "onlyTargetScriptFolder", true);
+            options.scriptFolderPath = EditorPrefs.GetString(PrefKey + "scriptFolderPath", "Scripts");
 
-            options.countShader = false;
-            options.countMaterial = true;
-            options.countModel = true;
-            options.countAudio = true;
-            options.countPrefab = true;
-            options.countScene = true;
-            options.countTexture = true;
-            options.countAddressables = false;
-            options.countAssetBundle = false;
+            options.countShader = EditorPrefs.GetBool(PrefKey + "countShader", true);
+            options.countMaterial = EditorPrefs.GetBool(PrefKey + "countMaterial", true);
+            options.countModel = EditorPrefs.GetBool(PrefKey + "countModel", true);
+            options.countAudio = EditorPrefs.GetBool(PrefKey + "countAudio", true);
+            options.countPrefab = EditorPrefs.GetBool(PrefKey + "countPrefab", true);
+            options.countScene = EditorPrefs.GetBool(PrefKey + "countScene", true);
+            options.countTexture = EditorPrefs.GetBool(PrefKey + "countTexture", true);
+            options.countAddressables = EditorPrefs.GetBool(PrefKey + "countAddressables", true);
+            options.countAssetBundle = EditorPrefs.GetBool(PrefKey + "countAssetBundle", true);
+
+            options.enableArchive = EditorPrefs.GetBool(PrefKey + "enableArchive", true);
+            options.exportStatReport = EditorPrefs.GetBool(PrefKey + "exportStatReport", false);
+            options.exportSourceCode = EditorPrefs.GetBool(PrefKey + "exportSourceCode", false);
+
+            options.statExportDir = EditorPrefs.GetString(PrefKey + "statExportDir", "");
+            options.sourceExportDir = EditorPrefs.GetString(PrefKey + "sourceExportDir", "");
+
+            options.includeEditor = EditorPrefs.GetBool(PrefKey + "includeEditor", true);
+            options.addFilePathHeader = EditorPrefs.GetBool(PrefKey + "addFilePathHeader", true);
+
+            // List<string> 用 Json 存
+            var json = EditorPrefs.GetString(PrefKey + "sourceCodeFolders", "[]");
+            options.sourceCodeFolders = JsonConvert.DeserializeObject<List<string>>(json) ?? new List<string>();
+        }
+        
+        private void OnDisable()
+        {
+            EditorPrefs.SetBool(PrefKey + "countCode", options.countCode);
+            EditorPrefs.SetBool(PrefKey + "onlyTargetScriptFolder", options.onlyTargetScriptFolder);
+            EditorPrefs.SetString(PrefKey + "scriptFolderPath", options.scriptFolderPath);
+
+            EditorPrefs.SetBool(PrefKey + "countShader", options.countShader);
+            EditorPrefs.SetBool(PrefKey + "countMaterial", options.countMaterial);
+            EditorPrefs.SetBool(PrefKey + "countModel", options.countModel);
+            EditorPrefs.SetBool(PrefKey + "countAudio", options.countAudio);
+            EditorPrefs.SetBool(PrefKey + "countPrefab", options.countPrefab);
+            EditorPrefs.SetBool(PrefKey + "countScene", options.countScene);
+            EditorPrefs.SetBool(PrefKey + "countTexture", options.countTexture);
+            EditorPrefs.SetBool(PrefKey + "countAddressables", options.countAddressables);
+            EditorPrefs.SetBool(PrefKey + "countAssetBundle", options.countAssetBundle);
+
+            EditorPrefs.SetBool(PrefKey + "enableArchive", options.enableArchive);
+            EditorPrefs.SetBool(PrefKey + "exportStatReport", options.exportStatReport);
+            EditorPrefs.SetBool(PrefKey + "exportSourceCode", options.exportSourceCode);
+
+            EditorPrefs.SetString(PrefKey + "statExportDir", options.statExportDir ?? "");
+            EditorPrefs.SetString(PrefKey + "sourceExportDir", options.sourceExportDir ?? "");
+
+            EditorPrefs.SetBool(PrefKey + "includeEditor", options.includeEditor);
+            EditorPrefs.SetBool(PrefKey + "addFilePathHeader", options.addFilePathHeader);
+            
+            EditorPrefs.SetString(PrefKey + "sourceCodeFolders", JsonConvert.SerializeObject(options.sourceCodeFolders));
         }
 
         private void OnGUI()
         {
-            GUILayout.Space(12);
+            GUILayout.Space(8);
 
+            // ===== 标题 =====
             FFEditorGUI.Center(() =>
             {
-                GUILayout.Label("项目数据统计", FFEditorStyles.Title);
+                GUILayout.Label("项目数据统计与归档", FFEditorStyles.Title);
             });
 
-            GUILayout.Space(6);
-            GUILayout.Label("用于统计项目中的代码规模与资源构成。", FFEditorStyles.Description);
+            GUILayout.Space(4);
+            GUILayout.Label(
+                "用于统计项目中的代码规模与资源构成，并支持生成项目归档材料。",
+                FFEditorStyles.Description
+            );
 
-            GUILayout.Space(10);
+            GUILayout.Space(4);
             FFEditorGUI.Separator();
+            GUILayout.Space(4);
+            
+            // =====================================================
+            // 可滚动内容区域
+            // =====================================================
+            _scrollPos = EditorGUILayout.BeginScrollView(
+                _scrollPos,
+                GUILayout.ExpandHeight(true)
+            );
 
+            // ---------- 数据统计 ----------
             DrawCodeSection();
-            GUILayout.Space(6);
+            GUILayout.Space(4);
             DrawAssetSection();
 
-            GUILayout.Space(10);
-            FFEditorGUI.Separator();
+            GUILayout.Space(6);
+            DrawPrintReportButton();
 
-            DrawGenerateButton();
             GUILayout.Space(8);
-            DrawResultArea();
+            
+            // ---------- 数据归档 ----------
+            DrawArchiveSection();
+            GUILayout.Space(6);
+            DrawArchiveButton();
 
-            GUILayout.FlexibleSpace();
-            // ===== 页脚 =====
-            GUILayout.Label("Copyright \u00A9 2025 Fink Framework",
-                FFEditorStyles.Footer, GUILayout.ExpandWidth(true));
+            EditorGUILayout.EndScrollView();
+            
+            GUILayout.Space(4);
+            FFEditorGUI.Separator();
+            GUILayout.Space(4);
+
+            // =====================================================
+            // 固定底部页脚
+            // =====================================================
+            GUILayout.Label(
+                "Copyright © 2025 Fink Framework",
+                FFEditorStyles.Footer,
+                GUILayout.ExpandWidth(true)
+            );
         }
 
         #region 选项区域
@@ -94,13 +167,10 @@ namespace FinkFramework.Editor.Windows
                     EditorGUILayout.Toggle("包含 Shader 行数", options.countShader);
                 EditorGUI.indentLevel--;
             }
-
-            GUILayout.EndVertical();
         }
 
         private void DrawAssetSection()
         {
-            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
             GUILayout.Label("资产统计", FFEditorStyles.SectionTitle);
 
             options.countMaterial = EditorGUILayout.Toggle("材质 (.mat)", options.countMaterial);
@@ -115,82 +185,200 @@ namespace FinkFramework.Editor.Windows
             GUILayout.EndVertical();
         }
 
+        private void DrawArchiveSection()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            GUILayout.Label("数据归档", FFEditorStyles.SectionTitle);
+
+            // ===== 总开关 =====
+            options.enableArchive =
+                EditorGUILayout.Toggle("启用数据归档", options.enableArchive);
+
+            EditorGUI.BeginDisabledGroup(!options.enableArchive);
+            EditorGUI.indentLevel++;
+
+            // =====================================================
+            // 统计数据归档
+            // =====================================================
+            options.exportStatReport =
+                EditorGUILayout.Toggle("导出统计数据文本", options.exportStatReport);
+
+            if (options.exportStatReport)
+            {
+                EditorGUI.indentLevel++;
+
+                DrawExportPathField(
+                    "统计导出目录",
+                    ref options.statExportDir
+                );
+
+                EditorGUILayout.LabelField(
+                    "文件命名规则",
+                    "ProjectStat_yyyyMMdd_HHmmss.txt",
+                    EditorStyles.miniLabel
+                );
+
+                EditorGUI.indentLevel--;
+            }
+
+            GUILayout.Space(8);
+
+            // =====================================================
+            // 源码归档
+            // =====================================================
+            options.exportSourceCode =
+                EditorGUILayout.Toggle("导出项目源码文本", options.exportSourceCode);
+
+            if (options.exportSourceCode)
+            {
+                EditorGUI.indentLevel++;
+
+                options.includeEditor =
+                    EditorGUILayout.Toggle("包含 Editor 代码", options.includeEditor);
+
+                options.addFilePathHeader =
+                    EditorGUILayout.Toggle("在源码前写入文件路径", options.addFilePathHeader);
+
+                GUILayout.Space(6);
+                DrawSourceFolderList();
+
+                GUILayout.Space(6);
+                DrawExportPathField(
+                    "源码导出目录",
+                    ref options.sourceExportDir
+                );
+
+                EditorGUILayout.LabelField(
+                    "文件命名规则",
+                    "SourceCode_yyyyMMdd_HHmmss.txt",
+                    EditorStyles.miniLabel
+                );
+
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUI.indentLevel--;
+            EditorGUI.EndDisabledGroup();
+
+            GUILayout.EndVertical();
+        }
+
         #endregion
 
-        #region 统计结果
+        #region 组件绘制
 
-        private void DrawGenerateButton()
+        private void DrawPrintReportButton()
         {
             FFEditorGUI.Center(() =>
             {
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-
-                bool clickGenerate = GUILayout.Button(
-                    "生成统计报告",
-                    FFEditorStyles.BigButton,
-                    GUILayout.Width(200)
-                );
-
-                GUILayout.FlexibleSpace();
-                GUILayout.EndHorizontal();
-
-                if (!clickGenerate)
-                    return;
-
-                if (!HasAnySelection())
+                if (GUILayout.Button(
+                        "打印统计报告",
+                        FFEditorStyles.BigButton,
+                        GUILayout.Width(200)))
                 {
-                    EditorUtility.DisplayDialog(
-                        "项目统计",
-                        "请至少选择一个统计项。",
-                        "确定"
-                    );
-                    return;
-                }
+                    if (!HasAnySelection())
+                    {
+                        EditorUtility.DisplayDialog(
+                            "项目统计",
+                            "请至少选择一个统计项。",
+                            "确定"
+                        );
+                        return;
+                    }
 
-                var raw = ProjectStatUtil.GenerateReport(options);
-                result = ApplyColor(raw);
-                scroll = Vector2.zero;
+                    var report = ProjectStatUtil.GenerateReport(options);
+                    LogUtil.Info("ProjectStatUtil",report);
+                }
             });
         }
-
-        private void DrawResultArea()
+        
+        private void DrawArchiveButton()
         {
-            if (string.IsNullOrEmpty(result))
+            if (!options.enableArchive)
                 return;
 
-            EnsureResultStyle();
+            GUILayout.Space(6);
 
-            GUILayout.Label("统计结果", FFEditorStyles.SectionTitle);
+            FFEditorGUI.Center(() =>
+            {
+                if (GUILayout.Button(
+                        "执行数据归档",
+                        FFEditorStyles.BigButton,
+                        GUILayout.Width(200)))
+                {
+                    // ===== 基础确认 =====
+                    if (!EditorUtility.DisplayDialog(
+                            "数据归档",
+                            "将生成项目统计与源码归档文件，是否继续？",
+                            "继续",
+                            "取消"))
+                    {
+                        return;
+                    }
 
-            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+                    // ===== 参数校验 =====
+                    if (!ValidateArchiveOptions())
+                        return;
+                    // 规范化源码读取路径（去空 / 统一分隔符 / 去重）
+                    options.sourceCodeFolders = options.sourceCodeFolders
+                        .Where(p => !string.IsNullOrWhiteSpace(p))
+                        .Select(PathUtil.NormalizePath)
+                        .Where(p => !string.IsNullOrEmpty(p))
+                        .Distinct(System.StringComparer.Ordinal)
+                        .ToList();
+                    ProjectStatUtil.Archive(options);
 
-            scroll = EditorGUILayout.BeginScrollView(scroll, GUILayout.Height(290));
-
-            GUILayout.Label(
-                result,
-                _resultStyle,
-                GUILayout.ExpandWidth(true),
-                GUILayout.ExpandHeight(true)  
-            );
-
-            EditorGUILayout.EndScrollView();
-            GUILayout.EndVertical();
+                    EditorUtility.DisplayDialog(
+                        "数据归档",
+                        "项目数据归档已完成。",
+                        "确定"
+                    );
+                }
+            });
         }
         
-        private GUIStyle _resultStyle;
-
-        private void EnsureResultStyle()
+        private void DrawExportPathField(string label, ref string path)
         {
-            if (_resultStyle != null)
-                return;
+            GUILayout.BeginHorizontal();
+            path = EditorGUILayout.TextField(label, path);
 
-            _resultStyle = new GUIStyle(EditorStyles.label)
+            if (GUILayout.Button("选择", GUILayout.Width(60)))
             {
-                richText = true,
-                wordWrap = true,
-                alignment = TextAnchor.UpperLeft,
-            };
+                var selected = EditorUtility.OpenFolderPanel(label, path, "");
+                if (!string.IsNullOrEmpty(selected))
+                    path = selected;
+            }
+
+            GUILayout.EndHorizontal();
+        }
+        
+        private void DrawSourceFolderList()
+        {
+            GUILayout.Label("源码读取路径 (在Assets目录下 无需填写Assets前缀)", EditorStyles.label);
+
+            for (int i = 0; i < options.sourceCodeFolders.Count; i++)
+            {
+                GUILayout.BeginHorizontal();
+
+                options.sourceCodeFolders[i] =
+                    EditorGUILayout.TextField(options.sourceCodeFolders[i]);
+
+                if (GUILayout.Button("-", GUILayout.Width(24)))
+                {
+                    options.sourceCodeFolders.RemoveAt(i);
+                    i--;
+                }
+
+                GUILayout.EndHorizontal();
+            }
+
+            if (GUILayout.Button("+ 添加路径", FFEditorStyles.SmallButton))
+            {
+                if (!options.sourceCodeFolders.Contains("Scripts"))
+                {
+                    options.sourceCodeFolders.Add("Scripts");
+                }
+            }
         }
 
         #endregion
@@ -209,31 +397,60 @@ namespace FinkFramework.Editor.Windows
                    || options.countAssetBundle
                    || options.countTexture;
         }
-
-        private string ApplyColor(string raw)
+        
+        private bool ValidateArchiveOptions()
         {
-            var lines = raw.Split('\n');
-            var sb = new System.Text.StringBuilder();
-
-            foreach (var rawLine in lines)
+            // 统计数据导出
+            if (options.exportStatReport)
             {
-                var line = rawLine.TrimEnd('\r');
-                
-                if (line.StartsWith("[") && line.EndsWith("]"))
+                if (string.IsNullOrEmpty(options.statExportDir))
                 {
-                    sb.AppendLine($"<color=#4CAF50>{line}</color>");
-                }
-                else if (line.StartsWith("===="))
-                {
-                    sb.AppendLine($"<color=#9E9E9E>{line}</color>");
-                }
-                else
-                {
-                    sb.AppendLine($"<color=#FFFFFF>{line}</color>");
+                    EditorUtility.DisplayDialog(
+                        "数据归档",
+                        "已启用「统计数据导出」，但未指定导出目录。",
+                        "确定"
+                    );
+                    return false;
                 }
             }
 
-            return sb.ToString();
+            // 源码导出
+            if (options.exportSourceCode)
+            {
+                if (string.IsNullOrEmpty(options.sourceExportDir))
+                {
+                    EditorUtility.DisplayDialog(
+                        "数据归档",
+                        "已启用「源码导出」，但未指定导出目录。",
+                        "确定"
+                    );
+                    return false;
+                }
+
+                if (options.sourceCodeFolders == null ||
+                    options.sourceCodeFolders.Count == 0)
+                {
+                    EditorUtility.DisplayDialog(
+                        "数据归档",
+                        "已启用「源码导出」，但未指定源码读取路径。",
+                        "确定"
+                    );
+                    return false;
+                }
+            }
+
+            // 至少启用一个子模块
+            if (!options.exportStatReport && !options.exportSourceCode)
+            {
+                EditorUtility.DisplayDialog(
+                    "数据归档",
+                    "请至少启用一种归档方式（统计数据或源码）。",
+                    "确定"
+                );
+                return false;
+            }
+
+            return true;
         }
 
         #endregion
