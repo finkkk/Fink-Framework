@@ -22,7 +22,7 @@ namespace FinkFramework.Runtime.Environments
         /// <summary>
         /// 框架版本号
         /// </summary>
-        public const string FrameworkVersion = "0.3.3";
+        public const string FrameworkVersion = "0.3.4";
 
         #endregion
 
@@ -57,7 +57,7 @@ namespace FinkFramework.Runtime.Environments
         
         /// <summary>
         /// 自动检测：当前项目是否启用了 URP。
-        /// 根据 UNITY_RENDER_PIPELINE_URP 宏判断。
+        /// 根据 ENABLE_URP 宏判断。
         /// </summary>
         #if ENABLE_URP
         public const bool AutoURP = true;

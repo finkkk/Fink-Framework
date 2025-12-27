@@ -665,7 +665,10 @@ namespace FinkFramework.Runtime.ResLoad
             resDic.Clear();
             Resources.UnloadUnusedAssets();
             //卸载完毕后 通知外部
-            callback();
+            if (callback != null)
+            {
+                callback();
+            }
         }
 
         #endregion

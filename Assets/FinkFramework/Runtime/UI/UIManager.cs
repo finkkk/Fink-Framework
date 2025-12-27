@@ -13,7 +13,7 @@ using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 // ReSharper disable HeuristicUnreachableCode
-#if UNITY_RENDER_PIPELINE_URP
+#if ENABLE_URP
 using UnityEngine.Rendering.Universal;
 #endif
 
@@ -159,7 +159,7 @@ namespace FinkFramework.Runtime.UI
         /// </summary>
         private void SetupCameraStack()
         {
-#if UNITY_RENDER_PIPELINE_URP
+#if ENABLE_URP
             var mainCam = Camera.main;
             if (!mainCam || !uiCamera) return;
 
