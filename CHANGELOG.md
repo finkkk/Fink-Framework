@@ -4,6 +4,15 @@
 
 ---
 
+### v0.3.4 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-27</span>
+
+BUG修复: 资源系统稳定性与 URP 依赖问题
+
+- 资源清理回调修复：修复资源加载系统中手动清空记录时回调未做非空判断的问题，避免空引用异常。
+- URP 程序集引用修正：修复 URP 相关程序集引用配置，完善可选依赖声明，提升框架在非 URP 项目下的兼容性与稳定性。
+
+---
+
 ### v0.3.3 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-26</span>
 
 项目统计与数据归档工具完善
