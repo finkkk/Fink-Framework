@@ -55,8 +55,24 @@ namespace FinkFramework.Runtime.Utils
 
                     continue;
                 }
+                
+                // ③ async 状态机：<Method>d__XX
+                if (typeName.StartsWith("<") && typeName.Contains(">d__"))
+                {
+                    string full = type.FullName;
+                    int plusIndex = full.IndexOf('+');
+                    if (plusIndex > 0)
+                    {
+                        string outerClass = full[..plusIndex]
+                            .Split('.')
+                            .Last();
 
-                // ③ 处理普通类
+                        _callerCache.TryAdd(hash, outerClass);
+                        return outerClass;
+                    }
+                }
+
+                // ④ 处理普通类
                 string clean = typeName.Split('`')[0];  // 去掉泛型后缀
                 _callerCache.TryAdd(hash, clean);
                 return clean;
