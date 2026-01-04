@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.ResLoad;
@@ -12,7 +13,10 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
+
 // ReSharper disable HeuristicUnreachableCode
+// ReSharper disable SuspiciousTypeConversion.Global
 #if ENABLE_URP
 using UnityEngine.Rendering.Universal;
 #endif
@@ -43,8 +47,14 @@ namespace FinkFramework.Runtime.UI
     }   
     
     /// <summary>
-    /// 管理所有UI面板的管理器
-    /// 注意：面板预设体名要和面板类名一致！！！！！
+    /// UI 面板管理器（UI 系统核心调度入口）
+    /// ------------------------------------------------------------
+    /// 负责 UI 面板的创建、显示、隐藏、销毁及生命周期管理。
+    /// 支持同步 / 异步加载、单画布 / 多画布模式，并提供参数化初始化能力。
+    ///
+    /// 设计约定：
+    /// - 面板预制体名称必须与面板脚本类名一致
+    /// - UIManager 仅负责调度与生命周期，不承载具体业务逻辑
     /// </summary>
     public class UIManager : Singleton<UIManager>
     {
@@ -70,7 +80,7 @@ namespace FinkFramework.Runtime.UI
         public readonly Camera uiCamera;
         #endregion
 
-        #region 初始化UI管理器模块
+        #region #region UI 管理器初始化
         private UIManager()
         {
             // ======================
@@ -206,6 +216,129 @@ namespace FinkFramework.Runtime.UI
             };
         }
         #endregion
+
+        #region 同步显示面板 (支持参数初始化)
+        
+        /// <summary>
+        /// 同步显示面板 （支持参数初始化，单画布模式）
+        /// ------------------------------------------------------------
+        /// - 通过泛型参数向面板传递初始化数据
+        /// - 面板是否支持参数由其自身决定（IPanelParam 可选实现）
+        /// - 不影响无参数面板的既有行为
+        /// </summary> 
+        public T ShowPanel<T, TParam>(TParam param, string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
+        {
+            return ShowPanelInternal<T, TParam>(
+                param,
+                fullPath,
+                layer,
+                E_UIRoot.HUD,
+                ""
+            );
+        }
+        
+        /// <summary>
+        /// 同步显示面板（支持参数初始化，多画布模式）
+        /// ------------------------------------------------------------
+        /// - 支持向面板传递初始化参数
+        /// - 参数注入早于面板生命周期方法
+        /// - 画布由 uiRootType + canvasId 决定
+        /// </summary>
+        public T ShowPanelMultiCanvas<T, TParam>(TParam param, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
+        {
+            return ShowPanelInternal<T, TParam>(param, fullPath, layer, uiRootType, canvasId);
+        }
+        
+        /// <summary>
+        ///  内部同步显示面板通用逻辑 （支持参数初始化）
+        /// </summary>
+        private T ShowPanelInternal<T, TParam>(TParam param,string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId) where T : BasePanel
+        {
+            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
+
+            // ===== 面板已存在（缓存） ===== 
+            if (panelDic.TryGetValue(panelKey, out var baseInfo))
+            {
+                // 取出字典中已经占好位置的数据
+                var info = baseInfo as PanelInfo<T>;
+                // === 情况 1：已加载结束 === 
+                if (info.panel) // 已加载完成
+                {
+                    // 先注入参数
+                    if (info.panel is IPanelParam<TParam> rec)
+                        rec.SetParam(param);
+                    if (!info.panel.gameObject.activeSelf)
+                        info.panel.gameObject.SetActive(true);
+                    if (!info.isInit)
+                        info.panel.ShowMe();
+                    info.panel.OnShow();  
+                    return info.panel;
+                }
+                else
+                {
+                    // === 情况 2：正在异步加载 === 
+                    LogUtil.Error($"[UIManager] 面板 {typeof(T).Name} 正在异步加载中，无法同步加载！");
+                    return null;
+                }
+            }
+
+            //  ===== 面板不存在 → 先在字典占位 ===== 
+            var newInfo = new PanelInfo<T> { isInit = false };
+            panelDic.Add(panelKey, newInfo);
+
+            //  ===== 同步加载 面板预制体 =====
+            // fullPath 如果不为空 = 用户完全自定义加载来源（例如 ab://、res://、remote://）
+            // 如果完整路径为空
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                // 自动拼接路径（默认为res://UI/Panels/类名）
+                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
+            }
+            GameObject prefab = ResManager.Instance.Load<GameObject>(fullPath);
+            // 异步期间 ClearAllPanels / Destroy 面板 → 要提前退出
+            if (!panelDic.ContainsKey(panelKey))
+                return null;
+            if (!prefab)
+            {
+                panelDic.Remove(panelKey);
+                LogUtil.Error($"ShowPanelInternal 加载失败：{typeof(T).Name}");
+                return null;
+            }
+
+            // 异步期间被标记为隐藏
+            if (newInfo.isHide)
+            {
+                panelDic.Remove(panelKey);
+                return null;
+            }
+            
+            // ==== 获取父节点 ====
+            Transform canvasRoot = uiRootType != E_UIRoot.HUD
+                ? CanvasManager.Instance.GetCanvasInfo(uiRootType, canvasId)?.panelParent
+                : GetMainLayerFather(layer);
+
+            if (!canvasRoot) canvasRoot = middleLayer;
+
+            // ==== 实例化 ====
+            GameObject obj = Object.Instantiate(prefab, canvasRoot, false);
+            T panelCom = obj.GetComponent<T>();
+
+            newInfo.panel = panelCom;
+            newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
+
+            // 先注入参数（关键）
+            if (panelCom is IPanelParam<TParam> receiver)
+                receiver.SetParam(param);
+            
+            // ==== 生命周期 ====
+            panelCom.ShowMe();
+            panelCom.OnShow();
+            newInfo.isInit = true;
+
+            return panelCom;
+        }
+
+        #endregion
         
         #region 同步显示面板
         
@@ -312,6 +445,7 @@ namespace FinkFramework.Runtime.UI
 
             return panelCom;
         }
+        
         #endregion
 
         #region 异步显示面板核心逻辑
@@ -319,7 +453,7 @@ namespace FinkFramework.Runtime.UI
         /// <summary>
         /// 内部异步加载显示面板通用逻辑
         /// </summary>
-        private async UniTask<T> ShowPanelInternalAsync<T>(string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId) where T : BasePanel
+        private async UniTask<T> ShowPanelInternalAsync<T>(string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId,Action<T> beforeShow = null) where T : BasePanel
         {
             string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
 
@@ -343,6 +477,8 @@ namespace FinkFramework.Runtime.UI
                     // 等待加载完成（等 Internal 再 return）
                     var panel = await WaitForPanelLoaded(info,panelKey);
                     panel.gameObject.SetActive(true);
+                    // 参数 / 初始化钩子 (主要用于传入初始化的参数)
+                    beforeShow?.Invoke(panel);
                     if (!info.isInit)
                         panel.ShowMe();
                     panel.OnShow();  
@@ -394,7 +530,8 @@ namespace FinkFramework.Runtime.UI
 
             newInfo.panel = panelCom;
             newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
-
+            // 参数 / 初始化钩子
+            beforeShow?.Invoke(panelCom);
             panelCom.ShowMe();
             panelCom.OnShow();
             newInfo.isInit = true;
@@ -405,7 +542,7 @@ namespace FinkFramework.Runtime.UI
         /// <summary>
         /// 内部异步加载显示面板通用逻辑(句柄式)
         /// </summary>
-        private async UniTask LoadPanelHandleInternalAsync<T>(UIOperation<T> op, E_MainLayer layer, E_UIRoot root, string canvasId, string fullPath) where T : BasePanel
+        private async UniTask LoadPanelHandleInternalAsync<T>(UIOperation<T> op, E_MainLayer layer, E_UIRoot root, string canvasId, string fullPath, Action<T> beforeSetResult = null) where T : BasePanel
         {
             // 与 ShowPanelInternalAsync 基本一样
             // 只是最后不调 OnShow，只返回面板实例
@@ -422,20 +559,17 @@ namespace FinkFramework.Runtime.UI
                 op.SetFailed();
                 return;
             }
-
             op.SetProgress(0.6f);
 
             Transform parent = root != E_UIRoot.HUD
                 ? CanvasManager.Instance.GetCanvasInfo(root, canvasId)?.panelParent
                 : GetMainLayerFather(layer);
-
             if (!parent) parent = middleLayer;
-
             var obj = Object.Instantiate(prefab, parent);
             var panel = obj.GetComponent<T>();
-
+            // 参数 / 初始化钩子（不触发生命周期）
+            beforeSetResult?.Invoke(panel);
             op.SetProgress(1f);
-
             op.SetResult(panel);
         }
         
@@ -454,6 +588,94 @@ namespace FinkFramework.Runtime.UI
             return info.panel;
         }
 
+        #endregion
+        
+        #region 异步显示面板单画布模式 (支持参数初始化)
+        
+        /// <summary>
+        /// 异步显示主画布的面板 await形式（支持参数初始化，单画布模式） 
+        /// </summary>
+        /// <param name="layer">UI层级 默认为中层</param>
+        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
+        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
+        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
+        /// <typeparam name="T">面板类</typeparam>
+        /// <returns></returns>
+        public async UniTask<T> ShowPanelAsync<T, TParam>(  TParam param, string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
+        {
+            return await ShowPanelInternalAsync<T>(
+                fullPath,
+                layer,
+                E_UIRoot.HUD,
+                "",
+                panel =>
+                {
+                    if (panel is IPanelParam<TParam> receiver)
+                        receiver.SetParam(param);
+                }
+            );
+        }
+
+        /// <summary>
+        /// 异步显示主画布的面板 回调形式（支持参数初始化，单画布模式） 
+        /// </summary>
+        /// <param name="layer">UI层级 默认为中层</param>
+        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
+        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
+        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
+        /// <typeparam name="T">面板类</typeparam>
+        /// <returns></returns>
+        public void ShowPanelCallback<T, TParam>(  TParam param, string fullPath = null, UnityAction<T> callback = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
+        {
+            _ = Wrapper();
+            return;
+
+            async UniTask Wrapper()
+            {
+                var panel = await ShowPanelInternalAsync<T>(
+                    fullPath,
+                    layer,
+                    E_UIRoot.HUD,
+                    "",
+                    p =>
+                    {
+                        if (p is IPanelParam<TParam> receiver)
+                            receiver.SetParam(param);
+                    }
+                );
+
+                callback?.Invoke(panel);
+            }
+        }
+        
+        /// <summary>
+        /// 异步显示主画布的面板 句柄形式（支持参数初始化，单画布模式） 
+        /// </summary>
+        /// <param name="layer">UI层级 默认为中层</param>
+        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
+        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
+        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
+        /// <typeparam name="T">面板类</typeparam>
+        /// <returns>句柄</returns>
+        public UIOperation<T> LoadPanelHandle<T, TParam>( TParam param, string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
+        {
+            var op = new UIOperation<T>();
+            _ = LoadPanelHandleInternalAsync(
+                op,
+                layer,
+                E_UIRoot.HUD,
+                "",
+                fullPath,
+                panel =>
+                {
+                    if (panel is IPanelParam<TParam> receiver)
+                        receiver.SetParam(param);
+                }
+            );
+
+            return op;
+        }
+        
         #endregion
         
         #region 异步显示面板单画布模式
@@ -506,6 +728,95 @@ namespace FinkFramework.Runtime.UI
         {
             var op = new UIOperation<T>();
             _ = LoadPanelHandleInternalAsync(op, layer, E_UIRoot.HUD, "", fullPath);
+            return op;
+        }
+        
+        #endregion
+        
+        #region 异步显示面板多画布模式 (支持参数初始化)
+
+        /// <summary>
+        /// 异步显示面板 await形式（支持参数初始化，多画布模式） 
+        /// </summary>
+        /// <param name="layer">UI层级 默认为中层</param>
+        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
+        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
+        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
+        /// <typeparam name="T">面板类</typeparam>
+        /// <returns></returns>
+        public async UniTask<T> ShowPanelMultiCanvasAsync<T, TParam>( TParam param,E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
+        {
+            return await ShowPanelInternalAsync<T>(
+                fullPath,
+                layer,
+                uiRootType,
+                canvasId,
+                panel =>
+                {
+                    if (panel is IPanelParam<TParam> receiver)
+                        receiver.SetParam(param);
+                }
+            );
+        }
+        
+        /// <summary>
+        /// 异步显示面板 回调形式（支持参数初始化，多画布模式） 
+        /// </summary>
+        /// <param name="layer">UI层级 默认为中层</param>
+        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
+        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
+        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
+        /// <typeparam name="T">面板类</typeparam>
+        /// <returns></returns>
+        public void ShowPanelMultiCanvasCallback<T, TParam>( TParam param, UnityAction<T> callback = null, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
+        {
+            _ = Wrapper();
+            return;
+
+            async UniTask Wrapper()
+            {
+                var panel = await ShowPanelInternalAsync<T>(
+                    fullPath,
+                    layer,
+                    uiRootType,
+                    canvasId,
+                    p =>
+                    {
+                        if (p is IPanelParam<TParam> receiver)
+                            receiver.SetParam(param);
+                    }
+                );
+
+                callback?.Invoke(panel);
+            }
+        }
+
+        /// <summary>
+        /// 异步显示面板 句柄形式（支持参数初始化，多画布模式） 
+        /// </summary>
+        /// <param name="layer">UI层级 默认为中层</param>
+        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
+        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
+        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
+        /// <typeparam name="T">面板类</typeparam>
+        /// <returns>句柄</returns>
+        public UIOperation<T> LoadPanelMultiCanvasHandle<T, TParam>( TParam param, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot root = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
+        {
+            var op = new UIOperation<T>();
+
+            _ = LoadPanelHandleInternalAsync(
+                op,
+                layer,
+                root,
+                canvasId,
+                fullPath,
+                panel =>
+                {
+                    if (panel is IPanelParam<TParam> receiver)
+                        receiver.SetParam(param);
+                }
+            );
+
             return op;
         }
         
@@ -770,7 +1081,7 @@ namespace FinkFramework.Runtime.UI
                         count++;
                     }
                 }
-                catch (System.Exception ex)
+                catch (Exception ex)
                 {
                     LogUtil.Warn($"清理面板时出错: {ex.Message}");
                 }
