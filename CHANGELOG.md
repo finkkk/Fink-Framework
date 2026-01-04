@@ -4,6 +4,17 @@
 
 ---
 
+### v0.3.5 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-1-4</span>
+
+UI 系统参数化与异步加载体系完善
+
+- UI 参数初始化支持：UI 面板新增统一的参数注入机制，支持同步 / 异步 / 句柄三种加载模式下的安全初始化。
+- 异步加载流程重构：引入初始化钩子，确保参数注入先于生命周期调用，避免异步竞态问题。
+- 多画布 API 补全：完善多 Canvas 场景下的参数化显示接口，提升 VR / WorldSpace UI 的一致性与可扩展性。
+- UIManager 稳定性提升：优化面板缓存与等待逻辑，增强重复调用与加载中断场景下的可靠性。
+
+---
+
 ### v0.3.4 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2025-12-27</span>
 
 BUG修复与框架稳定性提升
