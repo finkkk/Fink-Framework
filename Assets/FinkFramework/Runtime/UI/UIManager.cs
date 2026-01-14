@@ -220,6 +220,24 @@ namespace FinkFramework.Runtime.UI
         #region 同步显示面板 (支持参数初始化)
         
         /// <summary>
+        /// 关闭其他面板后 单独同步显示此面板 （支持参数初始化，单画布模式）
+        /// ------------------------------------------------------------
+        /// - 通过泛型参数向面板传递初始化数据
+        /// - 面板是否支持参数由其自身决定（IPanelParam 可选实现）
+        /// - 不影响无参数面板的既有行为
+        /// </summary> 
+        public T ShowExclusivePanel<T, TParam>(
+            TParam param,
+            string fullPath = null,
+            E_MainLayer layer = E_MainLayer.Middle,
+            bool destroyOthers = false
+        ) where T : BasePanel
+        {
+            HideAllPanels(destroyOthers);
+            return ShowPanel<T, TParam>(param, fullPath, layer);
+        }
+        
+        /// <summary>
         /// 同步显示面板 （支持参数初始化，单画布模式）
         /// ------------------------------------------------------------
         /// - 通过泛型参数向面板传递初始化数据
@@ -235,6 +253,19 @@ namespace FinkFramework.Runtime.UI
                 E_UIRoot.HUD,
                 ""
             );
+        }
+        
+        /// <summary>
+        /// 关闭其他面板后 单独同步显示此面板（支持参数初始化，多画布模式）
+        /// ------------------------------------------------------------
+        /// - 支持向面板传递初始化参数
+        /// - 参数注入早于面板生命周期方法
+        /// - 画布由 uiRootType + canvasId 决定
+        /// </summary>
+        public T ShowExclusivePanelMultiCanvas<T, TParam>(TParam param, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
+        {
+            HidePanelsInCanvas(uiRootType, canvasId);
+            return ShowPanelMultiCanvas<T, TParam>(param,  layer, uiRootType, canvasId, fullPath);
         }
         
         /// <summary>
@@ -340,7 +371,20 @@ namespace FinkFramework.Runtime.UI
 
         #endregion
         
-        #region 同步显示面板
+        #region 同步显示面板 (无参)
+        
+        /// <summary>
+        /// 关闭其他面板后 单独同步显示此面板 （单画布模式）
+        /// </summary>
+        public T ShowExclusivePanel<T>(
+            string fullPath = null,
+            E_MainLayer layer = E_MainLayer.Middle,
+            bool destroyOthers = false
+        ) where T : BasePanel
+        {
+            HideAllPanels(destroyOthers);
+            return ShowPanel<T>(fullPath, layer);
+        }
         
         /// <summary>
         /// 同步显示面板 （单画布模式）
@@ -348,6 +392,21 @@ namespace FinkFramework.Runtime.UI
         public T ShowPanel<T>(string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
         {
             return ShowPanelInternal<T>(fullPath, layer, E_UIRoot.HUD, "");
+        }
+        
+        /// <summary>
+        /// 关闭同一 Canvas 下其他面板后 单独同步显示此面板（多画布模式）
+        /// </summary>
+        public T ShowExclusivePanelMultiCanvas<T>(
+            E_MainLayer layer = E_MainLayer.Middle,
+            E_UIRoot uiRootType = E_UIRoot.HUD,
+            string canvasId = "",
+            string fullPath = null,
+            bool destroyOthers = false
+        ) where T : BasePanel
+        {
+            HidePanelsInCanvas(uiRootType, canvasId, destroyOthers);
+            return ShowPanelMultiCanvas<T>(layer, uiRootType, canvasId, fullPath);
         }
         
         /// <summary>
@@ -447,148 +506,6 @@ namespace FinkFramework.Runtime.UI
         }
         
         #endregion
-
-        #region 异步显示面板核心逻辑
-           
-        /// <summary>
-        /// 内部异步加载显示面板通用逻辑
-        /// </summary>
-        private async UniTask<T> ShowPanelInternalAsync<T>(string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId,Action<T> beforeShow = null) where T : BasePanel
-        {
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
-
-            // 找到父节点（MainCanvas 或 WorldCanvas）
-            Transform canvasRoot = uiRootType != E_UIRoot.HUD
-                ? CanvasManager.Instance.GetCanvasInfo(uiRootType, canvasId)?.panelParent
-                : GetMainLayerFather(layer);
-
-            if (!canvasRoot) canvasRoot = middleLayer;
-
-            // ===== 面板已存在（缓存） ===== 
-            if (panelDic.TryGetValue(panelKey, out var baseInfo))
-            {
-                // 取出字典中已经占好位置的数据
-                var info = baseInfo as PanelInfo<T>;
-                // === 情况 1：正在异步加载 === 
-                if (!info!.panel)
-                {
-                    // 若之前显示过又隐藏后想再次显示直接设置为false 防止重复异步加载
-                    info.isHide = false; // 取消 hide
-                    // 等待加载完成（等 Internal 再 return）
-                    var panel = await WaitForPanelLoaded(info,panelKey);
-                    panel.gameObject.SetActive(true);
-                    // 参数 / 初始化钩子 (主要用于传入初始化的参数)
-                    beforeShow?.Invoke(panel);
-                    if (!info.isInit)
-                        panel.ShowMe();
-                    panel.OnShow();  
-                    return panel;
-                }
-                // === 情况 2：已加载结束 === 
-                // 若面板是失活状态直接激活面板
-                if (!info.panel.gameObject.activeSelf)
-                    info.panel.gameObject.SetActive(true);
-                if (!info.isInit)
-                    info.panel.ShowMe();
-                info.panel.OnShow();
-                return info.panel;
-            }
-
-            //  ===== 面板不存在 → 先在字典占位 ===== 
-            var newInfo = new PanelInfo<T> { isInit = false };
-            panelDic.Add(panelKey, newInfo);
-
-            //  ===== 异步加载 面板预制体 =====
-            // fullPath 如果不为空 = 用户完全自定义加载来源（例如 ab://、res://、remote://）
-            // 如果完整路径为空
-            if (string.IsNullOrEmpty(fullPath))
-            {
-                // 自动拼接路径（默认为res://UI/Panels/类名）
-                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
-            }
-            GameObject prefab = await ResManager.Instance.LoadAsync<GameObject>(fullPath);
-            // 异步期间 ClearAllPanels / Destroy 面板 → 要提前退出
-            if (!panelDic.ContainsKey(panelKey))
-                return null;
-            if (!prefab)
-            {
-                panelDic.Remove(panelKey);
-                LogUtil.Error($"ShowPanelInternal 加载失败：{typeof(T).Name}");
-                return null;
-            }
-
-            // 异步期间被标记为隐藏
-            if (newInfo.isHide)
-            {
-                panelDic.Remove(panelKey);
-                return null;
-            }
-
-            // 实例化面板
-            GameObject obj = Object.Instantiate(prefab, canvasRoot, false);
-            T panelCom = obj.GetComponent<T>();
-
-            newInfo.panel = panelCom;
-            newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
-            // 参数 / 初始化钩子
-            beforeShow?.Invoke(panelCom);
-            panelCom.ShowMe();
-            panelCom.OnShow();
-            newInfo.isInit = true;
-
-            return panelCom;
-        }
-
-        /// <summary>
-        /// 内部异步加载显示面板通用逻辑(句柄式)
-        /// </summary>
-        private async UniTask LoadPanelHandleInternalAsync<T>(UIOperation<T> op, E_MainLayer layer, E_UIRoot root, string canvasId, string fullPath, Action<T> beforeSetResult = null) where T : BasePanel
-        {
-            // 与 ShowPanelInternalAsync 基本一样
-            // 只是最后不调 OnShow，只返回面板实例
-
-            if (string.IsNullOrEmpty(fullPath))
-                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
-
-            op.SetProgress(0.2f);
-
-            var prefab = await ResManager.Instance.LoadAsync<GameObject>(fullPath);
-
-            if (!prefab)
-            {
-                op.SetFailed();
-                return;
-            }
-            op.SetProgress(0.6f);
-
-            Transform parent = root != E_UIRoot.HUD
-                ? CanvasManager.Instance.GetCanvasInfo(root, canvasId)?.panelParent
-                : GetMainLayerFather(layer);
-            if (!parent) parent = middleLayer;
-            var obj = Object.Instantiate(prefab, parent);
-            var panel = obj.GetComponent<T>();
-            // 参数 / 初始化钩子（不触发生命周期）
-            beforeSetResult?.Invoke(panel);
-            op.SetProgress(1f);
-            op.SetResult(panel);
-        }
-        
-        /// <summary>
-        /// 异步等待 面板加载完毕
-        /// </summary>
-        private async UniTask<T> WaitForPanelLoaded<T>(PanelInfo<T> info, string panelKey) where T : BasePanel
-        {
-            while (!info.panel && !info.isHide)
-            {
-                // 若面板在等待期间被清理（如 ClearAllPanels），安全退出
-                if (!panelDic.ContainsKey(panelKey))
-                    return null;
-                await UniTask.Yield();
-            }
-            return info.panel;
-        }
-
-        #endregion
         
         #region 异步显示面板单画布模式 (支持参数初始化)
         
@@ -678,7 +595,7 @@ namespace FinkFramework.Runtime.UI
         
         #endregion
         
-        #region 异步显示面板单画布模式
+        #region 异步显示面板单画布模式 (无参)
         
         /// <summary>
         /// 异步显示主画布的面板 await形式（单画布模式） 
@@ -822,7 +739,7 @@ namespace FinkFramework.Runtime.UI
         
         #endregion
 
-        #region 异步显示面板多画布模式
+        #region 异步显示面板多画布模式 (无参)
 
         /// <summary>
         /// 异步显示面板 await形式（多画布模式） 
@@ -877,7 +794,150 @@ namespace FinkFramework.Runtime.UI
         
         #endregion
         
+        #region 异步显示面板核心逻辑
+           
+        /// <summary>
+        /// 内部异步加载显示面板通用逻辑
+        /// </summary>
+        private async UniTask<T> ShowPanelInternalAsync<T>(string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId,Action<T> beforeShow = null) where T : BasePanel
+        {
+            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
+
+            // 找到父节点（MainCanvas 或 WorldCanvas）
+            Transform canvasRoot = uiRootType != E_UIRoot.HUD
+                ? CanvasManager.Instance.GetCanvasInfo(uiRootType, canvasId)?.panelParent
+                : GetMainLayerFather(layer);
+
+            if (!canvasRoot) canvasRoot = middleLayer;
+
+            // ===== 面板已存在（缓存） ===== 
+            if (panelDic.TryGetValue(panelKey, out var baseInfo))
+            {
+                // 取出字典中已经占好位置的数据
+                var info = baseInfo as PanelInfo<T>;
+                // === 情况 1：正在异步加载 === 
+                if (!info!.panel)
+                {
+                    // 若之前显示过又隐藏后想再次显示直接设置为false 防止重复异步加载
+                    info.isHide = false; // 取消 hide
+                    // 等待加载完成（等 Internal 再 return）
+                    var panel = await WaitForPanelLoaded(info,panelKey);
+                    panel.gameObject.SetActive(true);
+                    // 参数 / 初始化钩子 (主要用于传入初始化的参数)
+                    beforeShow?.Invoke(panel);
+                    if (!info.isInit)
+                        panel.ShowMe();
+                    panel.OnShow();  
+                    return panel;
+                }
+                // === 情况 2：已加载结束 === 
+                // 若面板是失活状态直接激活面板
+                if (!info.panel.gameObject.activeSelf)
+                    info.panel.gameObject.SetActive(true);
+                if (!info.isInit)
+                    info.panel.ShowMe();
+                info.panel.OnShow();
+                return info.panel;
+            }
+
+            //  ===== 面板不存在 → 先在字典占位 ===== 
+            var newInfo = new PanelInfo<T> { isInit = false };
+            panelDic.Add(panelKey, newInfo);
+
+            //  ===== 异步加载 面板预制体 =====
+            // fullPath 如果不为空 = 用户完全自定义加载来源（例如 ab://、res://、remote://）
+            // 如果完整路径为空
+            if (string.IsNullOrEmpty(fullPath))
+            {
+                // 自动拼接路径（默认为res://UI/Panels/类名）
+                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
+            }
+            GameObject prefab = await ResManager.Instance.LoadAsync<GameObject>(fullPath);
+            // 异步期间 ClearAllPanels / Destroy 面板 → 要提前退出
+            if (!panelDic.ContainsKey(panelKey))
+                return null;
+            if (!prefab)
+            {
+                panelDic.Remove(panelKey);
+                LogUtil.Error($"ShowPanelInternal 加载失败：{typeof(T).Name}");
+                return null;
+            }
+
+            // 异步期间被标记为隐藏
+            if (newInfo.isHide)
+            {
+                panelDic.Remove(panelKey);
+                return null;
+            }
+
+            // 实例化面板
+            GameObject obj = Object.Instantiate(prefab, canvasRoot, false);
+            T panelCom = obj.GetComponent<T>();
+
+            newInfo.panel = panelCom;
+            newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
+            // 参数 / 初始化钩子
+            beforeShow?.Invoke(panelCom);
+            panelCom.ShowMe();
+            panelCom.OnShow();
+            newInfo.isInit = true;
+
+            return panelCom;
+        }
+
+        /// <summary>
+        /// 内部异步加载显示面板通用逻辑(句柄式)
+        /// </summary>
+        private async UniTask LoadPanelHandleInternalAsync<T>(UIOperation<T> op, E_MainLayer layer, E_UIRoot root, string canvasId, string fullPath, Action<T> beforeSetResult = null) where T : BasePanel
+        {
+            // 与 ShowPanelInternalAsync 基本一样
+            // 只是最后不调 OnShow，只返回面板实例
+
+            if (string.IsNullOrEmpty(fullPath))
+                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
+
+            op.SetProgress(0.2f);
+
+            var prefab = await ResManager.Instance.LoadAsync<GameObject>(fullPath);
+
+            if (!prefab)
+            {
+                op.SetFailed();
+                return;
+            }
+            op.SetProgress(0.6f);
+
+            Transform parent = root != E_UIRoot.HUD
+                ? CanvasManager.Instance.GetCanvasInfo(root, canvasId)?.panelParent
+                : GetMainLayerFather(layer);
+            if (!parent) parent = middleLayer;
+            var obj = Object.Instantiate(prefab, parent);
+            var panel = obj.GetComponent<T>();
+            // 参数 / 初始化钩子（不触发生命周期）
+            beforeSetResult?.Invoke(panel);
+            op.SetProgress(1f);
+            op.SetResult(panel);
+        }
+        
+        /// <summary>
+        /// 异步等待 面板加载完毕
+        /// </summary>
+        private async UniTask<T> WaitForPanelLoaded<T>(PanelInfo<T> info, string panelKey) where T : BasePanel
+        {
+            while (!info.panel && !info.isHide)
+            {
+                // 若面板在等待期间被清理（如 ClearAllPanels），安全退出
+                if (!panelDic.ContainsKey(panelKey))
+                    return null;
+                await UniTask.Yield();
+            }
+            return info.panel;
+        }
+
+        #endregion
+        
         #region 隐藏面板
+        
         /// <summary>
         /// 隐藏面板
         /// </summary>
@@ -948,26 +1008,64 @@ namespace FinkFramework.Runtime.UI
         /// </summary>
         public void HidePanelsInCanvas(E_UIRoot uiRootType = E_UIRoot.HUD,string canvasId = "", bool isDestroy = false)
         {
-            Canvas canvas = CanvasManager.Instance.GetCanvas(uiRootType,canvasId);
-            if (!canvas)
+            switch (GlobalSettingsRuntimeLoader.Current.CurrentUIMode)
             {
-                return;
-            }
-            // 收集需要隐藏的 (key, panelInfo)
-            List<KeyValuePair<string, BasePanelInfo>> toHide = new();
-
-            foreach (var kv in panelDic)
-            {
-                if (kv.Value.rootCanvas == canvas)
+                case EnvironmentState.UIMode.WorldSpace:
                 {
-                    toHide.Add(kv);
-                }
-            }
+                    Canvas canvas = CanvasManager.Instance.GetCanvas(uiRootType,canvasId);
+                    if (!canvas)
+                    {
+                        return;
+                    }
+                    // 收集需要隐藏的 (key, panelInfo)
+                    List<KeyValuePair<string, BasePanelInfo>> toHide = new();
 
-            // 执行隐藏/销毁
-            foreach (var kv in toHide)
-            {
-                HidePanelInternal(kv.Key, kv.Value, isDestroy);
+                    foreach (var kv in panelDic)
+                    {
+                        if (kv.Value.rootCanvas == canvas)
+                        {
+                            toHide.Add(kv);
+                        }
+                    }
+
+                    // 执行隐藏/销毁
+                    foreach (var kv in toHide)
+                    {
+                        HidePanelInternal(kv.Key, kv.Value, isDestroy);
+                    }
+
+                    break;
+                }
+                case EnvironmentState.UIMode.Auto when EnvironmentState.FinalIsVR:
+                {
+                    Canvas canvas = CanvasManager.Instance.GetCanvas(uiRootType,canvasId);
+                    if (!canvas)
+                    {
+                        return;
+                    }
+                    // 收集需要隐藏的 (key, panelInfo)
+                    List<KeyValuePair<string, BasePanelInfo>> toHide = new();
+
+                    foreach (var kv in panelDic)
+                    {
+                        if (kv.Value.rootCanvas == canvas)
+                        {
+                            toHide.Add(kv);
+                        }
+                    }
+
+                    // 执行隐藏/销毁
+                    foreach (var kv in toHide)
+                    {
+                        HidePanelInternal(kv.Key, kv.Value, isDestroy);
+                    }
+
+                    break;
+                }
+                case EnvironmentState.UIMode.ScreenSpace:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
         
@@ -993,6 +1091,25 @@ namespace FinkFramework.Runtime.UI
                 panelObj.gameObject.SetActive(false);
             }
         }
+        
+        /// <summary>
+        /// 隐藏全部面板
+        /// </summary>
+        /// <param name="isDestroy"></param>
+        private void HideAllPanels(bool isDestroy = false)
+        {
+            // 复制一份 key，防止遍历时修改字典
+            var keys = new List<string>(panelDic.Keys);
+
+            foreach (var key in keys)
+            {
+                if (!panelDic.TryGetValue(key, out var info))
+                    continue;
+
+                HidePanelInternal(key, info, isDestroy);
+            }
+        }
+        
         #endregion
 
         #region 获取面板
