@@ -222,6 +222,7 @@ namespace FinkFramework.Editor.Modules.Data
         #endregion
 
         #region === 内部：生成测试数据 === 
+        
         /// <summary>
         /// 为 QA 生成一个“可用于测试类型结构”的伪造数据
         /// 比直接传 null 更严谨，会模拟 JSON 或数组结构。
@@ -262,18 +263,32 @@ namespace FinkFramework.Editor.Modules.Data
             if (type.StartsWith("Dictionary<"))
                 return "{}";   // 最小合法字典
 
-            // Vector2 / Vector3 / Vector4
-            if (type == "Vector2") return "(0,0)";
-            if (type == "Vector3") return "(0,0,0)";
-            if (type == "Vector4") return "(0,0,0,0)";
+            switch (type)
+            {
+                // Vector2 / Vector3 / Vector4
+                case "Vector2":
+                    return "(0,0)";
+                case "Vector3":
+                    return "(0,0,0)";
+                case "Vector4":
+                    return "(0,0,0,0)";
+                // Color
+                case "Color":
+                    return "(1,1,1,1)";
+            }
 
-            // Color
-            if (type == "Color") return "(1,1,1,1)";
+            // ===== enum 类型专用测试值 =====
+            Type t = DataParseTool.FindTypeCached(type);
+            if (t is { IsEnum: true })
+            {
+                // 使用 enum 的第一个合法值作为测试
+                return Enum.GetNames(t).FirstOrDefault() ?? "";
+            }
 
             // 其他自定义类 —— 用空 JSON 结构测试
             return "{}";
         }
+        
         #endregion
-    
     }
 }
