@@ -279,7 +279,7 @@ namespace FinkFramework.Runtime.Scene
         /// <summary>
         /// 异步切换场景：句柄方式（通过场景ID）
         /// </summary>
-        public SceneOperation LoadSceneHandle(int id)
+        public SceneOperation LoadSceneAsyncHandle(int id)
         {
             var op = new SceneOperation();
             _ = LoadSceneHandleWrapper(id, op);
@@ -291,7 +291,7 @@ namespace FinkFramework.Runtime.Scene
         /// </summary>
         public async UniTask LoadSceneAsync(int id)
         {
-            var op = LoadSceneHandle(id);
+            var op = LoadSceneAsyncHandle(id);
             await op.WaitUntilDone();
         }
         
@@ -300,7 +300,7 @@ namespace FinkFramework.Runtime.Scene
         /// </summary>
         public void LoadSceneAsyncCallback(int id, UnityAction onComplete = null, UnityAction<float> onProgress = null)
         {
-            var op = LoadSceneHandle(id);
+            var op = LoadSceneAsyncHandle(id);
 
             // 完成监听
             op.Completed += _ => onComplete?.Invoke();
@@ -349,7 +349,7 @@ namespace FinkFramework.Runtime.Scene
         /// <summary>
         /// 异步切换场景：句柄方式（通过场景ID）
         /// </summary>
-        public SceneOperation LoadSceneHandle(int id, object param)
+        public SceneOperation LoadSceneAsyncHandle(int id, object param)
         {
             var op = new SceneOperation();
             _ = LoadSceneHandleWrapper(id, op, param);
@@ -361,7 +361,7 @@ namespace FinkFramework.Runtime.Scene
         /// </summary>
         public async UniTask LoadSceneAsync(int id, object param)
         {
-            var op = LoadSceneHandle(id, param);
+            var op = LoadSceneAsyncHandle(id, param);
             await op.WaitUntilDone();
         }
         
@@ -370,7 +370,7 @@ namespace FinkFramework.Runtime.Scene
         /// </summary>
         public void LoadSceneAsyncCallback(int id, object param, UnityAction onComplete = null, UnityAction<float> onProgress = null)
         {
-            var op = LoadSceneHandle(id, param);
+            var op = LoadSceneAsyncHandle(id, param);
 
             // 完成监听
             op.Completed += _ => onComplete?.Invoke();
