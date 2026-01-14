@@ -7,12 +7,13 @@ using UnityEngine.UI;
 
 namespace FinkFramework.Runtime.UI.Base
 {
+    // ReSharper disable once ClassWithVirtualMembersNeverInherited.Global
     public abstract class BasePanel : MonoBehaviour
     { 
         /// <summary>
         /// 用于存储所有要用到的UI控件，用里氏替换原则 父类装子类
         /// </summary>
-        protected Dictionary<string, UIBehaviour> controlDic = new();
+        protected readonly Dictionary<string, UIBehaviour> controlDic = new();
 
         /// <summary>
         /// 控件默认名字 如果得到的控件名字存在于这个容器 意味着我们不会通过代码去使用它 它只会是起到显示作用的控件
@@ -70,12 +71,12 @@ namespace FinkFramework.Runtime.UI.Base
         /// <summary>
         /// 面板显示时会调用的逻辑(仅首次创建时调用一次）
         /// </summary>
-        public abstract void ShowMe();
+        public virtual void ShowMe() {}
 
         /// <summary>
         /// 面板隐藏时会调用的逻辑
         /// </summary>
-        public abstract void HideMe();
+        public virtual void HideMe() {}
         
         /// <summary>
         /// 生命周期钩子：当面板每次被显示（包括重新显示）时调用
@@ -101,18 +102,18 @@ namespace FinkFramework.Runtime.UI.Base
         /// 获取指定名字以及指定类型的组件
         /// </summary>
         /// <typeparam name="T">组件类型</typeparam>
-        /// <param name="name">组件名字</param>
+        /// <param name="controlName">组件名字</param>
         /// <returns></returns>
-        public T GetControl<T>(string name) where T:UIBehaviour
+        public T GetControl<T>(string controlName) where T:UIBehaviour
         {
-            if(controlDic.TryGetValue(name, out var col))
+            if(controlDic.TryGetValue(controlName, out var col))
             {
                 T control = col as T;
                 if (!control)
-                    LogUtil.Error($"不存在对应名字{name}类型为{typeof(T)}的组件");
+                    LogUtil.Error($"不存在对应名字{controlName}类型为{typeof(T)}的组件");
                 return control;
             }
-            LogUtil.Error($"不存在对应名字{name}的组件");
+            LogUtil.Error($"不存在对应名字{controlName}的组件");
             return null;
         }
 
