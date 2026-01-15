@@ -43,7 +43,7 @@ namespace FinkFramework.Editor.Modules.Data
             }
             try
             { 
-                object parsed = null;
+                object parsed;
                 // ---------- 数组 ----------
                 if (type.EndsWith("[]"))
                 {
@@ -79,10 +79,35 @@ namespace FinkFramework.Editor.Modules.Data
         }
         
         /// <summary>
-        /// 单值解析（基础类型 + Unity结构体 + JSON类）
+        /// 单值解析（基础类型 + Unity结构体 + JSON类 + 枚举）
         /// </summary>
         private static object ParseSingleValue(string str, string type, string fieldName, string tableName, ParseResult result)
         {
+            // ===== enum 优先通道（一定要在 Normalize 之前）=====
+            Type tarType = FindTypeCached(type);
+            if (tarType is { IsEnum: true })
+            {
+                try
+                {
+                    // 允许两种写法：
+                    // 1. "枚举内容"  (JSON string)
+                    // 2. 枚举内容    (容错写法，可选)
+                    string enumStr = str.Trim();
+
+                    // 如果不是 JSON string，尝试补成 JSON string
+                    if (!(enumStr.StartsWith("\"") && enumStr.EndsWith("\"")))
+                        enumStr = $"\"{enumStr}\"";
+
+                    return JsonConvert.DeserializeObject(enumStr, tarType);
+                }
+                catch (Exception ex)
+                {
+                    result.errors.Add(
+                        $"[{tableName}] {fieldName} enum 解析失败 ({type}) ← '{str}' : {ex.Message}");
+                    return Activator.CreateInstance(tarType);
+                }
+            }
+            
             if (type.StartsWith("Vector", StringComparison.OrdinalIgnoreCase) || type == "Color")
             {
                 str = TextsUtil.NormalizePunctuation(str);
@@ -820,8 +845,8 @@ namespace FinkFramework.Editor.Modules.Data
         {
             public bool success;      // true:成功 false:失败
             public object value;      // 最后解析出的值
-            public List<string> warnings = new();
-            public List<string> errors = new();
+            public readonly List<string> warnings = new();
+            public readonly List<string> errors = new();
         }
 
         #endregion

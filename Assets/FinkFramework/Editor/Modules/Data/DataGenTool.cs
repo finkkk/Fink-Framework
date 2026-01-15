@@ -192,7 +192,7 @@ namespace FinkFramework.Editor.Modules.Data
             string[] fieldDescs = header.fieldDescs;
             
             // ---------- 5. 输出到目标路径 ----------
-            string classOutputDir = GetClassOutputDir(excelPath);
+            GetClassOutputDir(excelPath);
             ExcelMeta meta = new ExcelMeta
             {
                 ExcelPath = excelPath,
@@ -254,6 +254,7 @@ namespace FinkFramework.Editor.Modules.Data
             string classOutputDir = GetClassOutputDir(excelPath);
             Directory.CreateDirectory(classOutputDir); 
             string outputPath = Path.Combine(classOutputDir, $"{className}.cs");
+            code = TextsUtil.NormalizeLineEndings(code);
             File.WriteAllText(outputPath, code, Encoding.UTF8);
         }
 
@@ -298,7 +299,85 @@ namespace FinkFramework.Editor.Modules.Data
 
             // ---------- 4. 写入文件 ----------
             string containerPath = Path.Combine(classOutputDir, $"{className}Container.cs");
+            containerCode = TextsUtil.NormalizeLineEndings(containerCode);
             File.WriteAllText(containerPath, containerCode, Encoding.UTF8);
+        }
+
+        #endregion
+
+        #region 自动收集命名空间
+
+        /// <summary>
+        /// 基于变量类型判断是否需要添加引用命名空间
+        /// </summary>
+        /// <param name="fieldTypes">字段类型</param>
+        /// <returns></returns>
+        private static string CollectRequiredUsings(string[] fieldTypes)
+        {
+            HashSet<string> namespaces = new HashSet<string>();
+
+            // System 永远要
+            namespaces.Add("System");
+
+            foreach (var typeName in fieldTypes)
+            {
+                if (string.IsNullOrEmpty(typeName))
+                    continue;
+
+                // 解析真实类型（处理 List<T> / Dictionary<K,V> / T[]）
+                CollectNamespaceRecursive(typeName, namespaces);
+            }
+
+            StringBuilder sb = new StringBuilder();
+            foreach (var ns in namespaces.OrderBy(n => n))
+            {
+                sb.AppendLine($"using {ns};");
+            }
+            sb.AppendLine();
+            return sb.ToString();
+        }
+
+        private static void CollectNamespaceRecursive(string typeName, HashSet<string> namespaces)
+        {
+            while (true)
+            {
+                // 拆泛型 List<T>, Dictionary<K,V>
+                if (typeName.StartsWith("List<") || typeName.StartsWith("Dictionary<"))
+                {
+                    var inner = DataUtil.SplitGenericArgs(typeName.Substring(typeName.IndexOf('<') + 1).TrimEnd('>'));
+
+                    foreach (var var in inner) CollectNamespaceRecursive(var.Trim(), namespaces);
+
+                    namespaces.Add("System.Collections.Generic");
+                    return;
+                }
+
+                // 数组
+                if (typeName.EndsWith("[]"))
+                {
+                    typeName = typeName.Substring(0, typeName.Length - 2);
+                    continue;
+                }
+
+                // 基础类型 → 不需要 using
+                if (IsPrimitive(typeName)) return;
+
+                // 解析真实 Type
+                Type t = DataUtil.FindType(typeName);
+                if (t == null) return;
+
+                if (!string.IsNullOrEmpty(t.Namespace)) namespaces.Add(t.Namespace);
+                break;
+            }
+        }
+
+        private static bool IsPrimitive(string type)
+        {
+            return type switch
+            {
+                "int" or "float" or "double" or "bool" or "string" or "long" or "short" or "byte" or "decimal" or "char" or "DateTime" => true,
+                _ => false
+            };
         }
 
         #endregion
@@ -318,36 +397,6 @@ namespace FinkFramework.Editor.Modules.Data
                 }
                 LogUtil.Success("DataGenTool", msg);
             }
-        }
-
-        /// <summary>
-        /// 基于变量类型判断是否需要添加引用命名空间
-        /// </summary>
-        /// <param name="fieldTypes">字段类型</param>
-        /// <returns></returns>
-        private static string CollectRequiredUsings(string[] fieldTypes)
-        {
-            bool needUnity = false;
-            bool needGeneric = false;
-
-            foreach (var type in fieldTypes)
-            {
-                if (string.IsNullOrEmpty(type)) continue;
-
-                if (type.Contains("Vector", StringComparison.OrdinalIgnoreCase) ||
-                    type.Equals("Color", StringComparison.OrdinalIgnoreCase))
-                    needUnity = true;
-
-                if (type.Contains("Dictionary") || type.Contains("List"))
-                    needGeneric = true;
-            }
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine("using System;");
-            if (needGeneric) sb.AppendLine("using System.Collections.Generic;");
-            if (needUnity) sb.AppendLine("using UnityEngine;");
-            sb.AppendLine(); // 空一行
-            return sb.ToString();
         }
         
         /// <summary>

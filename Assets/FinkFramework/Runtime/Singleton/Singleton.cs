@@ -8,7 +8,7 @@ namespace FinkFramework.Runtime.Singleton
     /// 不继承Mono的单例模式基类 继承该基类的类可实现单例模式 但要求有私有的无参构造函数
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class Singleton<T> where T : class
+    public abstract class Singleton<T> where T : class
     {
         private static T instance;
         // ReSharper disable once StaticMemberInGenericType

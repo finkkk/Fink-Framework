@@ -274,6 +274,7 @@ namespace FinkFramework.Runtime.Utils
         #endregion
 
         #region 字符串处理相关
+        
         /// <summary>
         /// 驼峰命名转换（首字母小写）
         /// </summary>
@@ -408,6 +409,21 @@ namespace FinkFramework.Runtime.Utils
             input = input.Replace("\r", "").Replace("\n", "").Trim();
             return input;
         }
+        
+        /// <summary>
+        /// 解决拼接代码文件时混用了不同平台的换行符的问题
+        /// </summary>
+        public static string NormalizeLineEndings(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            // 统一成 Unix 风格（Unity / Git / macOS 友好）
+            return text
+                .Replace("\r\n", "\n")
+                .Replace("\r", "\n");
+        }
+        
         #endregion
     }
 }
