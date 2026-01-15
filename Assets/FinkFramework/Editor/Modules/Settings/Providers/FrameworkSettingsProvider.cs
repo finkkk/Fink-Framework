@@ -73,6 +73,17 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 "设置编辑器多久执行一次更新检查。（默认 1 天）",
                 FFEditorStyles.Description);
             GUILayout.Space(8);
+            
+            EditorGUILayout.LabelField("模块开关 设置", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+            
+            asset.EnableAudioModule =
+                EditorGUILayout.Toggle("启用音频模块", asset.EnableAudioModule);
+            EditorGUILayout.LabelField(
+                "若关闭，则框架内的音效模块将完全禁用：不会初始化 AudioManager，不加载音频资源，也不会播放任何音乐或音效。",
+                FFEditorStyles.Description);
+            
+            GUILayout.Space(8);
 
             // XR
             EditorGUILayout.LabelField("XR 设置", FFEditorStyles.SectionTitle);

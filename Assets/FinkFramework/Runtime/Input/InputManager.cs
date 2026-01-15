@@ -137,7 +137,6 @@ namespace FinkFramework.Runtime.Input
                     }
                 }
             }
-            CheckAxis();
         }
 
         /// <summary>
@@ -211,12 +210,5 @@ namespace FinkFramework.Runtime.Input
             //一帧后才会被置成true
             isBeginCheckInput = true;
         }
-
-        private static void CheckAxis()
-        {
-            EventManager.Instance.EventTrigger(FrameworkEventType.E_Input_Horizontal,UnityEngine.Input.GetAxis("Horizontal"));
-            EventManager.Instance.EventTrigger(FrameworkEventType.E_Input_Vertical,UnityEngine.Input.GetAxis("Vertical"));
-        }
-        
     }
 }

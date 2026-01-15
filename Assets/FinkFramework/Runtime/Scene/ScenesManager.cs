@@ -5,6 +5,7 @@ using FinkFramework.Runtime.Event;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Pool;
 using FinkFramework.Runtime.ResLoad;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.UI;
 using FinkFramework.Runtime.Utils;
@@ -383,7 +384,10 @@ namespace FinkFramework.Runtime.Scene
         #region 清理资源
         private static void PreSceneClean()
         {
-            AudioManager.Instance.ClearSound();
+            if (GlobalSettingsRuntimeLoader.Current.EnableAudioModule)
+            {
+                AudioManager.Instance.ClearSound();
+            }
             PoolManager.Instance.CleanPool();
             UIManager.Instance.ClearAllPanels();
             EventManager.Instance.ClearAllEvent();

@@ -18,6 +18,10 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         [Header("版本检查间隔（天）")]
         [Tooltip("编辑器多久检查一次更新。默认 0 天检查一次。")]
         public int UpdateCheckIntervalDays = 1;
+        
+        [Header("是否启用音效模块")]
+        [Tooltip("若为 false，则音效模块将完全禁用：不会初始化 AudioManager，不加载音频资源，也不会播放任何音乐或音效。")]
+        public bool EnableAudioModule = true;
 
         [Header("是否强制关闭 XR")]
         [Tooltip("是否强制关闭 XR（比自动检测优先级更高）。若为 true，则即使已安装 XRI 也会禁用 XR 相关系统。若为 false，则按自动检测结果处理。")]

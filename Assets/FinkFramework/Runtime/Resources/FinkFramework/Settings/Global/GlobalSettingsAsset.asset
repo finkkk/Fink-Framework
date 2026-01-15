@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   EnableUpdateCheck: 1
   UpdateCheckIntervalDays: 1
+  EnableAudioModule: 1
   ForceDisableXR: 0
   ForceDisableNewInputSystem: 0
   ForceDisableURP: 0

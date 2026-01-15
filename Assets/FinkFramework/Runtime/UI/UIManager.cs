@@ -1096,7 +1096,7 @@ namespace FinkFramework.Runtime.UI
         /// 隐藏全部面板
         /// </summary>
         /// <param name="isDestroy"></param>
-        private void HideAllPanels(bool isDestroy = false)
+        public void HideAllPanels(bool isDestroy = false)
         {
             // 复制一份 key，防止遍历时修改字典
             var keys = new List<string>(panelDic.Keys);

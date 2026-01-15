@@ -3,6 +3,7 @@ using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Pool;
 using FinkFramework.Runtime.ResLoad;
+using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
@@ -13,10 +14,22 @@ namespace FinkFramework.Runtime.Audio
 {
     public class AudioManager : Singleton<AudioManager>
     {
+        /// <summary>
+        /// 音频模块总开关
+        /// </summary>
+        private readonly bool audioEnabled;
+        
         #region 初始化音效管理器
 
         private AudioManager()
         {
+            audioEnabled = GlobalSettingsRuntimeLoader.Current.EnableAudioModule;
+
+            if (!audioEnabled)
+            {
+                LogUtil.Info("AudioManager", "音频模块已被全局配置禁用");
+                return;
+            }
             // 初始化混音器
             InitMixer();
             // 未继承Mono的脚本只能通过Mono管理器执行生命周期函数
@@ -82,6 +95,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="fullPath">带前缀的完整资源路径（如 res://Audio/Music/bgm）</param>
         public void PlayMusic(string fullPath)
         {
+            if (!audioEnabled)
+                return;
+
             if (!musicGroup)
             {
                 LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
@@ -109,6 +125,9 @@ namespace FinkFramework.Runtime.Audio
         /// <returns>加载完成后返回音乐播放器 AudioSource</returns>
         public async UniTask<AudioSource> PlayMusicAsync(string fullPath)
         {
+            if (!audioEnabled)
+                return null;
+
             if (!musicGroup)
             {
                 LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
@@ -125,6 +144,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="callback">加载并播放成功后的回调，返回 AudioSource</param>
         public void PlayMusicAsyncCallback(string path, UnityAction<AudioSource> callback = null)
         {
+            if (!audioEnabled)
+                return;
+
             if (!musicGroup)
             {
                 LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
@@ -144,6 +166,9 @@ namespace FinkFramework.Runtime.Audio
         /// <returns>音频异步播放操作句柄</returns>
         public AudioOperation PlayMusicAsyncHandle(string fullPath)
         {
+            if (!audioEnabled)
+                return null;
+
             if (!musicGroup)
             {
                 LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
@@ -156,6 +181,9 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         public void StopMusic()
         {
+            if (!audioEnabled)
+                return;
+
             if (!musicPlayer)
             {
                 LogUtil.Warn("音乐播放器不存在，无法停止歌曲！");
@@ -170,6 +198,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="name">音乐名</param>
         public void PauseMusic(string name)
         {
+            if (!audioEnabled)
+                return;
+
             if (!musicPlayer)
             {
                 LogUtil.Warn("音乐播放器不存在，无法停止歌曲！");
@@ -184,6 +215,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="v">音量的值</param>
         public void ChangeMusicValue(float v)
         {
+            if (!audioEnabled)
+                return;
+
             if (!masterMixer)
             {
                 LogUtil.Warn("AudioManager", "MasterMixer 未初始化");
@@ -193,6 +227,7 @@ namespace FinkFramework.Runtime.Audio
             float dB = MathUtil.Remap(v, 0f, 1f, -80f, 0f);
             masterMixer.SetFloat("MusicVolume", dB);
         }
+        
         #endregion
         
         #region 控制音效相关
@@ -203,10 +238,8 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         private void CleanAudioSource()
         {
-            if (!soundIsPlay)
-            {
+            if (!audioEnabled || !soundIsPlay)
                 return;
-            }
             for (int i = soundList.Count - 1; i >= 0 ; --i)
             {
                 AudioSource s = soundList[i];
@@ -230,6 +263,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="callback">加载完成的回调函数(并非播放完成)</param>
         public AudioSource PlaySound(string fullPath, bool isLoop = false, GameObject fatherObj = null, UnityAction<AudioSource> callback = null)
         {
+            if (!audioEnabled)
+                return null;
+
             if (!sfxGroup)
             {
                 LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
@@ -271,6 +307,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="fatherObj">用于跟随的游戏对象父物体 若传空则默认挂载到全局音效游戏对象</param>
         public async UniTask<AudioSource> PlaySoundAsync(string path, bool isLoop = false, GameObject fatherObj = null)
         {
+            if (!audioEnabled)
+                return null;
+
             if (!sfxGroup)
             {
                 LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
@@ -289,6 +328,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="fatherObj">父对象（用于跟随）</param>
         public void PlaySoundAsyncCallback(string path, UnityAction<AudioSource> callback, bool isLoop = false, GameObject fatherObj = null) 
         {
+            if (!audioEnabled)
+                return;
+
             if (!sfxGroup)
             {
                 LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
@@ -311,6 +353,9 @@ namespace FinkFramework.Runtime.Audio
         /// <returns>音频异步播放操作句柄 AudioOperation</returns>
         public AudioOperation PlaySoundHandle(string path, bool isLoop = false, GameObject fatherObj = null)
         {
+            if (!audioEnabled)
+                return null;
+
             if (!sfxGroup)
             {
                 LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
@@ -326,6 +371,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="source">需要停止的播放源</param>
         public void StopSound(AudioSource source)
         {
+            if (!audioEnabled)
+                return;
+            
             // 若不存在则直接退出
             if (!soundSet.Remove(source))
                 return;
@@ -343,6 +391,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="v">音量的值</param>
         public void ChangeSoundValue(float v)
         {
+            if (!audioEnabled)
+                return;
+            
             if (!masterMixer)
             {
                 LogUtil.Warn("AudioManager", "MasterMixer 未初始化");
@@ -359,6 +410,9 @@ namespace FinkFramework.Runtime.Audio
         /// <param name="isPlay">是否播放</param>
         public void ToggleAllSounds(bool isPlay)
         {
+            if (!audioEnabled)
+                return;
+
             if (isPlay)
             {
                 soundIsPlay = true;
@@ -382,6 +436,9 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         public void ClearSound()
         {
+            if (!audioEnabled)
+                return;
+
             foreach (var t in soundList)
             {
                 t.Stop();
@@ -425,6 +482,9 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         public AudioOperation PlayAudioHandle(string fullPath, bool isLoop, bool isMusic, GameObject fatherObj = null)
         {
+            if (!audioEnabled)
+                return null;
+
             var op = new AudioOperation();
             _ = PlayAudioAsyncWrapper(fullPath, isLoop, isMusic, fatherObj, op);
             return op;
@@ -467,6 +527,8 @@ namespace FinkFramework.Runtime.Audio
         /// <returns></returns>
         private AudioSource CreateAudioSource(bool isMusic, GameObject fatherObj)
         {
+            if (!audioEnabled)
+                return null;
             // 如果需要播放的是音乐文件
             if (isMusic)
             {
