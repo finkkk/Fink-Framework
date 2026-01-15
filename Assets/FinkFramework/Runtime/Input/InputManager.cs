@@ -27,9 +27,9 @@ namespace FinkFramework.Runtime.Input
             }
             MonoManager.Instance.AddUpdateListener(InputUpdate);
         }
-        private Dictionary<E_EventType, InputInfo> inputDic;
+        private Dictionary<Enum, InputInfo> inputDic;
         // 懒加载字典 防止不启用输入管理器模块的时候空字典占用内存
-        private Dictionary<E_EventType, InputInfo> InputDic => inputDic ??= new Dictionary<E_EventType, InputInfo>();
+        private Dictionary<Enum, InputInfo> InputDic => inputDic ??= new Dictionary<Enum, InputInfo>();
 
         //当前遍历时取出的输入信息
         private InputInfo nowInputInfo;
@@ -146,7 +146,7 @@ namespace FinkFramework.Runtime.Input
         /// <param name="eventType">事件类型</param>
         /// <param name="key">按键</param>
         /// <param name="inputType">输入类型</param>
-        public void ChangeKeyboardInfo(E_EventType eventType, KeyCode key, InputInfo.E_InputType inputType)
+        public void ChangeKeyboardInfo(Enum eventType, KeyCode key, InputInfo.E_InputType inputType)
         {
             //初始化
             if(!InputDic.ContainsKey(eventType))
@@ -168,7 +168,7 @@ namespace FinkFramework.Runtime.Input
         /// <param name="eventType">事件类型</param>
         /// <param name="mouseID">鼠标按键</param>
         /// <param name="inputType">输入类型</param>
-        public void ChangeMouseInfo(E_EventType eventType, int mouseID, InputInfo.E_InputType inputType)
+        public void ChangeMouseInfo(Enum eventType, int mouseID, InputInfo.E_InputType inputType)
         {
             //初始化
             if (!InputDic.ContainsKey(eventType))
@@ -188,7 +188,7 @@ namespace FinkFramework.Runtime.Input
         /// 移除指定行为的输入监听
         /// </summary>
         /// <param name="eventType">事件类型</param>
-        public void RemoveInputInfo(E_EventType eventType)
+        public void RemoveInputInfo(Enum eventType)
         {
             if (InputDic.ContainsKey(eventType))
                 InputDic.Remove(eventType);
@@ -214,8 +214,8 @@ namespace FinkFramework.Runtime.Input
 
         private static void CheckAxis()
         {
-            EventManager.Instance.EventTrigger(E_EventType.E_Input_Horizontal,UnityEngine.Input.GetAxis("Horizontal"));
-            EventManager.Instance.EventTrigger(E_EventType.E_Input_Vertical,UnityEngine.Input.GetAxis("Vertical"));
+            EventManager.Instance.EventTrigger(FrameworkEventType.E_Input_Horizontal,UnityEngine.Input.GetAxis("Horizontal"));
+            EventManager.Instance.EventTrigger(FrameworkEventType.E_Input_Vertical,UnityEngine.Input.GetAxis("Vertical"));
         }
         
     }

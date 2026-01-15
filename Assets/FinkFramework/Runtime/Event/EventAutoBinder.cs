@@ -68,7 +68,7 @@ namespace FinkFramework.Runtime.Event
         /// <summary>
         /// 默认绑定模式: 无参委托事件 (立即绑定事件 + OnDestroy 自动解绑)
         /// </summary>
-        public static void Bind(MonoBehaviour owner, E_EventType type, UnityAction callback, bool sticky = false)
+        public static void Bind(MonoBehaviour owner, Enum type, UnityAction callback, bool sticky = false)
         {
             var proxy = GetProxy(owner);
             // 立即绑定
@@ -83,7 +83,7 @@ namespace FinkFramework.Runtime.Event
         /// <summary>
         /// 默认绑定模式: 1参委托事件 (立即绑定事件 + OnDestroy 自动解绑)
         /// </summary>
-        public static void Bind<T>(MonoBehaviour owner, E_EventType type, UnityAction<T> callback, bool sticky = false)
+        public static void Bind<T>(MonoBehaviour owner, Enum type, UnityAction<T> callback, bool sticky = false)
         {
             var proxy = GetProxy(owner);
             // 立即绑定             
@@ -98,7 +98,7 @@ namespace FinkFramework.Runtime.Event
         /// <summary>
         /// 默认绑定模式: 2参委托事件 (立即绑定事件 + OnDestroy 自动解绑)
         /// </summary>
-        public static void Bind<T1, T2>(MonoBehaviour owner, E_EventType type, UnityAction<T1, T2> callback, bool sticky = false)
+        public static void Bind<T1, T2>(MonoBehaviour owner, Enum type, UnityAction<T1, T2> callback, bool sticky = false)
         {
             var proxy = GetProxy(owner);
 
@@ -117,7 +117,7 @@ namespace FinkFramework.Runtime.Event
         /// <summary>
         /// 自动模式： 无参委托事件 (OnEnable 注册、OnDisable 解绑)
         /// </summary>
-        public static void BindAuto(MonoBehaviour owner, E_EventType type, UnityAction callback, bool sticky = false)
+        public static void BindAuto(MonoBehaviour owner, Enum type, UnityAction callback, bool sticky = false)
         {
 #if UNITY_EDITOR
             CheckCalledFromOnEnable(owner);
@@ -150,7 +150,7 @@ namespace FinkFramework.Runtime.Event
         /// <summary>
         /// 自动模式： 1参委托事件 (OnEnable 注册、OnDisable 解绑)
         /// </summary>
-        public static void BindAuto<T>(MonoBehaviour owner, E_EventType type, UnityAction<T> callback, bool sticky = false)
+        public static void BindAuto<T>(MonoBehaviour owner, Enum type, UnityAction<T> callback, bool sticky = false)
         {
 #if UNITY_EDITOR
             CheckCalledFromOnEnable(owner);
@@ -181,7 +181,7 @@ namespace FinkFramework.Runtime.Event
         /// <summary>
         /// 自动模式： 2参委托事件 (OnEnable 注册、OnDisable 解绑)
         /// </summary>
-        public static void BindAuto<T1, T2>(MonoBehaviour owner, E_EventType type, UnityAction<T1, T2> callback, bool sticky = false)
+        public static void BindAuto<T1, T2>(MonoBehaviour owner, Enum type, UnityAction<T1, T2> callback, bool sticky = false)
         {
 #if UNITY_EDITOR
             CheckCalledFromOnEnable(owner);
