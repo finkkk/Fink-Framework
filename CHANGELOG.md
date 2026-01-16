@@ -4,6 +4,17 @@
 
 ---
 
+### v0.3.7 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-1-16</span>
+
+场景加载体系瘦身重构与生命周期语义收敛
+
+- 场景管理器大幅简化：移除自定义 SceneOperation、多套异步封装与冗余回调逻辑，回归 Unity 官方 SceneManager + AsyncOperation，彻底消除复杂状态机与隐藏时序问题。
+- 场景生命周期事件收敛：统一并保留最小必要的场景生命周期事件，明确 OnBeforeSceneLoad 与 OnAfterSceneLoad 的触发时机，避免同步 / 异步路径下语义不一致导致的潜在 Bug。
+- 预清理流程标准化：精简并固定场景切换前的资源清理顺序，确保对象池、UI 与资源缓存在安全时机释放，降低跨场景残留状态风险。
+- 历史不稳定逻辑移除：删除多帧等待、隐式协程、进度转发等高复杂度实现，消除旧场景加载体系中频发的竞态、重复触发与难以复现的问题源头。
+
+---
+
 ### v0.3.6 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-1-15</span>
 
 事件系统稳定性强化与音频模块可控化
