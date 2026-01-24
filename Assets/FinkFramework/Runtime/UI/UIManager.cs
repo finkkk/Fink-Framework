@@ -1112,7 +1112,30 @@ namespace FinkFramework.Runtime.UI
         
         #endregion
 
-        #region 获取面板
+        #region 获取面板信息
+        
+        /// <summary>
+        /// 面板是否处于打开（显示）状态
+        /// </summary>
+        public bool IsPanelOpened<T>(E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "") where T : BasePanel
+        {
+            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
+
+            if (!panelDic.TryGetValue(panelKey, out var info))
+                return false;
+
+            if (!(info is PanelInfo<T> panelInfo))
+                return false;
+
+            if (!panelInfo.panel)
+                return false;
+
+            if (panelInfo.isHide)
+                return false;
+
+            return panelInfo.panel.gameObject.activeSelf;
+        }
+        
         /// <summary>
         /// 获取面板
         /// </summary>
@@ -1153,6 +1176,41 @@ namespace FinkFramework.Runtime.UI
                 LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：尚未显示过该面板");
             }
         }
+        
+        /// <summary>
+        /// 获取面板（异步，无回调）
+        /// </summary>
+        /// <typeparam name="T">面板类型</typeparam>
+        public async UniTask<T> GetPanelAsync<T>(E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "") where T : BasePanel
+        {
+            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
+
+            if (!panelDic.TryGetValue(panelKey, out var panel))
+            {
+                LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：尚未显示过该面板");
+                return null;
+            }
+
+            if (!(panel is PanelInfo<T> panelInfo))
+            {
+                LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：类型不匹配");
+                return null;
+            }
+
+            // 如果 panel 还没加载完，等待
+            if (!panelInfo.panel)
+            {
+                var uiPanel = await WaitForPanelLoaded(panelInfo, panelKey);
+                return uiPanel;
+            }
+
+            // 已加载但被隐藏 —— 按你原来的逻辑，这里是不回调的
+            if (panelInfo.isHide)
+                return null;
+
+            return panelInfo.panel;
+        }
+        
         #endregion
 
         #region 为控件添加自定义事件
