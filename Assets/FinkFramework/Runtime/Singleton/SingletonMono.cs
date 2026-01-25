@@ -10,7 +10,23 @@ namespace FinkFramework.Runtime.Singleton
     public abstract class SingletonMono<T> : MonoBehaviour where T : MonoBehaviour
     {
         private static T _instance;
+        
+        /// <summary>
+        /// 是否已经存在实例（不会创建、不会 Find）
+        /// </summary>
+        public static bool HasInstance => _instance != null;
 
+        /// <summary>
+        /// 尝试获取实例（不会创建，可能为 null）
+        /// </summary>
+        public static T TryGetInstance()
+        {
+            return _instance;
+        }
+        
+        /// <summary>
+        /// 强保证获取实例（不存在会自动创建）
+        /// </summary>
         public static T Instance
         {
             get
@@ -42,6 +58,12 @@ namespace FinkFramework.Runtime.Singleton
 
             _instance = this as T;
             DontDestroyOnLoad(gameObject);
+        }
+        
+        protected virtual void OnDestroy()
+        {
+            if (_instance == this)
+                _instance = null;
         }
     }
 }

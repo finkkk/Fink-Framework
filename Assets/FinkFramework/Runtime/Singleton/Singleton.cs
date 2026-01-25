@@ -13,6 +13,14 @@ namespace FinkFramework.Runtime.Singleton
         private static T instance;
         // ReSharper disable once StaticMemberInGenericType
         protected static readonly object lockObj = new();
+        
+        public static bool HasInstance => instance != null;
+
+        public static T TryGetInstance()
+        {
+            return instance;
+        }
+        
         public static T Instance
         {
             get
