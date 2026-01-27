@@ -5,6 +5,7 @@ using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
+using static FinkFramework.Runtime.Utils.ParseUtil;
 
 namespace FinkFramework.Editor.Modules.Data
 {
@@ -722,88 +723,6 @@ namespace FinkFramework.Editor.Modules.Data
                 return new Dictionary<string, object>();
             }
         }
-        
-        #region 辅助函数
-        
-        private static int SafeParseInt(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return int.TryParse(s, out var v) ? v : 0;
-        }
-        private static long SafeParseLong(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return long.TryParse(s, out var v) ? v : 0;
-        }
-        private static float SafeParseFloat(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return float.TryParse(s, out var v) ? v : 0f;
-        }
-        private static short SafeParseShort(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return short.TryParse(s, out var v) ? v : (short)0;
-        }
-
-        private static ushort SafeParseUShort(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return ushort.TryParse(s, out var v) ? v : (ushort)0;
-        }
-
-        private static byte SafeParseByte(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return byte.TryParse(s, out var v) ? v : (byte)0;
-        }
-
-        private static sbyte SafeParseSByte(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return sbyte.TryParse(s, out var v) ? v : (sbyte)0;
-        }
-
-        private static decimal SafeParseDecimal(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return decimal.TryParse(s, out var v) ? v : 0m;
-        }
-
-        private static char SafeParseChar(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return char.TryParse(s, out var v) ? v : '\0';
-        }
-        private static double SafeParseDouble(string s)
-        {
-            s = s.Trim('[', ']', '{', '}', '(', ')', '"', ' ');
-            return double.TryParse(s, out var v) ? v : 0d;
-        }
-        private static float ParseF(string[] arr, int index) =>
-            (arr.Length > index && float.TryParse(arr[index], out float f)) ? f : 0f;
-        private static object GetDefaultValue(string type) => type switch
-        {
-            "string" => "",
-            "int" => 0,
-            "float" => 0f,
-            "double" => 0d,
-            "long" => 0L,
-            "bool" => false,
-            "Vector2" => Vector2.zero,
-            "Vector3" => Vector3.zero,
-            "Vector4" => Vector4.zero,
-            "Color" => Color.white,
-            "DateTime" => DateTime.MinValue,
-            "int[]" => Array.Empty<int>(),
-            "float[]" => Array.Empty<float>(),
-            "string[]" => Array.Empty<string>(),
-            "List<int>" => new List<int>(),
-            "List<float>" => new List<float>(),
-            "List<string>" => new List<string>(),
-            _ => null
-        };
-        #endregion
         
         #region 类型查找缓存
         private static readonly Dictionary<string, Type> TypeCache = new();

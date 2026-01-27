@@ -6,7 +6,7 @@ namespace FinkFramework.Runtime.Mono
     /// <summary>
     /// 公共MONO模块 给未继承Mono的脚本提供生命周期函数调用和协程的调用  也可以统一管理所有帧更新逻辑（无论是否继承Mono）
     /// </summary>
-    public class MonoManager : SingletonAutoMono<MonoManager>
+    public class MonoManager : SingletonMono<MonoManager>
     {
         private UnityAction updateEvent;
         private UnityAction fixedUpdateEvent;
