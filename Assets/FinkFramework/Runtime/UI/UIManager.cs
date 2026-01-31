@@ -1166,7 +1166,7 @@ namespace FinkFramework.Runtime.UI
                             callBack?.Invoke(uiPanel);
                     }
                 }
-                else if(!panelInfo.isHide)//加载结束 并且没有隐藏
+                if(!panelInfo.isHide)//加载结束 并且没有隐藏
                 {
                     callBack?.Invoke(panelInfo.panel);
                 }

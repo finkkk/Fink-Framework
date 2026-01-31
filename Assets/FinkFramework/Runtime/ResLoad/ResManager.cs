@@ -209,45 +209,11 @@ namespace FinkFramework.Runtime.ResLoad
             // 如果已加载完毕 则直接返回加载的资源
             if (infoExist.asset)
                 return infoExist.asset;
-            // 若资源正在异步加载中 → 同步等待 task 完成
-            if (infoExist.task.HasValue)
-            {
-                // 同步等待 task 完成（阻塞式，但可确保状态一致）
-                T result = infoExist.task.Value.GetAwaiter().GetResult();
-                // 写回状态
-                infoExist.asset = result;
-                infoExist.task = null;
-                // 若异步任务返回失败 → 删除缓存并返回 null 
-                if (!result)
-                {
-                    LogUtil.Error($"[ResManager] 异步任务完成但返回空 => {realPath}");
-                    resDic.Remove(resName);
-                    return null;
-                }
-                
-                return result;
-            }
             // ================================================================
-            // ③ asset=null && task=null → 异常状态：任务丢失，需要托底加载
+            // ③ asset=null && task=null → 异常状态
             // ================================================================
-            LogUtil.Warn($"[ResManager] Task 丢失（asset=null & task=null），同步托底重新加载 => {fullPath}");
-            // 托底重新加载（同步）
-            var providerFallback = GetProvider(fullPath);
-            if (providerFallback == null)
-            {
-                LogUtil.Error($"[ResManager] Provider 不存在，加载终止 => {fullPath}");
-                return null;
-            }
-            T fallback = providerFallback.Load<T>(realPath);
-            infoExist.asset = fallback;
-            // 若同步托底加载失败
-            if (!fallback)
-            {
-                LogUtil.Error($"[ResManager] 同步托底加载失败 => path: {realPath}, type: {typeof(T).Name}");
-                resDic.Remove(resName);
-                return null;
-            }
-            return fallback;
+            LogUtil.Warn($"[ResManager] 异常状态：asset=null & task=null => {fullPath}");
+            return null;
         }
         
         #endregion
@@ -421,9 +387,10 @@ namespace FinkFramework.Runtime.ResLoad
             }
             // 启动真正的加载任务
             var task = LoadAsync<T>(fullPath);
-
+            
+            // 只用于“是否完成”的轮询 
             // 若 Provider 支持真实进度，进行实时进度绑定；若 Resources 无真实进度 → 使用平滑插值模拟
-            while (!task.Status.IsCompleted())
+            while (task.Status == UniTaskStatus.Pending)
             {
                 // 若 Provider 支持真实进度
                 if (provider.TryGetProgress(realPath, out float p))

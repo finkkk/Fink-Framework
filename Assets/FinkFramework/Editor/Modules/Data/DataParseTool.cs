@@ -191,7 +191,7 @@ namespace FinkFramework.Editor.Modules.Data
                         }
                     }
 
-                    // ② 简写: (1,0.5,0.2,1) / "#RRGGBB"
+                    // ② 简写: (255,255,255,1) / "#RRGGBB"
                     try
                     {
                         if (str.StartsWith("#") && ColorUtility.TryParseHtmlString(str, out var htmlColor))
