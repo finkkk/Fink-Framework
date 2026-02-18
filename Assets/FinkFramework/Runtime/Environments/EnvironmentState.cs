@@ -22,7 +22,7 @@ namespace FinkFramework.Runtime.Environments
         /// <summary>
         /// 框架版本号
         /// </summary>
-        public const string FrameworkVersion = "0.3.7";
+        public const string FrameworkVersion = "0.3.8";
 
         #endregion
 

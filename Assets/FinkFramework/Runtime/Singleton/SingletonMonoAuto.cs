@@ -1,15 +1,14 @@
-using FinkFramework.Runtime.Utils;
 using UnityEngine;
+// ReSharper disable ClassWithVirtualMembersNeverInherited.Global
 
 namespace FinkFramework.Runtime.Singleton
 {
     /// <summary>
-    /// 手动挂载式继承Mono的单例模式基类
-    /// 继承自该基类的类会实现单例模式（前提是该类继承了Mono） 需要自行挂载至GameObject上
+    /// 自动挂载式继承Mono的单例模式基类
+    /// 继承自该基类的类会实现单例模式（前提是该类继承了Mono） 无需自行挂载至GameObject上
     /// </summary>
     /// <typeparam name="T">类名</typeparam>
-    // ReSharper disable once ClassWithVirtualMembersNeverInherited.Global
-    public abstract class SingletonMono<T> : MonoBehaviour where T : MonoBehaviour
+    public class SingletonMonoAuto<T> : MonoBehaviour where T : MonoBehaviour
     {
         private static T _instance;
         
@@ -22,7 +21,7 @@ namespace FinkFramework.Runtime.Singleton
         /// 是否已经存在实例（不会创建）
         /// </summary>
         public static bool HasInstance => _instance is not null;
-        
+
         public static T Instance
         {
             get
@@ -32,25 +31,36 @@ namespace FinkFramework.Runtime.Singleton
 
                 if (_instance == null)
                 {
-                    LogUtil.Error($"{typeof(T).Name} 未在场景中实例化。");
+                    CreateInstance();
                 }
 
                 return _instance;
             }
         }
 
+        private static void CreateInstance()
+        {
+            var go = new GameObject(typeof(T).Name)
+            {
+                hideFlags = HideFlags.None,
+                name = typeof(T).Name
+            };
+            _instance = go.AddComponent<T>();
+            DontDestroyOnLoad(go);
+        }
+
         protected virtual void Awake()
         {
-            if (_instance != null && _instance != this)
+            if (_instance is not null && _instance != this)
             {
-                LogUtil.Error($"场景中存在多个 {typeof(T).Name}");
                 Destroy(gameObject);
                 return;
             }
 
             _instance = this as T;
+            DontDestroyOnLoad(gameObject);
         }
-
+        
         protected virtual void OnApplicationQuit()
         {
             _applicationIsQuitting = true;

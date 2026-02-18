@@ -13,7 +13,9 @@ namespace FinkFramework.Runtime.Utils
     public static class LogUtil
     {
         private static readonly ConcurrentDictionary<int, string> _callerCache = new();
-        // ================== 基础辅助方法 ==================
+
+        #region 工具辅助方法
+
         private static string GetCallerClassName()
         {
             int hash = Environment.StackTrace.GetHashCode(); // 用栈签名简易做缓存Key
@@ -85,8 +87,34 @@ namespace FinkFramework.Runtime.Utils
                 module = GetCallerClassName();
             return $"<color={color}>[{module}]</color>";
         }
-        // ================== 公开日志接口 ==================
-         #region Info
+
+        #endregion
+        
+        #region Log
+        
+        /// <summary>
+        /// Log(日志信息)，自动模块
+        /// </summary>
+        public static void Log(string message, bool force = false)
+        {
+            if (!EnvironmentState.DebugMode && !force) return;
+            string module = GetCallerClassName();
+            Debug.Log($"{FormatModuleTag(module, "#87CEFA")} {message}");
+        }
+
+        /// <summary>
+        /// Log(日志信息)，指定模块
+        /// </summary>
+        public static void Log(string module, string message, bool force = false)
+        {
+            if (!EnvironmentState.DebugMode && !force) return;
+            Debug.Log($"{FormatModuleTag(module, "#87CEFA")} {message}");
+        }
+        
+        #endregion
+      
+        #region Info
+        
         /// <summary>
         /// Info(日志信息)，自动模块
         /// </summary>
@@ -105,9 +133,11 @@ namespace FinkFramework.Runtime.Utils
             if (!EnvironmentState.DebugMode && !force) return;
             Debug.Log($"{FormatModuleTag(module, "#87CEFA")} {message}");
         }
+        
         #endregion
 
         #region Success
+        
         public static void Success(string message, bool force = false)
         {
             if (!EnvironmentState.DebugMode && !force) return;
@@ -120,9 +150,11 @@ namespace FinkFramework.Runtime.Utils
             if (!EnvironmentState.DebugMode && !force) return;
             Debug.Log($"{FormatModuleTag(module, "#00FF7F")} {message} <color=#00FF7F>✓</color>");
         }
+        
         #endregion
 
         #region Warn
+        
         public static void Warn(string message, bool force = true)
         {
             if (!EnvironmentState.DebugMode && !force) return;
@@ -135,9 +167,11 @@ namespace FinkFramework.Runtime.Utils
             if (!EnvironmentState.DebugMode && !force) return;
             Debug.LogWarning($"{FormatModuleTag(module, "#FFA500")} {message} <color=#FFA500>!</color>");
         }
+        
         #endregion
 
         #region Error
+        
         public static void Error(string message)
         {
             string module = GetCallerClassName();
@@ -148,6 +182,7 @@ namespace FinkFramework.Runtime.Utils
         {
             Debug.LogError($"{FormatModuleTag(module, "#FF4500")} {message} <color=#FF4500>✗</color>");
         }
+        
         #endregion
     }
 }
