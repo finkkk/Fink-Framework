@@ -18,7 +18,6 @@ namespace FinkFramework.Runtime.Utils
         /// </summary>
         private class LogItem
         {
-            public string text;
             public GUIContent content;
             public float startTime;
             public float duration;
@@ -46,7 +45,6 @@ namespace FinkFramework.Runtime.Utils
             
             logs.Add(new LogItem
             {
-                text = text,
                 content = new GUIContent(text),
                 color = color,
                 startTime = Time.time,
