@@ -8,7 +8,6 @@ using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
-using UnityEngine;
 
 namespace FinkFramework.Editor.Modules.Data
 {
@@ -26,12 +25,6 @@ namespace FinkFramework.Editor.Modules.Data
     public class DataExportTool
     {
         #region === 主流程 ===
-        
-        /// <summary>
-        /// 数据路径注册表
-        /// </summary>
-        private static readonly Dictionary<string, string> pathRegistry = new();
-        
         /// <summary>
         /// 一键读取全部数据并导出文件
         /// </summary>
@@ -63,21 +56,11 @@ namespace FinkFramework.Editor.Modules.Data
                 if (ExportData(excelPath, sourceRoot))
                     successCount++;
             }
-            
-            // 强制放在 StreamingAssets/FinkFramework_Data/
-            string registryPath = Path.Combine(
-                Application.streamingAssetsPath,
-                "FinkFramework_Data/DataPathRegistry.json"
-            );
-
-            JsonExportTool.ExportJson(pathRegistry, registryPath);
-            
             // 刷新资源数据库
             AssetDatabase.Refresh();
             if (!silent)
                 LogUtil.Success("DataExportTool", $"全部数据导出完成 ({successCount}/{validFiles.Length})");
-            FilesUtil.ClearCache();
-            
+            DataFilesUtil.ClearCache();
             return (successCount,validFiles.Length);
         }
         #endregion
@@ -195,7 +178,7 @@ namespace FinkFramework.Editor.Modules.Data
                 
                 // ========== 4. 永远导出 JSON ==========
                 string relativePath = PathUtil.NormalizePath(Path.GetRelativePath(sourceRoot, excelPath));
-                string jsonPath = FilesUtil.BuildFullPath(DataPipelinePath.JsonRoot, relativePath, ".json");
+                string jsonPath = DataFilesUtil.BuildFullPath(DataPipelinePath.JsonRoot, relativePath, ".json");
                 JsonExportTool.ExportJson(container, jsonPath);
                 
                 // ========== 5. 处理二进制数据的输出 ==========
@@ -203,26 +186,9 @@ namespace FinkFramework.Editor.Modules.Data
                 {
                     string targetRoot = DataPipelinePath.BinaryRoot;
                     // 使用 streamingAssetsPath 作为 root（Binary 模式）
-                    string binaryFullPath = FilesUtil.BuildFullPath(targetRoot, relativePath, GlobalSettingsRuntimeLoader.Current.EncryptedExtension);
+                    string binaryFullPath = DataFilesUtil.BuildFullPath(targetRoot, relativePath, GlobalSettingsRuntimeLoader.Current.EncryptedExtension);
                     BinaryExportTool.ExportBinary(container, binaryFullPath);
                 }
-                
-                string containerKey = containerType.AssemblyQualifiedName;
-
-                string dataRoot =
-                    GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
-                        ? DataPipelinePath.JsonRoot
-                        : DataPipelinePath.BinaryRoot;
-
-                // 生成“不带扩展名”的相对路径
-                string noExtPath = Path.ChangeExtension(
-                    PathUtil.NormalizePath(
-                        Path.Combine(dataRoot, relativePath)
-                    ),
-                    null
-                );
-
-                pathRegistry[containerKey] = noExtPath;
                 
                 return !hasError;
             }

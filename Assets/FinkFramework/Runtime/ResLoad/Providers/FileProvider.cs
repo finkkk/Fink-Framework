@@ -10,7 +10,7 @@ using Object = UnityEngine.Object;
 namespace FinkFramework.Runtime.ResLoad.Providers
 {
     /// <summary>
-    /// 本地文件提供器（支持 file:// 前缀）
+    /// PC本地文件提供器（支持 file:// 前缀）  PC专用！！！！
     /// 支持类型：
     /// - TextAsset（.txt、.json、.xml、.ini、任何文本文件）
     /// - Texture2D
@@ -25,6 +25,11 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         public T Load<T>(string path) where T : Object
         {
+#if UNITY_ANDROID || UNITY_IOS
+    LogUtil.Error("FileProvider", "FileProvider 是 PC 专用，移动端禁止使用！");
+    throw new NotSupportedException("FileProvider is PC only.");
+#endif
+            
             Type t = typeof(T);
 
             if (!File.Exists(path))
@@ -56,6 +61,11 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         public async UniTask<T> LoadAsync<T>(string path) where T : Object
         {
+#if UNITY_ANDROID || UNITY_IOS
+    LogUtil.Error("FileProvider", "FileProvider 是 PC 专用，移动端禁止使用！");
+    throw new NotSupportedException("FileProvider is PC only.");
+#endif
+            
             Type t = typeof(T);
 
             if (!File.Exists(path))

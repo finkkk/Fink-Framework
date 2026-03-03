@@ -25,31 +25,52 @@ namespace FinkFramework.Runtime.Utils
         }
         
         private static readonly List<LogItem> logs = new();
+        private static readonly object logsLock = new object();
         
-        private GUIStyle style;
+        private static GUIStyle style;
         private const float maxWidth = 900f;
+        
+        private static LogUIRunner runner;
+        private static bool isQuitting;
+        
+        private static void EnsureInit()
+        {
+            if (isQuitting) return;
+            if (runner) return;
+
+            var go = new GameObject("[LogUIRunner]");
+            Object.DontDestroyOnLoad(go);
+            go.hideFlags = HideFlags.HideInHierarchy;
+            go.AddComponent<LogUIRunner>();
+        }
         
         #region 静态内部 API
         
         /// <summary>
         /// 在屏幕上显示一条日志
         /// </summary>
-        private static void Log(string text, Color color, float duration = 1.5f)
+        private static void Push(string text, Color color, float duration = 1.5f)
         {
             if (!Enabled) return;
+            if (isQuitting) return;
 
-            if (logs.Count >= MaxLogCount)
-            {
-                logs.RemoveAt(0);
-            }
+            EnsureInit();
+            if (!runner) return;
             
-            logs.Add(new LogItem
+          
+            lock (logsLock)
             {
-                content = new GUIContent(text),
-                color = color,
-                startTime = Time.time,
-                duration = Mathf.Max(0.1f, duration)
-            });
+                if (logs.Count >= MaxLogCount)
+                    logs.RemoveAt(0);
+
+                logs.Add(new LogItem
+                {
+                    content = new GUIContent(text),
+                    color = color,
+                    startTime = Time.time,
+                    duration = Mathf.Max(0.1f, duration)
+                });
+            }
         }
 
         #endregion
@@ -63,7 +84,7 @@ namespace FinkFramework.Runtime.Utils
         /// <param name="time">持续时间</param>
         public static void Info(string msg, float time = 1.5f)
         {
-            Log(msg, Color.white, time);
+            Push(msg, Color.white, time);
             LogUtil.Info(msg);
         }
         
@@ -74,7 +95,7 @@ namespace FinkFramework.Runtime.Utils
         /// <param name="time">持续时间</param>
         public static void Log(string msg, float time = 1.5f)
         {
-            Log(msg, Color.white, time);
+            Push(msg, Color.white, time);
             LogUtil.Log(msg);
         }
 
@@ -85,7 +106,7 @@ namespace FinkFramework.Runtime.Utils
         /// <param name="time">持续时间</param>
         public static void Success(string msg, float time = 1.5f)
         {
-            Log(msg, new Color(0.4f, 1f, 0.4f), time);
+            Push(msg, new Color(0.4f, 1f, 0.4f), time);
             LogUtil.Success(msg);
         }
 
@@ -96,7 +117,7 @@ namespace FinkFramework.Runtime.Utils
         /// <param name="time">持续时间</param>
         public static void Warn(string msg, float time = 3f)
         {
-            Log(msg, new Color(1f, 0.8f, 0.2f), time);
+            Push(msg, new Color(1f, 0.8f, 0.2f), time);
             LogUtil.Warn(msg);
         }
 
@@ -107,28 +128,36 @@ namespace FinkFramework.Runtime.Utils
         /// <param name="time">持续时间</param>
         public static void Error(string msg, float time = 5f)
         {
-            Log(msg, Color.red, time);
+            Push(msg, Color.red, time);
             LogUtil.Error(msg);
         }
 
         #endregion
 
-        private void OnGUI()
+        internal static void DrawGUI()
         {
-            float now = Time.time;
+            if (!Enabled) return;
 
-            for (int i = logs.Count - 1; i >= 0; i--)
+            float now = Time.time;
+            
+            // 只在锁内：清理过期 + 拷贝快照
+            List<LogItem> snapshot = null;
+            
+            lock (logsLock)
             {
-                if (now - logs[i].startTime > logs[i].duration)
+                for (int i = logs.Count - 1; i >= 0; i--)
                 {
-                    logs.RemoveAt(i);
+                    if (now - logs[i].startTime > logs[i].duration)
+                        logs.RemoveAt(i);
                 }
+
+                if (logs.Count == 0)
+                    return;
+
+                snapshot = new List<LogItem>(logs);
             }
             
-            if (logs.Count == 0)
-                return;
-            
-            // 第一次 OnGUI 时初始化 GUIStyle
+            // 锁外：GUIStyle 初始化 + 计算 + 绘制
             if (style == null)
             {
                 style = new GUIStyle(GUI.skin.label)
@@ -138,16 +167,15 @@ namespace FinkFramework.Runtime.Utils
                     alignment = TextAnchor.UpperCenter
                 };
             }
-
+            
             float screenWidth = Screen.width;
             float baseX = (screenWidth - maxWidth) * 0.5f;
             float baseY = 20f;
-            
-            
-            for (int i = 0; i < logs.Count; i++)
+
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                var log = logs[i]; 
-                
+                var log = snapshot[i];
+                    
                 // ===== 生命周期进度 =====
                 float elapsed = now - log.startTime;
                 float t = Mathf.Clamp01(elapsed / log.duration);
@@ -186,8 +214,39 @@ namespace FinkFramework.Runtime.Utils
                 baseY += height + 8f;
             }
             
-            GUI.color = Color.white; // ★ 必须还原
+            GUI.color = Color.white; 
+        }
+        
+        internal sealed class LogUIRunner : MonoBehaviour
+        {
+            private void Awake()
+            {
+                // 如果已经有 runner（极端情况：重复创建），保留第一个
+                if (runner && runner != this)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
 
+                runner = this;
+                DontDestroyOnLoad(gameObject);
+            }
+            
+            private void OnGUI()
+            {
+                DrawGUI();
+            }
+
+            private void OnApplicationQuit()
+            {
+                isQuitting = true;
+            }
+
+            private void OnDestroy()
+            {
+                if (runner == this)
+                    runner = null;
+            }
         }
 
     }
