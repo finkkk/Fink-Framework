@@ -104,7 +104,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             // ===== Footer =====
             EditorGUILayout.LabelField(
                 "作者：Finkkk\n" +
-                "仓库：https://github.com/Finkkk/FinkFramework\n",
+                "仓库：https://github.com/finkkk/Fink-Framework\n",
                 FFEditorStyles.Description);
 
             GUILayout.EndVertical();

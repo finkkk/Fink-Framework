@@ -1,6 +1,7 @@
 ﻿using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace FinkFramework.Runtime.Settings.ScriptableObjects
 {
@@ -56,8 +57,37 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         public EnvironmentState.DataLoadMode CurrentDataLoadMode = EnvironmentState.DataLoadMode.Binary;
 
         [Header("C# 数据类路径模式")]
-        [Tooltip("若为 false → C# 类生成在 Assets 内部；若为 true → 生成在 FinkFramework_Data 根目录")]
-        public bool CSharpUseExternal = false;
+        [Tooltip("选择生成的 C# 数据类输出到 Assets 内部还是项目外部目录。")]
+        [FormerlySerializedAs("CSharpUseExternal")]
+        public EnvironmentState.CSharpOutputPathMode CSharpPathMode =
+            EnvironmentState.CSharpOutputPathMode.Internal;
+
+        /// <summary>
+        /// 兼容旧代码的访问方式。新代码请使用 CSharpPathMode。
+        /// </summary>
+        public bool CSharpUseExternal
+        {
+            get => CSharpPathMode == EnvironmentState.CSharpOutputPathMode.External;
+            set => CSharpPathMode = value
+                ? EnvironmentState.CSharpOutputPathMode.External
+                : EnvironmentState.CSharpOutputPathMode.Internal;
+        }
+
+        [Header("启用自定义内部 C# 路径")]
+        [Tooltip("关闭后使用内部默认路径；再次启用时保留之前填写的路径。")]
+        public bool UseCustomInternalCSharpOutputPath = false;
+
+        [Header("启用自定义外部 C# 路径")]
+        [Tooltip("关闭后使用外部默认路径；再次启用时保留之前填写的路径。")]
+        public bool UseCustomExternalCSharpOutputPath = false;
+
+        [Header("内部 C# 输出路径")]
+        [Tooltip("项目相对路径，必须位于 Assets 目录内。编辑器面板只允许修改 Assets/ 后的部分。默认：Assets/Scripts/Data/AutoGen/DataClass")]
+        public string InternalCSharpOutputPath = "Assets/Scripts/Data/AutoGen/DataClass";
+
+        [Header("外部 C# 输出路径")]
+        [Tooltip("项目相对路径，不能位于 Assets 目录内。默认：FinkFramework_Data/AutoGen/DataClass")]
+        public string ExternalCSharpOutputPath = "FinkFramework_Data/AutoGen/DataClass";
 
         #endregion
         

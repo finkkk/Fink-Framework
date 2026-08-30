@@ -12,17 +12,27 @@ namespace FinkFramework.Editor.Utils
 {
     public static class UpdateCheckUtil
     {
-        // 使用你自己的服务器 JSON 文件
-        private const string VersionUrl = "https://finkkk.cn/upload/version.json";
+        // GitHub 最新正式 Release 接口。
+        private const string VersionUrl = "https://api.github.com/repos/finkkk/Fink-Framework/releases/latest";
+        private const string ReleasesUrl = "https://github.com/finkkk/Fink-Framework/releases";
 
         private const string LastCheckKey = "FinkFramework_LastUpdateCheck";
         
-        private static readonly HttpClient Client = new()
-        {
-            Timeout = TimeSpan.FromSeconds(5)
-        };
+        private static readonly HttpClient Client = CreateHttpClient();
 
         private static bool _checking;
+
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(5)
+            };
+
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Fink-Framework-UpdateChecker");
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+            return client;
+        }
 
         // 自动检查（InitializeOnLoad）
         [InitializeOnLoadMethod]
@@ -49,7 +59,11 @@ namespace FinkFramework.Editor.Utils
                 if (!isManual)
                 {
                     string last = EditorPrefs.GetString(LastCheckKey, "");
-                    if (DateTime.TryParse(last, out DateTime lastTime) &&
+                    if (DateTime.TryParse(
+                            last,
+                            CultureInfo.InvariantCulture,
+                            DateTimeStyles.AssumeLocal,
+                            out DateTime lastTime) &&
                         (DateTime.Now - lastTime).TotalDays < settings.UpdateCheckIntervalDays)
                         return;
 
@@ -62,32 +76,42 @@ namespace FinkFramework.Editor.Utils
                     LogUtil.Info("版本检查", "开始检查 Fink Framework 更新...");
                 }
                 
-                if (!Client.DefaultRequestHeaders.UserAgent.ToString().Contains("Fink-Framework"))
-                {
-                    Client.DefaultRequestHeaders.UserAgent.ParseAdd("Fink-Framework");
-                }
-
-                // 从你的服务器下载 version.json
+                // GitHub 返回 Release 元数据，版本号位于 tag_name，例如 v0.3.9。
                 string json = await Client.GetStringAsync(VersionUrl);
                 var data = JObject.Parse(json);
 
-                string latestVersion = data["latest"]?.ToString();
-                const string currentVersion = EnvironmentState.FrameworkVersion;
+                string latestVersion = NormalizeVersion(data["tag_name"]?.ToString());
+                string releaseUrl = data["html_url"]?.ToString() ?? ReleasesUrl;
+                string currentVersion = NormalizeVersion(EnvironmentState.FrameworkVersion);
 
-                if (latestVersion == currentVersion && isManual)
+                if (!TryParseVersion(currentVersion, out var current) ||
+                    !TryParseVersion(latestVersion, out var latest))
                 {
-                    LogUtil.Success("版本检查", $"当前版本已是最新版本：{currentVersion}");
+                    if (isManual)
+                        LogUtil.Error("版本检查", $"版本号格式无法解析：本地 {currentVersion}，GitHub {latestVersion}");
                     return;
                 }
-                // 有新版本 → 提示
-                if (!string.IsNullOrEmpty(latestVersion) && latestVersion != currentVersion)
+
+                int comparison = latest.CompareTo(current);
+                if (comparison <= 0)
                 {
-                    LogUtil.Warn(
-                        "版本更新检查",
-                        $"Fink Framework 有新版本！当前：{currentVersion} → 最新：{latestVersion}\n" +
-                        $"更新地址：https://github.com/finkkk/Fink-Framework/releases"
-                    );
+                    if (isManual)
+                    {
+                        string message = comparison == 0
+                            ? $"当前版本已是最新版本：{currentVersion}"
+                            : $"当前版本高于 GitHub 最新正式版，可能是本地开发版本：本地 {currentVersion}，GitHub {latestVersion}";
+                        LogUtil.Success("版本检查", message);
+                    }
+
+                    return;
                 }
+
+                // 只有远端版本高于本地版本时才提示更新。
+                LogUtil.Warn(
+                    "版本更新检查",
+                    $"Fink Framework 有新版本！当前：{currentVersion} → 最新：{latestVersion}\n" +
+                    $"更新地址：{releaseUrl}"
+                );
             }
             catch (TaskCanceledException)
             {
@@ -101,12 +125,45 @@ namespace FinkFramework.Editor.Utils
             }
             catch (Exception ex)
             {
-                LogUtil.Error("UpdateCheck", ex.Message);
+                if (isManual)
+                    LogUtil.Error("版本检查", ex.Message);
             }
             finally
             {
                 _checking = false;
             }
+        }
+
+        private static string NormalizeVersion(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            string normalized = value.Trim();
+            return normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase)
+                ? normalized[1..]
+                : normalized;
+        }
+
+        private static bool TryParseVersion(string value, out Version version)
+        {
+            version = null;
+            string normalized = NormalizeVersion(value);
+            string[] parts = normalized.Split('.');
+
+            if (parts.Length < 2 || parts.Length > 4)
+                return false;
+
+            int[] components = new int[4];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (!int.TryParse(parts[i], NumberStyles.None, CultureInfo.InvariantCulture, out components[i]) ||
+                    components[i] < 0)
+                    return false;
+            }
+
+            version = new Version(components[0], components[1], components[2], components[3]);
+            return true;
         }
     }
 }

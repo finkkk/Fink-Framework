@@ -1,4 +1,5 @@
 using System;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
@@ -34,15 +35,31 @@ namespace FinkFramework.Editor.Modules.Data
         // ========== 一键处理数据 主函数 ==========
         public static void HandleAllData()
         {
+            // 路径变化确认必须先于清理导出数据，取消时保留当前可用输出。
+            if (!DataGenTool.EnsureOutputPathReady())
+                return;
+
             // 清空导出数据
-            DataCleanTool.ClearExportedData();
+            if (!DataCleanTool.TryClearExportedData())
+            {
+                LogUtil.Error("DataHandleTool", "数据目录清理失败，已停止后续数据处理。");
+                return;
+            }
             EditorPrefs.SetInt(KEY_STAGE, (int)Stage.Cleared);
 
             // 生成数据类
             var (genSuccess, genTotal) = DataGenTool.GenerateAllData(true);
 
+            if (genTotal == 0 || genSuccess != genTotal)
+            {
+                ClearTransientState();
+                LogUtil.Error("DataHandleTool", "数据类生成未完成，已停止后续数据导出。");
+                return;
+            }
+
             // 判断是否需要等待编译
-            bool needWaitCompile = !GlobalSettingsRuntimeLoader.Current.CSharpUseExternal;
+            bool needWaitCompile =
+                GlobalSettingsRuntimeLoader.Current.CSharpPathMode == EnvironmentState.CSharpOutputPathMode.Internal;
             
             if (needWaitCompile)
             {
@@ -150,6 +167,12 @@ namespace FinkFramework.Editor.Modules.Data
             else
                 LogUtil.Warn("DataHandleTool", "数据处理完成，但存在部分失败。");
             EditorApplication.delayCall += AssetDatabase.Refresh;
+        }
+
+        private static void ClearTransientState()
+        {
+            EditorPrefs.DeleteKey(KEY_STAGE);
+            EditorPrefs.DeleteKey(KEY_GEN_RESULT);
         }
     }
 }

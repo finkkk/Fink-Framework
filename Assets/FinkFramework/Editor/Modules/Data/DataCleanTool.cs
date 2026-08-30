@@ -10,13 +10,18 @@ namespace FinkFramework.Editor.Modules.Data
     public class DataCleanTool
     {
         /// <summary>
-        /// 清空加密存储的全部数据
+        /// 清空生成的数据文件和本地缓存。保留原有公开签名，兼容已有调用方。
         /// </summary>
         public static void ClearExportedData()
         {
+            TryClearExportedData();
+        }
+
+        public static bool TryClearExportedData()
+        {
             string persistentPath = Path.Combine(Application.persistentDataPath, "FinkFramework_Data");
             string streamingPath = Path.Combine(Application.streamingAssetsPath, "FinkFramework_Data");
-            string externalDataPath =  Path.Combine(DataPipelinePath.ProjectRoot, "FinkFramework_Data/AutoExport");
+            string externalDataPath = Path.Combine(DataPipelinePath.ProjectRoot, "FinkFramework_Data/AutoExport");
             try
             {
                 void SafeDelete(string path)
@@ -50,10 +55,12 @@ namespace FinkFramework.Editor.Modules.Data
                 }
 #endif
                 AssetDatabase.Refresh();
+                return true;
             }
             catch (Exception ex)
             {
-                LogUtil.Error("DataCleanTool", $"清空加密数据失败: {ex.Message}");
+                LogUtil.Error("DataCleanTool", $"清空数据失败: {ex.Message}");
+                return false;
             }
         }
     }

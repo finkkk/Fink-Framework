@@ -10,7 +10,15 @@ namespace FinkFramework.Editor.Modules.Data
     /// </summary>
     public class JsonExportTool
     {
+        /// <summary>
+        /// 导出 JSON。保留原有公开签名，兼容已有调用方。
+        /// </summary>
         public static void ExportJson(object container, string jsonPath)
+        {
+            TryExportJson(container, jsonPath);
+        }
+
+        public static bool TryExportJson(object container, string jsonPath)
         {
             try
             {
@@ -34,13 +42,16 @@ namespace FinkFramework.Editor.Modules.Data
                 var json = JsonConvert.SerializeObject(container, settings);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(jsonPath) ?? string.Empty);
-                File.WriteAllText(jsonPath, json, System.Text.Encoding.UTF8);
+                // 不写 BOM，保证 Android/iOS 通过 UnityWebRequest 读取后可直接解析。
+                File.WriteAllText(jsonPath, json, new System.Text.UTF8Encoding(false));
 
                 LogUtil.Success("DataJsonTool", $"已生成 JSON 数据：{jsonPath}");
+                return true;
             }
             catch (System.Exception ex)
             {
                 LogUtil.Error("DataJsonTool", $"JSON 导出失败：{ex.Message}");
+                return false;
             }
         }
     }

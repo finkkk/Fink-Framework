@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using FinkFramework.Runtime.Data;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
@@ -13,14 +14,14 @@ using UnityEngine;
 namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
-    /// 数据自动生成工具
-    /// 用于从 <c>项目根目录/DataTables</c> 目录下的 Excel 文件自动生成对应的 C# 数据类定义文件。
+    /// 数据自动生成工具。
+    /// 用于从 <c>项目根目录/FinkFramework_Data/DataTables</c> 目录下的 Excel 文件自动生成对应的 C# 数据类定义文件。
     /// 功能说明：
     /// 1. 递归扫描所有 Excel 文件；
-    /// 3. 自动生成类文件并保存至 <c>Assets/Scripts/Data/AutoGen</c>；
-    /// 4. 自动刷新 Unity 资源数据库；
+    /// 2. 自动生成类文件并保存至当前配置的 C# 输出目录；
+    /// 3. 自动刷新 Unity 资源数据库；
     /// 注意事项：
-    /// - 不会覆盖非自动生成的文件；
+    /// - 目标路径中的同名类会在每次生成时更新；旧路径清理不会删除手动修改过的文件。
     /// </summary>
     public static class DataGenTool
     {
@@ -49,6 +50,15 @@ namespace FinkFramework.Editor.Modules.Data
         #region 主入口
 
         /// <summary>
+        /// 确认当前 C# 输出路径是否可以使用。
+        /// 一键处理流程会在清理导出数据前调用，避免用户取消时先破坏现有输出。
+        /// </summary>
+        public static bool EnsureOutputPathReady()
+        {
+            return DataGenerationManifestTool.EnsureOutputPathConfirmed(CLASS_ROOT);
+        }
+
+        /// <summary>
         /// 数据生成工具主入口
         /// 遍历所有表格 并分别执行 自动生成数据类 数据容器类 Json文件 
         /// </summary>
@@ -63,7 +73,10 @@ namespace FinkFramework.Editor.Modules.Data
             // ---------- 搜索所有表格 ----------
             var excelFiles = Directory
                 .EnumerateFiles(SOURCE_DIR, "*.*", SearchOption.AllDirectories)
-                .Where(f => ALLOWED_EXTS.Contains(Path.GetExtension(f).ToLower()))
+                .Where(f => ALLOWED_EXTS.Contains(
+                    Path.GetExtension(f),
+                    StringComparer.OrdinalIgnoreCase))
+                .OrderBy(PathUtil.NormalizePath, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (excelFiles.Length == 0)
@@ -72,18 +85,15 @@ namespace FinkFramework.Editor.Modules.Data
                 return (0, 0);
             }
 
-            // ---------- 记录所有应存在的新类名 ----------
-            HashSet<string> expectedClassFiles = new();
-            foreach (var excelPath in excelFiles)
-            {
-                string name = Path.GetFileNameWithoutExtension(excelPath);
-                string className = TextsUtil.ToPascalCase(name);
-                expectedClassFiles.Add($"{className}.cs");
-                expectedClassFiles.Add($"{className}Container.cs");
-            }
+            string classRoot = CLASS_ROOT;
+            if (!DataGenerationManifestTool.EnsureOutputPathConfirmed(classRoot))
+                return (0, excelFiles.Length);
+
+            bool hasPreviousManifest = DataGenerationManifestTool.TryLoad(out DataGenerationManifest previousManifest);
 
             successCount = 0;
             totalCount = excelFiles.Length;
+            var generatedFiles = new List<string>();
 
             // ---------- 生成并覆盖 ----------
             foreach (var excelPath in excelFiles)
@@ -91,6 +101,7 @@ namespace FinkFramework.Editor.Modules.Data
                 try
                 {
                     GenerateDataFile(excelPath);
+                    generatedFiles.AddRange(GetGeneratedFilePaths(excelPath));
                     successCount++;
                 }
                 catch (Exception ex)
@@ -99,25 +110,25 @@ namespace FinkFramework.Editor.Modules.Data
                 }
             }
 
-            // ---------- 清理已失效的旧文件 ----------
-            var allFiles = Directory.GetFiles(CLASS_ROOT, "*.cs", SearchOption.AllDirectories);
-            int removedCount = 0;
-            foreach (var file in allFiles)
-            {
-                string fileName = Path.GetFileName(file);
-                if (!expectedClassFiles.Contains(fileName))
-                {
-                    File.Delete(file);
-                    removedCount++;
-                }
-            }
-            if (removedCount > 0)
-                LogUtil.Info("DataGenTool", $"已清理无效旧文件：{removedCount} 个");
+            if (successCount != totalCount)
+                return (successCount, totalCount);
 
-            // ---------- 刷新资源 ----------
-            AssetDatabase.Refresh();
-            
-            bool isInternalOutput = !GlobalSettingsRuntimeLoader.Current.CSharpUseExternal;
+            if (!DataGenerationManifestTool.TryWrite(classRoot, generatedFiles, out string manifestError))
+            {
+                LogUtil.Error("DataGenTool", $"C# 生成清单写入失败，已停止后续导出：{manifestError}");
+                return (0, totalCount);
+            }
+
+            // 新代码和清单都成功后，再清理旧输出目录或当前目录中的安全文件。
+            if (hasPreviousManifest)
+                DataGenerationManifestTool.CleanupPreviousOutput(previousManifest, classRoot, generatedFiles);
+
+            bool isInternalOutput =
+                GlobalSettingsRuntimeLoader.Current.CSharpPathMode == EnvironmentState.CSharpOutputPathMode.Internal;
+
+            // 外部目录不受 Unity 资源数据库管理，无需刷新；内部目录需要刷新以触发脚本编译。
+            if (isInternalOutput)
+                AssetDatabase.Refresh();
 
             
             if (!silent)
@@ -175,9 +186,7 @@ namespace FinkFramework.Editor.Modules.Data
             // ---------- 2. 读取模板 ----------
             var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/EditorResources/Data/template_data.txt");
             if (!templateAsset)
-            {
-                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/EditorResources/Data/template_data.txt");
-            }
+                throw new FileNotFoundException("未找到模板文件：Assets/FinkFramework/Editor/EditorResources/Data/template_data.txt");
             string? template = templateAsset?.text;
 
             // ---------- 3. 打开 Excel 文件 ----------
@@ -254,7 +263,8 @@ namespace FinkFramework.Editor.Modules.Data
             string classOutputDir = GetClassOutputDir(excelPath);
             Directory.CreateDirectory(classOutputDir); 
             string outputPath = Path.Combine(classOutputDir, $"{className}.cs");
-            code = TextsUtil.NormalizeLineEndings(code);
+            code = DataGenerationManifestTool.AddGeneratedFileMarker(
+                TextsUtil.NormalizeLineEndings(code ?? string.Empty));
             File.WriteAllText(outputPath, code, Encoding.UTF8);
         }
 
@@ -266,10 +276,7 @@ namespace FinkFramework.Editor.Modules.Data
         {
             var templateAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/FinkFramework/Editor/EditorResources/Data/template_container.txt");
             if (!templateAsset)
-            {
-                LogUtil.Error("DataGenTool", "未找到模板文件：Assets/FinkFramework/Editor/EditorResources/Data/template_container.txt");
-                return;
-            }
+                throw new FileNotFoundException("未找到模板文件：Assets/FinkFramework/Editor/EditorResources/Data/template_container.txt");
             string className  = meta.ClassName;
             string excelPath  = meta.ExcelPath;
             
@@ -299,7 +306,8 @@ namespace FinkFramework.Editor.Modules.Data
 
             // ---------- 4. 写入文件 ----------
             string containerPath = Path.Combine(classOutputDir, $"{className}Container.cs");
-            containerCode = TextsUtil.NormalizeLineEndings(containerCode);
+            containerCode = DataGenerationManifestTool.AddGeneratedFileMarker(
+                TextsUtil.NormalizeLineEndings(containerCode ?? string.Empty));
             File.WriteAllText(containerPath, containerCode, Encoding.UTF8);
         }
 
@@ -395,7 +403,10 @@ namespace FinkFramework.Editor.Modules.Data
                 {
                     LogUtil.Error("DataGenTool", msg);
                 }
-                LogUtil.Success("DataGenTool", msg);
+                else
+                {
+                    LogUtil.Success("DataGenTool", msg);
+                }
             }
         }
         
@@ -405,6 +416,15 @@ namespace FinkFramework.Editor.Modules.Data
         private static string GetClassOutputDir(string excelPath)
         {
             return Path.Combine(CLASS_ROOT, GetRelativePath(excelPath));
+        }
+
+        private static IEnumerable<string> GetGeneratedFilePaths(string excelPath)
+        {
+            string outputDirectory = GetClassOutputDir(excelPath);
+            string className = TextsUtil.ToPascalCase(Path.GetFileNameWithoutExtension(excelPath));
+
+            yield return Path.Combine(outputDirectory, $"{className}.cs");
+            yield return Path.Combine(outputDirectory, $"{className}Container.cs");
         }
         
         /// <summary>

@@ -12,15 +12,12 @@ using UnityEditor;
 namespace FinkFramework.Editor.Modules.Data
 {
     /// <summary>
-    /// 数据导出工具（DataExportTool）
-    /// ------------------------------------------------------------
-    /// 功能：
-    /// 1. 扫描 项目根目录/DataTables 下的全部 Excel；
-    /// 2. 将表格内容读取为容器对象；
-    /// 3. 可选 是否使用 Odin + AES 生成加密数据文件；
-    /// ------------------------------------------------------------
-    /// 默认导出至 StreamingAssets/Data
-    /// 可通过 DataHandleTool 一键执行。
+    /// 数据导出工具（DataExportTool）。
+    ///
+    /// 1. 扫描项目根目录/FinkFramework_Data/DataTables 下的 Excel；
+    /// 2. 将表格内容转换为容器对象并生成 JSON 快照；
+    /// 3. Binary 模式下额外生成运行时 Binary 文件；
+    /// 4. 由 DataManifestTool 生成运行时文件清单。
     /// </summary>
     public class DataExportTool
     {
@@ -33,7 +30,7 @@ namespace FinkFramework.Editor.Modules.Data
             // 原始数据源目录 表格放置位置：项目根目录/FinkFramework_Data/DataTables
             string sourceRoot = DataPipelinePath.ExcelRoot;
             
-            // 清理旧加密目录 只清理 StreamingAssets 下旧加密文件
+            // 先确认 Excel 源目录存在；旧输出文件由数据处理流程统一管理。
             if (!Directory.Exists(sourceRoot))
             {
                 LogUtil.Error("DataExportTool", $"源目录不存在: {sourceRoot}");
@@ -42,6 +39,7 @@ namespace FinkFramework.Editor.Modules.Data
             // 搜索所有允许导出的文件
             var validFiles = Directory
                 .EnumerateFiles(sourceRoot, "*.xlsx", SearchOption.AllDirectories)
+                .OrderBy(PathUtil.NormalizePath, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             if (validFiles.Length == 0)
@@ -49,13 +47,28 @@ namespace FinkFramework.Editor.Modules.Data
                 LogUtil.Warn("DataExportTool", $"没有找到任何可存储的文件: {sourceRoot}");
                 return (0,0);
             }
-            // 成功执行加密存储的文件数量
+            // 成功完成导出的文件数量。
             int successCount = 0;
             foreach (var excelPath in validFiles)
             {
                 if (ExportData(excelPath, sourceRoot))
                     successCount++;
             }
+
+            if (successCount != validFiles.Length)
+            {
+                LogUtil.Error("DataExportTool", "存在导出失败的数据表，不生成运行时数据清单。");
+                return (successCount, validFiles.Length);
+            }
+
+            // Android 无法通过 Directory 遍历 APK 内的 StreamingAssets，
+            // 因此导表完成后生成运行时数据清单。
+            if (!DataManifestTool.Generate())
+            {
+                LogUtil.Error("DataExportTool", "运行时数据清单生成失败，导出流程终止。");
+                return (0, validFiles.Length);
+            }
+
             // 刷新资源数据库
             AssetDatabase.Refresh();
             if (!silent)
@@ -172,6 +185,10 @@ namespace FinkFramework.Editor.Modules.Data
                     rowIndex++;
                 }
 
+                // 解析失败时不写出不完整的数据，避免生成看似成功但内容损坏的文件。
+                if (hasError)
+                    return false;
+
                 // ========== 3. 创建容器 ==========
                 var container = Activator.CreateInstance(containerType);
                 containerType.GetField("items")?.SetValue(container, listInstance);
@@ -179,7 +196,8 @@ namespace FinkFramework.Editor.Modules.Data
                 // ========== 4. 永远导出 JSON ==========
                 string relativePath = PathUtil.NormalizePath(Path.GetRelativePath(sourceRoot, excelPath));
                 string jsonPath = DataFilesUtil.BuildFullPath(DataPipelinePath.JsonRoot, relativePath, ".json");
-                JsonExportTool.ExportJson(container, jsonPath);
+                if (!JsonExportTool.TryExportJson(container, jsonPath))
+                    return false;
                 
                 // ========== 5. 处理二进制数据的输出 ==========
                 if (GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
@@ -187,7 +205,8 @@ namespace FinkFramework.Editor.Modules.Data
                     string targetRoot = DataPipelinePath.BinaryRoot;
                     // 使用 streamingAssetsPath 作为 root（Binary 模式）
                     string binaryFullPath = DataFilesUtil.BuildFullPath(targetRoot, relativePath, GlobalSettingsRuntimeLoader.Current.EncryptedExtension);
-                    BinaryExportTool.ExportBinary(container, binaryFullPath);
+                    if (!BinaryExportTool.TryExportBinary(container, binaryFullPath))
+                        return false;
                 }
                 
                 return !hasError;

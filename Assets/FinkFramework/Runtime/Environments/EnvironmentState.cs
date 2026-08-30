@@ -109,6 +109,15 @@ namespace FinkFramework.Runtime.Environments
             Json        // 调试模式：运行时直接读取 JSON（不需要生成或使用 Binary）
         }
 
+        /// <summary>
+        /// C# 数据类输出位置。
+        /// </summary>
+        public enum CSharpOutputPathMode
+        {
+            Internal,   // 输出到 Assets 内部，Unity 会自动编译生成的代码
+            External    // 输出到 Assets 外部，不参与 Unity 脚本编译
+        }
+
         #endregion 
         
         #region 最终状态-自动计算最终环境状态

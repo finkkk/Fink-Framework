@@ -10,7 +10,15 @@ namespace FinkFramework.Editor.Modules.Data
     /// </summary>
     public static class BinaryExportTool
     {
+        /// <summary>
+        /// 导出二进制数据。保留原有公开签名，兼容已有调用方。
+        /// </summary>
         public static void ExportBinary(object container, string binaryPath)
+        {
+            TryExportBinary(container, binaryPath);
+        }
+
+        public static bool TryExportBinary(object container, string binaryPath)
         {
             try
             {
@@ -22,10 +30,12 @@ namespace FinkFramework.Editor.Modules.Data
 
                 string mode = GlobalSettingsRuntimeLoader.Current.EnableEncryption ? "加密二进制" : "二进制（明文）";
                 LogUtil.Success("DataBinaryTool", $"已生成 {mode} 数据：{binaryPath}");
+                return true;
             }
             catch (System.Exception ex)
             {
                 LogUtil.Error("DataBinaryTool", $"Binary 导出失败：{binaryPath} → {ex.Message}");
+                return false;
             }
         }
     }

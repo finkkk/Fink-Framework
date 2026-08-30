@@ -19,6 +19,9 @@ namespace FinkFramework.Runtime.Data
     /// </summary>
     public static class DataUtil
     {
+        // JSON 配置只读复用，避免每次读写数据时重复创建转换器。
+        private static readonly JsonSerializerSettings CachedJsonSettings = CreateJsonSettings();
+
         #region 数据存储
         
         /// <summary>
@@ -28,7 +31,7 @@ namespace FinkFramework.Runtime.Data
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
 
-            string ext = Path.GetExtension(path).ToLower();
+            string ext = Path.GetExtension(path).ToLowerInvariant();
 
             if (ext == ".json")
             {
@@ -89,7 +92,7 @@ namespace FinkFramework.Runtime.Data
         /// </summary>
         public static T Load<T>(string path)
         {
-            string ext = Path.GetExtension(path).ToLower();
+            string ext = Path.GetExtension(path).ToLowerInvariant();
 
             if (ext == ".json")
                 return LoadJson<T>(path);
@@ -98,6 +101,41 @@ namespace FinkFramework.Runtime.Data
                 return LoadEncrypted<T>(path);
 
             return LoadPlain<T>(path);
+        }
+
+        /// <summary>
+        /// 从内存字节加载对象。
+        /// 用于 Android / iOS 的 StreamingAssets URI，避免将 jar:file:// URI 交给 System.IO。
+        /// </summary>
+        public static T LoadFromBytes<T>(byte[] bytes, string extension)
+        {
+            try
+            {
+                if (bytes == null || bytes.Length == 0)
+                    return default;
+
+                string ext = extension ?? string.Empty;
+                if (!ext.StartsWith("."))
+                    ext = "." + ext;
+                ext = ext.ToLowerInvariant();
+
+                if (ext == ".json")
+                {
+                    // 兼容旧版本导出的 UTF-8 BOM JSON。
+                    string json = Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
+                    return JsonConvert.DeserializeObject<T>(json, GetJsonSettings());
+                }
+
+                if (GlobalSettingsRuntimeLoader.Current.EnableEncryption)
+                    bytes = AESDecrypt(bytes, GlobalSettingsRuntimeLoader.Current.Password);
+
+                return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary);
+            }
+            catch (Exception ex)
+            {
+                LogUtil.Error("DataUtil", $"从字节加载数据失败（扩展名：{extension}）：{ex.Message}");
+                return default;
+            }
         }
 
         /// <summary>
@@ -190,6 +228,11 @@ namespace FinkFramework.Runtime.Data
 
         private static JsonSerializerSettings GetJsonSettings()
         {
+            return CachedJsonSettings;
+        }
+
+        private static JsonSerializerSettings CreateJsonSettings()
+        {
             var settings = new JsonSerializerSettings
             {
                 Formatting = Formatting.Indented,
@@ -215,7 +258,6 @@ namespace FinkFramework.Runtime.Data
         #region AES加密解密
         
         // AES加密 盐值
-        // AES加密 盐值
         private static readonly byte[] Salt = Encoding.UTF8.GetBytes("Fink_AES_Salt");
         /// <summary>
         /// AES加密
@@ -223,7 +265,7 @@ namespace FinkFramework.Runtime.Data
         private static byte[] AESEncrypt(byte[] data, string password)
         {
             using Aes aes = Aes.Create();
-            var key = new Rfc2898DeriveBytes(password, Salt, 1000, HashAlgorithmName.SHA256);
+                using var key = new Rfc2898DeriveBytes(password, Salt, 1000, HashAlgorithmName.SHA256);
             aes.Key = key.GetBytes(32);
             aes.IV = key.GetBytes(16);
             aes.Padding = PaddingMode.PKCS7;
@@ -240,7 +282,7 @@ namespace FinkFramework.Runtime.Data
         private static byte[] AESDecrypt(byte[] data, string password)
         {
             using Aes aes = Aes.Create();
-            var key = new Rfc2898DeriveBytes(password, Salt, 1000, HashAlgorithmName.SHA256);
+            using var key = new Rfc2898DeriveBytes(password, Salt, 1000, HashAlgorithmName.SHA256);
             aes.Key = key.GetBytes(32);
             aes.IV = key.GetBytes(16);
             aes.Padding = PaddingMode.PKCS7;
