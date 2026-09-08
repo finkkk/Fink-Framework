@@ -106,12 +106,23 @@ namespace FinkFramework.Editor.Utils
                     return;
                 }
 
-                // 只有远端版本高于本地版本时才提示更新。
-                LogUtil.Warn(
-                    "版本更新检查",
-                    $"Fink Framework 有新版本！当前：{currentVersion} → 最新：{latestVersion}\n" +
-                    $"更新地址：{releaseUrl}"
-                );
+                string packageUrl = FindPackageUrl(data, latestVersion);
+                if (string.IsNullOrEmpty(packageUrl))
+                {
+                    LogUtil.Warn("版本更新检查",
+                        $"发现新版本 {latestVersion}，但该 Release 未提供 FinkFramework-v{latestVersion}.unitypackage。\n更新地址：{releaseUrl}");
+                    return;
+                }
+
+                if (isManual)
+                {
+                    EditorApplication.delayCall += () => ShowUpdateDialog(currentVersion, latestVersion, packageUrl);
+                }
+                else
+                {
+                    LogUtil.Warn("版本更新检查",
+                        $"Fink Framework 有新版本！当前：{currentVersion} → 最新：{latestVersion}\n请通过“立即检查更新”确认并安装。");
+                }
             }
             catch (TaskCanceledException)
             {
@@ -131,6 +142,50 @@ namespace FinkFramework.Editor.Utils
             finally
             {
                 _checking = false;
+            }
+        }
+
+        private static string FindPackageUrl(JObject release, string version)
+        {
+            string expectedName = $"FinkFramework-v{version}.unitypackage";
+            JArray assets = release["assets"] as JArray;
+            if (assets == null) return null;
+            foreach (JToken asset in assets)
+            {
+                string name = asset["name"]?.ToString();
+                if (string.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase))
+                    return asset["browser_download_url"]?.ToString();
+            }
+            return null;
+        }
+
+        private static void ShowUpdateDialog(string currentVersion, string latestVersion, string packageUrl)
+        {
+            bool confirmed = EditorUtility.DisplayDialog("Fink Framework 版本更新",
+                $"发现新版本：{currentVersion} → {latestVersion}\n\n" +
+                "更新会覆盖 Assets/FinkFramework 内的框架源码、Editor 工具、内置资源和插件文件。对这些文件的本地修改将会丢失；框架配置、数据文件和项目生成文件不会被修改。\n\n" +
+                "更新前会自动创建备份，更新失败将尝试恢复。",
+                "立即更新", "暂不更新");
+            if (confirmed) _ = DownloadAndUpdateAsync(packageUrl, latestVersion);
+        }
+
+        private static async Task DownloadAndUpdateAsync(string packageUrl, string version)
+        {
+            const string packagePath = "Library/FinkFrameworkUpdate.unitypackage";
+            try
+            {
+                LogUtil.Info("框架更新", "正在下载更新包...");
+                using var downloadClient = CreateHttpClient();
+                downloadClient.Timeout = TimeSpan.FromMinutes(10);
+                byte[] package = await downloadClient.GetByteArrayAsync(packageUrl);
+                if (package == null || package.Length == 0) throw new InvalidOperationException("下载的更新包为空。");
+                await System.IO.File.WriteAllBytesAsync(packagePath, package);
+                EditorApplication.delayCall += () => FrameworkPackageUpdater.Start(packagePath, version);
+            }
+            catch (Exception ex)
+            {
+                FrameworkPackageUpdater.DeleteDownloadedPackage(packagePath);
+                LogUtil.Error("框架更新", "下载更新包失败：" + ex.Message);
             }
         }
 

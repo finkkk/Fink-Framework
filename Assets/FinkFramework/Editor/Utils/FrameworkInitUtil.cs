@@ -1,5 +1,5 @@
 using System.IO;
-using FinkFramework.Editor.Windows;
+using FinkFramework.Editor.Modules.Framework;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -55,6 +55,7 @@ namespace FinkFramework.Editor.Utils
 
             string dataTables = Path.Combine(root, "DataTables");
             string autoExport = Path.Combine(root, "AutoExport");
+            string localizationSource = Path.Combine(root, "Localization");
 
             bool created = false;
 
@@ -67,6 +68,12 @@ namespace FinkFramework.Editor.Utils
             if (!Directory.Exists(autoExport))
             {
                 Directory.CreateDirectory(autoExport);
+                created = true;
+            }
+
+            if (!Directory.Exists(localizationSource))
+            {
+                Directory.CreateDirectory(localizationSource);
                 created = true;
             }
 
@@ -86,6 +93,10 @@ DataTables/
 AutoExport/
 - 工具自动生成的数据（JSON / Binary）
 - 内容可能被清空或覆盖
+
+Localization/
+- 本地化语言表源文件（用户手写/编辑器维护）
+- 保存语言表时会自动同步到 Assets/StreamingAssets
 
 请勿手动修改 AutoExport 内文件。
 ");

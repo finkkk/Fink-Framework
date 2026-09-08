@@ -1,5 +1,5 @@
 ﻿using FinkFramework.Editor.Utils;
-using FinkFramework.Editor.Windows.Common;
+using FinkFramework.Editor.Common;
 using UnityEditor;
 using UnityEngine;
 

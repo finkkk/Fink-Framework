@@ -14,6 +14,13 @@ namespace FinkFramework.Editor.Utils
     /// </summary>
     public static class ProjectStatUtil
     {
+        // Console 使用低饱和配色，保证暗色主题下层级清晰而不刺眼。
+        private const string ConsoleReportTitleColor = "#B9C2C8";
+        private const string ConsoleSectionTitleColor = "#3D8747";
+        private const string ConsoleLabelColor = "#9AA7AD";
+        private const string ConsoleValueColor = "#D7DCDE";
+        private const string ConsoleSeparatorColor = "#66717A";
+
         public class StatOptions
         {
             #region ===== 项目统计选项 =====
@@ -142,12 +149,32 @@ namespace FinkFramework.Editor.Utils
 
         #region 数据统计部分
         
+        /// <summary>
+        /// 生成纯文本统计报告，用于导出到文件。
+        /// </summary>
         public static string GenerateReport(StatOptions options)
+        {
+            return GenerateReport(options, false);
+        }
+
+        /// <summary>
+        /// 生成带 Console 富文本标题的统计报告。
+        /// 仅用于 Unity Console，不应直接写入纯文本归档文件。
+        /// </summary>
+        public static string GenerateConsoleReport(StatOptions options)
+        {
+            return GenerateReport(options, true);
+        }
+
+        private static string GenerateReport(StatOptions options, bool useRichText)
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.AppendLine("========== 项目统计数据 ==========\n");
-            sb.AppendLine($"[统计时间]\n{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine(FormatReportTitle(useRichText));
+            sb.AppendLine();
+            string timeSectionTitle = FormatSectionTitle("统计时间", useRichText);
+            sb.AppendLine(timeSectionTitle);
+            AppendStatValue(sb, System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), useRichText);
             sb.AppendLine();
             
             // 一次性枚举
@@ -158,20 +185,69 @@ namespace FinkFramework.Editor.Utils
             );
 
             if (options.countCode)
-                AppendCodeStats(sb, options, allFiles);
+                AppendCodeStats(sb, options, allFiles, useRichText);
 
-            AppendAssetStats(sb, options,allFiles);
+            AppendAssetStats(sb, options, allFiles, useRichText);
 
-            sb.AppendLine("==============================");
+            sb.AppendLine(FormatSeparator(useRichText));
             return sb.ToString();
         }
 
-        private static void AppendCodeStats(StringBuilder sb, StatOptions options, string[] allFiles)
+        private static string FormatReportTitle(bool useRichText)
+        {
+            const string title = "========== 项目统计数据 ==========";
+            return useRichText
+                ? $"<color={ConsoleReportTitleColor}><b>{title}</b></color>"
+                : title;
+        }
+
+        private static string FormatSectionTitle(string title, bool useRichText)
+        {
+            string plainTitle = $"[{title}]";
+            return useRichText
+                ? $"<color={ConsoleSectionTitleColor}><b>{plainTitle}</b></color>"
+                : plainTitle;
+        }
+
+        private static string FormatSeparator(bool useRichText)
+        {
+            const string separator = "==============================";
+            return useRichText
+                ? $"<color={ConsoleSeparatorColor}>{separator}</color>"
+                : separator;
+        }
+
+        private static void AppendStatValue(StringBuilder sb, string value, bool useRichText)
+        {
+            sb.AppendLine(
+                useRichText
+                    ? $"  <color={ConsoleValueColor}>{value}</color>"
+                    : $"  {value}");
+        }
+
+        private static void AppendStatLine(
+            StringBuilder sb,
+            string label,
+            object value,
+            bool useRichText)
+        {
+            string valueText = value?.ToString() ?? string.Empty;
+            sb.AppendLine(
+                useRichText
+                    ? $"  <color={ConsoleLabelColor}>{label}：</color><color={ConsoleValueColor}>{valueText}</color>"
+                    : $"  {label}：{valueText}");
+        }
+
+        private static void AppendCodeStats(
+            StringBuilder sb,
+            StatOptions options,
+            string[] allFiles,
+            bool useRichText)
         {
             if (!options.countCode)
                 return;
 
-            sb.AppendLine("[代码统计]");
+            sb.AppendLine(FormatSectionTitle("代码统计", useRichText));
 
             string codeRoot = options.onlyTargetScriptFolder
                 ? Path.Combine(Application.dataPath, options.scriptFolderPath)
@@ -194,15 +270,19 @@ namespace FinkFramework.Editor.Utils
                     shaderLines += File.ReadLines(file).Count();
             }
 
-            sb.AppendLine($"  C# 行数：{csLines}");
+            AppendStatLine(sb, "C# 行数", csLines, useRichText);
 
             if (options.countShader)
-                sb.AppendLine($"  Shader 行数：{shaderLines}");
+                AppendStatLine(sb, "Shader 行数", shaderLines, useRichText);
 
             sb.AppendLine();
         }
 
-        private static void AppendAssetStats(StringBuilder sb, StatOptions options, string[] allFiles)
+        private static void AppendAssetStats(
+            StringBuilder sb,
+            StatOptions options,
+            string[] allFiles,
+            bool useRichText)
         {
             bool hasAssetContent =
                 options.countMaterial ||
@@ -217,30 +297,30 @@ namespace FinkFramework.Editor.Utils
             if (!hasAssetContent)
                 return;
 
-            sb.AppendLine("[资产统计]");
+            sb.AppendLine(FormatSectionTitle("资产统计", useRichText));
 
             if (options.countMaterial)
-                sb.AppendLine($"  材质：{allFiles.Count(f => f.EndsWith(".mat"))}");
+                AppendStatLine(sb, "材质", allFiles.Count(f => f.EndsWith(".mat")), useRichText);
 
             if (options.countModel)
-                sb.AppendLine($"  模型：{allFiles.Count(f => f.EndsWith(".fbx") || f.EndsWith(".obj") || f.EndsWith(".glb"))}");
+                AppendStatLine(sb, "模型", allFiles.Count(f => f.EndsWith(".fbx") || f.EndsWith(".obj") || f.EndsWith(".glb")), useRichText);
 
             if (options.countAudio)
-                sb.AppendLine($"  音频：{allFiles.Count(f => f.EndsWith(".wav") || f.EndsWith(".mp3") || f.EndsWith(".ogg"))}");
+                AppendStatLine(sb, "音频", allFiles.Count(f => f.EndsWith(".wav") || f.EndsWith(".mp3") || f.EndsWith(".ogg")), useRichText);
 
             if (options.countPrefab)
-                sb.AppendLine($"  Prefab：{allFiles.Count(f => f.EndsWith(".prefab"))}");
+                AppendStatLine(sb, "Prefab", allFiles.Count(f => f.EndsWith(".prefab")), useRichText);
 
             if (options.countScene)
-                sb.AppendLine($"  场景：{allFiles.Count(f => f.EndsWith(".unity"))}");
+                AppendStatLine(sb, "场景", allFiles.Count(f => f.EndsWith(".unity")), useRichText);
             
             if (options.countTexture) 
-                sb.AppendLine($"  图片/纹理：{allFiles.Count(f => f.EndsWith(".png") || f.EndsWith(".jpg") || f.EndsWith(".jpeg") || f.EndsWith(".tga") || f.EndsWith(".psd") || f.EndsWith(".exr") || f.EndsWith(".hdr"))}");
+                AppendStatLine(sb, "图片/纹理", allFiles.Count(f => f.EndsWith(".png") || f.EndsWith(".jpg") || f.EndsWith(".jpeg") || f.EndsWith(".tga") || f.EndsWith(".psd") || f.EndsWith(".exr") || f.EndsWith(".hdr")), useRichText);
             
             if (options.countAddressables)
             {
                 string[] guids = AssetDatabase.FindAssets("t:AddressableAssetGroup");
-                sb.AppendLine($"  Addressables 组：{guids.Length}");
+                AppendStatLine(sb, "Addressables 组", guids.Length, useRichText);
             }
 
             if (options.countAssetBundle)
@@ -252,7 +332,7 @@ namespace FinkFramework.Editor.Utils
                     return importer && !string.IsNullOrEmpty(importer.assetBundleName);
                 });
 
-                sb.AppendLine($"  AssetBundle 资源：{abCount}");
+                AppendStatLine(sb, "AssetBundle 资源", abCount, useRichText);
             }
 
             sb.AppendLine();

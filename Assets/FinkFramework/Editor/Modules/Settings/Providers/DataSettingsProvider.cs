@@ -1,6 +1,6 @@
 ﻿using System;
 using FinkFramework.Editor.Modules.Settings.Loaders;
-using FinkFramework.Editor.Windows.Common;
+using FinkFramework.Editor.Common;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
@@ -160,17 +160,17 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             if (!asset.UseCustomInternalCSharpOutputPath)
                 return false;
 
-            string internalSuffix = GetInternalPathSuffix(internalPathDraft);
+            string internalSuffix = NormalizePathSuffix(internalPathDraft);
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("内部输出目录", GUILayout.Width(90));
-            EditorGUILayout.LabelField("Assets/", GUILayout.Width(48));
+            EditorGUILayout.LabelField("数据脚本生成路径：", GUILayout.Width(125));
+            GUILayout.Space(12f);
+            GUILayout.Label("全局脚本根目录 /", GUILayout.ExpandWidth(false));
             internalSuffix = EditorGUILayout.TextField(internalSuffix);
             internalSuffix = NormalizePathSuffix(internalSuffix);
-            internalPathDraft = $"Assets/{internalSuffix}";
+            internalPathDraft = internalSuffix;
 
-            bool pathIsValid = DataPipelinePath.TryValidateCSharpOutputPath(
+            bool pathIsValid = DataPipelinePath.TryValidateInternalCSharpOutputSuffix(
                 internalPathDraft,
-                true,
                 out string pathError);
             DrawResetButton(true);
             DrawApplyButton(true, pathIsValid);
@@ -215,7 +215,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUI.FocusControl(null);
             if (isInternal)
-                internalPathDraft = DataPipelinePath.GetDefaultCSharpOutputPath(true);
+                internalPathDraft = DataPipelinePath.GetDefaultInternalCSharpOutputSuffix();
             else
                 externalPathDraft = DataPipelinePath.GetDefaultCSharpOutputPath(false);
 
@@ -229,7 +229,9 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 return;
 
             // 进入面板或重新创建配置时，从已保存配置初始化输入框草稿。
-            internalPathDraft = asset.InternalCSharpOutputPath;
+            internalPathDraft = string.IsNullOrWhiteSpace(asset.InternalCSharpOutputSuffix)
+                ? DataPipelinePath.GetDefaultInternalCSharpOutputSuffix()
+                : NormalizePathSuffix(asset.InternalCSharpOutputSuffix);
             externalPathDraft = asset.ExternalCSharpOutputPath;
             draftsInitialized = true;
         }
@@ -239,10 +241,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             // 应用前再次校验，避免其他代码绕过按钮状态直接提交非法路径。
             if (isInternal)
             {
-                if (!DataPipelinePath.TryValidateCSharpOutputPath(internalPathDraft, true, out _))
+                if (!DataPipelinePath.TryValidateInternalCSharpOutputSuffix(internalPathDraft, out _))
                     return;
 
-                asset.InternalCSharpOutputPath = NormalizeInternalPath(internalPathDraft);
+                asset.InternalCSharpOutputSuffix = NormalizePathSuffix(internalPathDraft);
             }
             else
             {
@@ -260,7 +262,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         {
             return isInternal
                 ? asset.UseCustomInternalCSharpOutputPath &&
-                  internalPathDraft != asset.InternalCSharpOutputPath
+                  internalPathDraft != asset.InternalCSharpOutputSuffix
                 : asset.UseCustomExternalCSharpOutputPath &&
                   externalPathDraft != asset.ExternalCSharpOutputPath;
         }
@@ -281,29 +283,11 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             EditorGUILayout.LabelField(path, FFEditorStyles.Description);
         }
 
-        private static string GetInternalPathSuffix(string path)
-        {
-            string normalizedPath = string.IsNullOrWhiteSpace(path)
-                ? string.Empty
-                : path.Trim().Replace('\\', '/');
-
-            const string assetsPrefix = "Assets/";
-            return normalizedPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)
-                ? normalizedPath.Substring(assetsPrefix.Length)
-                : string.Empty;
-        }
-
         private static string NormalizePathSuffix(string suffix)
         {
             return string.IsNullOrWhiteSpace(suffix)
                 ? string.Empty
                 : suffix.Trim().Replace('\\', '/').Trim('/');
-        }
-
-        private static string NormalizeInternalPath(string path)
-        {
-            string suffix = NormalizePathSuffix(GetInternalPathSuffix(path));
-            return $"Assets/{suffix}";
         }
 
         private static string NormalizeProjectRelativePath(string path)

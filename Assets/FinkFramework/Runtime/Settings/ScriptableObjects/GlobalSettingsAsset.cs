@@ -39,6 +39,78 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         [Header("是否启用 编辑器加载 打包检测")]
         [Tooltip("若为 true，则在构建前扫描 C# 脚本，若存在 editor:// 路径，将阻止打包。")]
         public bool EnableEditorUrlCheck = true;
+
+        [Header("全局脚本目录")]
+        [Tooltip("所有框架脚本生成器使用的 Assets 下相对目录。固定以 Assets/ 开头，默认填写 Scripts，最终路径为 Assets/Scripts。")]
+        public string ScriptRootDirectory = DefaultScriptRootDirectory;
+
+        /// <summary>
+        /// 全局脚本根目录的默认值。该目录是 Assets 后面的相对部分。
+        /// </summary>
+        public const string DefaultScriptRootDirectory = "Scripts";
+
+        /// <summary>
+        /// 将配置中的脚本根目录规范化为 Assets 后的相对路径。
+        /// </summary>
+        public static string NormalizeScriptRootDirectory(string value)
+        {
+            return TryNormalizeScriptRootDirectory(value, out string normalized, out _)
+                ? normalized
+                : DefaultScriptRootDirectory;
+        }
+
+        /// <summary>
+        /// 校验并规范化全局脚本根目录。
+        /// </summary>
+        public static bool TryNormalizeScriptRootDirectory(
+            string value,
+            out string normalized,
+            out string error)
+        {
+            normalized = string.Empty;
+            error = string.Empty;
+
+            string raw = (value ?? string.Empty).Trim().Replace('\\', '/');
+            if (raw.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring("Assets/".Length);
+            else if (string.Equals(raw, "Assets", System.StringComparison.OrdinalIgnoreCase))
+                raw = string.Empty;
+
+            raw = raw.Trim('/');
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                error = "脚本根目录不能为空，请填写 Assets/ 后面的目录，例如 Scripts。";
+                return false;
+            }
+
+            if (System.IO.Path.IsPathRooted(raw) || raw.StartsWith("/", System.StringComparison.Ordinal))
+            {
+                error = "这里只能填写 Assets/ 后面的相对目录，不能填写绝对路径。";
+                return false;
+            }
+
+            string[] segments = raw.Split('/');
+            for (int i = 0; i < segments.Length; i++)
+            {
+                string segment = segments[i].Trim();
+                if (string.IsNullOrWhiteSpace(segment) || segment == "." || segment == "..")
+                {
+                    error = "脚本根目录不能包含空目录、. 或 ..。";
+                    return false;
+                }
+
+                if (segment.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
+                {
+                    error = $"脚本根目录包含非法目录名：{segment}";
+                    return false;
+                }
+
+                segments[i] = segment;
+            }
+
+            normalized = string.Join("/", segments);
+            return true;
+        }
         
         #endregion
         
@@ -81,9 +153,9 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         [Tooltip("关闭后使用外部默认路径；再次启用时保留之前填写的路径。")]
         public bool UseCustomExternalCSharpOutputPath = false;
 
-        [Header("内部 C# 输出路径")]
-        [Tooltip("项目相对路径，必须位于 Assets 目录内。编辑器面板只允许修改 Assets/ 后的部分。默认：Assets/Scripts/Data/AutoGen/DataClass")]
-        public string InternalCSharpOutputPath = "Assets/Scripts/Data/AutoGen/DataClass";
+        [Header("内部 C# 输出后缀路径")]
+        [Tooltip("全局脚本根目录后的模块相对路径。未启用自定义路径时使用 Data/AutoGen/DataClass。")]
+        public string InternalCSharpOutputSuffix = "Data/AutoGen/DataClass";
 
         [Header("外部 C# 输出路径")]
         [Tooltip("项目相对路径，不能位于 Assets 目录内。默认：FinkFramework_Data/AutoGen/DataClass")]

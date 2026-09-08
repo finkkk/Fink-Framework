@@ -1,5 +1,5 @@
 ﻿using FinkFramework.Editor.Modules.Settings.Loaders;
-using FinkFramework.Editor.Windows.Common;
+using FinkFramework.Editor.Common;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;

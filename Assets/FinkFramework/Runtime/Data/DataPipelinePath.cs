@@ -13,7 +13,7 @@ namespace FinkFramework.Runtime.Data
     ///
     /// 路径约定：
     /// - Excel 源数据：       项目根目录/FinkFramework_Data/DataTables
-    /// - C# 内部默认路径：    Assets/Scripts/Data/AutoGen/DataClass
+    /// - C# 内部默认路径：    Assets/{全局脚本根目录}/Data/AutoGen/DataClass
     /// - C# 外部默认路径：    项目根目录/FinkFramework_Data/AutoGen/DataClass
     /// - JSON 编辑器快照：    项目根目录/FinkFramework_Data/AutoExport/DataJson
     /// - JSON 运行时文件：    Assets/StreamingAssets/FinkFramework_Data/DataJson
@@ -23,7 +23,7 @@ namespace FinkFramework.Runtime.Data
     /// </summary>
     public static class DataPipelinePath
     {
-        private const string DefaultInternalCSharpOutputPath = "Assets/Scripts/Data/AutoGen/DataClass";
+        private const string DefaultInternalCSharpOutputSuffix = "Data/AutoGen/DataClass";
         private const string DefaultExternalCSharpOutputPath = "FinkFramework_Data/AutoGen/DataClass";
         private static string _lastInvalidCSharpConfiguration;
 
@@ -33,8 +33,11 @@ namespace FinkFramework.Runtime.Data
         // 外部数据根目录（JSON / Binary 路径）
         public static readonly string ExternalAutoExportRoot = Path.Combine(ProjectRoot, "FinkFramework_Data/AutoExport");
 
-        // 兼容旧 API：内部 C# 根目录。最终输出请使用 CSharpRoot。
-        public static readonly string InternalCSharpRoot = Path.Combine(Application.dataPath, "Scripts/Data/AutoGen");
+        // 内部 C# 根目录。最终输出请使用 CSharpRoot。
+        public static string InternalCSharpRoot => Path.Combine(
+            Application.dataPath,
+            GlobalSettingsRuntimeLoader.ScriptRootDirectory,
+            "Data/AutoGen");
         
         // 内部数据根目录（JSON / Binary 路径）
         public static readonly string InternalStreamingRoot = Path.Combine(Application.streamingAssetsPath, "FinkFramework_Data");
@@ -69,9 +72,63 @@ namespace FinkFramework.Runtime.Data
         /// <param name="isInternal">true 表示 Assets 内部路径，false 表示项目外部路径。</param>
         public static string GetDefaultCSharpOutputPath(bool isInternal)
         {
-            return isInternal
-                ? DefaultInternalCSharpOutputPath
-                : DefaultExternalCSharpOutputPath;
+            if (!isInternal)
+                return DefaultExternalCSharpOutputPath;
+
+            return GetInternalCSharpOutputPath(DefaultInternalCSharpOutputSuffix);
+        }
+
+        /// <summary>
+        /// 获取数据管线默认的模块后缀路径，不包含 Assets 和全局脚本根目录。
+        /// </summary>
+        public static string GetDefaultInternalCSharpOutputSuffix()
+        {
+            return DefaultInternalCSharpOutputSuffix;
+        }
+
+        /// <summary>
+        /// 将数据管线模块的后缀路径拼接到全局脚本根目录后。
+        /// </summary>
+        public static string GetInternalCSharpOutputPath(string outputSuffix)
+        {
+            string suffix = (outputSuffix ?? string.Empty).Trim().Replace('\\', '/').Trim('/');
+            return PathUtil.NormalizePath(
+                $"Assets/{GlobalSettingsRuntimeLoader.ScriptRootDirectory}/{suffix}");
+        }
+
+        /// <summary>
+        /// 校验数据管线内部 C# 输出后缀路径。
+        /// </summary>
+        public static bool TryValidateInternalCSharpOutputSuffix(
+            string outputSuffix,
+            out string error)
+        {
+            if (string.IsNullOrWhiteSpace(outputSuffix))
+            {
+                error = "内部 C# 输出后缀路径不能为空。";
+                return false;
+            }
+
+            string rawSuffix = outputSuffix.Trim().Replace('\\', '/').Trim('/');
+            if (string.Equals(rawSuffix, "Assets", StringComparison.OrdinalIgnoreCase)
+                || rawSuffix.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    rawSuffix,
+                    GlobalSettingsRuntimeLoader.ScriptRootDirectory,
+                    StringComparison.OrdinalIgnoreCase)
+                || rawSuffix.StartsWith(
+                    GlobalSettingsRuntimeLoader.ScriptRootDirectory + "/",
+                    StringComparison.OrdinalIgnoreCase)
+                || Path.IsPathRooted(rawSuffix))
+            {
+                error = "这里只能填写全局脚本根目录后的模块路径，不要重复填写 Assets 或全局根目录。";
+                return false;
+            }
+
+            return TryValidateCSharpOutputPath(
+                GetInternalCSharpOutputPath(rawSuffix),
+                true,
+                out error);
         }
 
         /// <summary>
@@ -91,7 +148,7 @@ namespace FinkFramework.Runtime.Data
                 {
                     configuredPath = useExternal
                         ? settings.ExternalCSharpOutputPath
-                        : settings.InternalCSharpOutputPath;
+                        : GetInternalCSharpOutputPath(settings.InternalCSharpOutputSuffix);
                 }
                 string defaultPath = GetDefaultCSharpOutputPath(!useExternal);
 

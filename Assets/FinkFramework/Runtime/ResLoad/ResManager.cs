@@ -39,17 +39,27 @@ namespace FinkFramework.Runtime.ResLoad
             AddProvider("http", new WebProvider());
             AddProvider("https", new WebProvider());
             
-            // 注册 AssetBundle 加载模块
-            if (GlobalSettingsRuntimeLoader.Current.ResourceBackend == EnvironmentState.ResourceBackendType.AssetBundle)
+            // 注册 AssetBundle / Addressables 加载模块。
+            // 全局配置首次导入或被移除时允许资源管理器先以基础 Provider 工作，
+            // 避免直接访问空配置导致整个本地化初始化链抛出 NullReferenceException。
+            if (!GlobalSettingsRuntimeLoader.TryGet(out var globalSettings))
             {
-                var settings = GlobalSettingsRuntimeLoader.Current.AssetBundleSettings;
+                LogUtil.Warn(
+                    "FinkFramework",
+                    "未加载到外部 GlobalSettingsAsset，已跳过 AssetBundle/Addressables Provider 注册。"
+                    + "请确认 Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/Global/GlobalSettingsAsset.asset"
+                    + " 已被 Unity 导入。");
+            }
+            else if (globalSettings.ResourceBackend == EnvironmentState.ResourceBackendType.AssetBundle)
+            {
+                var settings = globalSettings.AssetBundleSettings;
                 var provider = new ABProvider();
                 provider.Initialize(settings);
                 AddProvider("ab", provider);
             }
             // 注册 addressables 加载模块
 #if ENABLE_ADDRESSABLES
-            if (GlobalSettingsRuntimeLoader.Current.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
+            if (globalSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
             {
                 var addrProvider = new AddressablesProvider();
                 AddProvider("addr", addrProvider);

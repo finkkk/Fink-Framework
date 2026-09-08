@@ -1,0 +1,24 @@
+{
+    "schemaVersion": 1,
+    "generator": "Fink Framework",
+    "outputRoot": "Assets/Scripts/Data/AutoGen/DataClass",
+    "generatedAtUtc": "2026-08-31T10:24:41.8642555Z",
+    "files": [
+        {
+            "path": "SimpleTestData.cs",
+            "sha256": "f726934ee989bdc41ff23aaf98b31380b319e32a78c8790b92dc59845e6f37fd"
+        },
+        {
+            "path": "SimpleTestDataContainer.cs",
+            "sha256": "264d35527c0fbf39cd3bf0af98438940c2ae23067ee5a4b480dc4ce3f75a11a0"
+        },
+        {
+            "path": "TestData.cs",
+            "sha256": "c314981ec81e53b7e9cd664fca976201ada136bc0bb4b55ad6ff19c01bdbaf61"
+        },
+        {
+            "path": "TestDataContainer.cs",
+            "sha256": "35d236df55250206bcb06c1c837ee1506567e3dd5995c1a8d459179b26919212"
+        }
+    ]
+}

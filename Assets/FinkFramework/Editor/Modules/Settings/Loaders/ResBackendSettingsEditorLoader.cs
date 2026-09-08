@@ -6,7 +6,7 @@ namespace FinkFramework.Editor.Modules.Settings.Loaders
 {
     public static class ResBackendSettingsEditorLoader
     {
-         private const string BaseDir = "Assets/FinkFramework/Runtime/Resources/FinkFramework/Settings/ResBackends";
+         private const string BaseDir = "Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/ResBackends";
 
          public static AssetBundleBackendSettingsAsset GetOrCreateAssetBundleSettings(GlobalSettingsAsset global)
          {
@@ -62,7 +62,7 @@ namespace FinkFramework.Editor.Modules.Settings.Loaders
              if (!AssetDatabase.IsValidFolder(BaseDir))
              {
                  AssetDatabase.CreateFolder(
-                     "Assets/FinkFramework/Runtime/Resources/FinkFramework/Settings",
+                     "Assets/FinkFramework_Assets/Resources/FinkFramework/Settings",
                      "ResBackends");
              }
          }

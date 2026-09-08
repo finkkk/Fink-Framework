@@ -1,5 +1,5 @@
 ﻿using FinkFramework.Editor.Modules.Settings.Loaders;
-using FinkFramework.Editor.Windows.Common;
+using FinkFramework.Editor.Common;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;
@@ -10,6 +10,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
     public class FrameworkSettingsProvider : SettingsProvider
     {
         private GlobalSettingsAsset asset;
+        private string scriptRootDirectoryDraft;
 
         public FrameworkSettingsProvider(string path, SettingsScope scope)
             : base(path, scope) { }
@@ -17,8 +18,9 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         [SettingsProvider]
         public static SettingsProvider CreateProvider()
         {
-            return new FrameworkSettingsProvider("Project/Fink Framework/Framework", SettingsScope.Project)
+            return new FrameworkSettingsProvider("Project/Fink Framework/00 Framework", SettingsScope.Project)
             {
+                label = "Framework",
                 keywords = new[] { "Fink", "Framework", "Framework", "Setting" }
             };
         }
@@ -26,6 +28,8 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
             asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            scriptRootDirectoryDraft = GlobalSettingsAsset.NormalizeScriptRootDirectory(
+                asset.ScriptRootDirectory);
         }
 
         public override void OnGUI(string searchContext)
@@ -52,6 +56,9 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             EditorGUILayout.LabelField(
                 "控制框架的全局设置，包括 XR、输入系统、渲染管线和版本更新等基础框架设置。",
                 FFEditorStyles.Description);
+            GUILayout.Space(12);
+
+            DrawScriptRootDirectorySettings();
             GUILayout.Space(12);
 
             // ===== 主区域 =====
@@ -140,6 +147,45 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 EditorUtility.SetDirty(asset);
                 AssetDatabase.SaveAssets();
             }
+        }
+
+        /// <summary>
+        /// 绘制所有脚本生成器共用的 Assets 下脚本根目录。
+        /// Assets/ 前缀固定显示，不允许被配置改掉。
+        /// </summary>
+        private void DrawScriptRootDirectorySettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            EditorGUILayout.LabelField("代码生成设置", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("全局脚本根目录", GUILayout.Width(110f));
+            EditorGUILayout.LabelField("Assets/", GUILayout.Width(48f));
+            scriptRootDirectoryDraft = EditorGUILayout.TextField(scriptRootDirectoryDraft);
+            EditorGUILayout.EndHorizontal();
+
+            if (GlobalSettingsAsset.TryNormalizeScriptRootDirectory(
+                    scriptRootDirectoryDraft,
+                    out string normalized,
+                    out string error))
+            {
+                if (!string.Equals(asset.ScriptRootDirectory, normalized, System.StringComparison.Ordinal))
+                {
+                    asset.ScriptRootDirectory = normalized;
+                    GUI.changed = true;
+                }
+
+                EditorGUILayout.LabelField(
+                    $"所有框架生成脚本的默认根目录：Assets/{normalized}",
+                    FFEditorStyles.Description);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(error, MessageType.Error);
+            }
+
+            GUILayout.EndVertical();
         }
     }
 }
