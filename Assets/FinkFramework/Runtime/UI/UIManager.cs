@@ -1,1270 +1,1240 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using Cysharp.Threading.Tasks;
-using FinkFramework.Runtime.Environments;
-using FinkFramework.Runtime.ResLoad;
-using FinkFramework.Runtime.Settings.Loaders;
+using FinkFramework.Runtime.Input;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.UI.Base;
-using FinkFramework.Runtime.UI.Canva;
-using FinkFramework.Runtime.UI.Panel;
+using FinkFramework.Runtime.UI.Core;
+using FinkFramework.Runtime.UI.Input;
+using FinkFramework.Runtime.UI.Modal;
+using FinkFramework.Runtime.UI.Navigation;
+using FinkFramework.Runtime.UI.Surface;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
-using UnityEngine.Events;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
-
-// ReSharper disable HeuristicUnreachableCode
-// ReSharper disable SuspiciousTypeConversion.Global
-#if ENABLE_URP
-using UnityEngine.Rendering.Universal;
-#endif
 
 namespace FinkFramework.Runtime.UI
 {
     /// <summary>
-    /// Main 层级枚举 (即共享Canvas 一般用于VR项目中HUD或者非VR项目中固定位置UI使用)
+    /// UI 系统的唯一公共入口。
+    /// 对外提供简洁的同步/异步 API；加载、实例仓库和 Surface 注册由内部服务分别负责。
     /// </summary>
-    public enum E_MainLayer
+    public sealed partial class UIManager : Singleton<UIManager>
     {
-        /// <summary>
-        /// 最底层
-        /// </summary>
-        Bottom,
-        /// <summary>
-        /// 中层
-        /// </summary>
-        Middle,
-        /// <summary>
-        /// 高层
-        /// </summary>
-        Top,
-        /// <summary>
-        /// 系统层 最高层
-        /// </summary>
-        System,
-    }   
-    
-    /// <summary>
-    /// UI 面板管理器（UI 系统核心调度入口）
-    /// ------------------------------------------------------------
-    /// 负责 UI 面板的创建、显示、隐藏、销毁及生命周期管理。
-    /// 支持同步 / 异步加载、单画布 / 多画布模式，并提供参数化初始化能力。
-    ///
-    /// 设计约定：
-    /// - 面板预制体名称必须与面板脚本类名一致
-    /// - UIManager 仅负责调度与生命周期，不承载具体业务逻辑
-    /// </summary>
-    public class UIManager : Singleton<UIManager>
-    {
-        #region 常量定义
-        private const string PANEL_PATH = "UI/Panels/";
-        private const string BASE_PATH = "FinkFramework/UI/Base/";
-        private const string DEFAULT_PREFIX = "Default";
-        #endregion
-        
-        #region 字段定义
-        // Main层级父对象
-        private readonly Transform bottomLayer;
-        private readonly Transform middleLayer;
-        private readonly Transform topLayer;
-        private readonly Transform systemLayer;
-        /// <summary>
-        /// 用于存储所有画布的所有的面板对象
-        /// </summary>
-        private readonly Dictionary<string, BasePanelInfo> panelDic = new();
-        // 主画布(在world space模式下一般用于HUD)
-        public readonly Canvas mainCanvas;
-        // UI Camera
-        public readonly Camera uiCamera;
-        #endregion
+        private readonly UIPanelRepository repository;
+        private readonly UIPanelLoader loader;
+        private readonly UISurfaceRegistry surfaces;
+        private readonly UINavigationController navigation;
+        private readonly UITransitionCoordinator transitions;
+        private readonly UIInputRouter inputRouter;
+        private readonly DeviceDetectionManager inputDeviceDetectionManager;
+        private readonly UIModalController modals;
+        private readonly UIInteractionController interactions;
+        private readonly UIModalBackdropController modalBackdrops;
+        private readonly UIRuntimeRoot runtimeRoot;
 
-        #region #region UI 管理器初始化
         private UIManager()
         {
-            // ======================
-            // 1. 创建 UI Camera（VR 项目不需要 UI Camera）
-            // ======================
-            if (!EnvironmentState.FinalIsVR)
+            repository = new UIPanelRepository();
+            loader = new UIPanelLoader();
+            surfaces = new UISurfaceRegistry();
+            navigation = new UINavigationController();
+            transitions = new UITransitionCoordinator();
+            modals = new UIModalController();
+            interactions = new UIInteractionController();
+            modalBackdrops = new UIModalBackdropController();
+            runtimeRoot = new UIRuntimeRoot();
+            surfaces.Register(runtimeRoot.MainSurface, true);
+            inputRouter = new UIInputRouter(HandleInputModeChanged);
+            inputDeviceDetectionManager = DeviceDetectionManager.Instance;
+            SceneManager.sceneUnloaded += HandleSceneUnloaded;
+
+            LogUtil.Success("UI", "UI 系统初始化完成。");
+        }
+
+        public Camera UICamera => runtimeRoot.Camera;
+        public Canvas MainCanvas => runtimeRoot.MainCanvas;
+        public UIInputMode InputMode => inputRouter.Mode;
+
+        /// <summary>面板状态发生变化时触发，适合调试工具和自动化测试订阅。</summary>
+        public event Action<UIPanelKey, UIPanelState> PanelStateChanged;
+
+        /// <summary>鼠标与键盘/手柄导航模式切换时触发。</summary>
+        public event Action<UIInputMode> InputModeChanged;
+
+        #region Preload
+
+        /// <summary>同步预加载默认 Surface 上的面板，不触发打开生命周期。</summary>
+        public T Preload<T>() where T : BasePanel => Preload<T>(UIOpenOptions.Default);
+
+        /// <summary>
+        /// 同步预加载面板。资源必须支持同步加载；面板会保持隐藏，后续 Open 可直接使用。
+        /// </summary>
+        public T Preload<T>(UIOpenOptions options) where T : BasePanel
+        {
+            options = options.Normalize();
+            if (!TryResolveSurface(options.SurfaceId, out UISurface surface))
+                return null;
+            if (!CanUseOptions(surface, options))
+                return null;
+
+            UIPanelKey key = BuildKey<T>(options);
+            if (repository.TryGet(key, out UIPanelRecord existing))
             {
-                uiCamera = Object.Instantiate(
-                    ResManager.Instance.Load<GameObject>($"res://{BASE_PATH}UICamera")
-                ).GetComponent<Camera>();
-
-                Object.DontDestroyOnLoad(uiCamera.gameObject);
-            }
-            
-            // ======================
-            // 2. 创建主 Canvas（VR = WorldSpace / 非 VR = ScreenSpaceCamera）
-            // ======================
-            mainCanvas = Object.Instantiate(ResManager.Instance.Load<GameObject>($"res://{BASE_PATH}MainCanvas")).GetComponent<Canvas>();
-            Object.DontDestroyOnLoad(mainCanvas.gameObject);
-
-            mainCanvas.renderMode = GlobalSettingsRuntimeLoader.Current.CurrentUIMode switch
-            {
-                EnvironmentState.UIMode.ScreenSpace => RenderMode.ScreenSpaceCamera,
-                EnvironmentState.UIMode.WorldSpace => RenderMode.WorldSpace,
-                EnvironmentState.UIMode.Auto => EnvironmentState.FinalIsVR
-                    ? RenderMode.WorldSpace
-                    : RenderMode.ScreenSpaceCamera,
-                _ => mainCanvas.renderMode
-            };
-
-            // 非 VR 模式绑定 UI Camera
-            if (!EnvironmentState.FinalIsVR)
-                mainCanvas.worldCamera = uiCamera;
-            else
-                mainCanvas.worldCamera = null; // VR 不使用 UI Camera
-
-            // ======================
-            // 3. URP CameraStack（非 VR 才用 UI Camera）
-            // ======================
-            if (!EnvironmentState.FinalIsVR && EnvironmentState.FinalUseURP)
-            {
-                SetupCameraStack();
-            }
-            
-            // ======================
-            // 4. EventSystem 选择逻辑（核心部分）
-            // ======================
-            if (!EventSystem.current)
-            {
-                string prefabName;
-
-                if (EnvironmentState.FinalIsVR)
+                if (existing.State == UIPanelState.Loading)
                 {
-                    prefabName = "EventSystem_XR";
-                }
-                else if (EnvironmentState.FinalUseNewInputSystem)
-                {
-                    prefabName = "EventSystem_New";
-                }
-                else
-                {
-                    prefabName = "EventSystem_Old";
-                }
-
-                var eventSystem = Object.Instantiate(
-                    ResManager.Instance.Load<GameObject>($"res://{BASE_PATH}{prefabName}")
-                );
-                Object.DontDestroyOnLoad(eventSystem);
-            }
-            // ======================
-            // 5. 获取主层级
-            // ======================
-            bottomLayer = mainCanvas.transform.Find("Bottom");
-            middleLayer = mainCanvas.transform.Find("Middle");
-            topLayer = mainCanvas.transform.Find("Top");
-            systemLayer = mainCanvas.transform.Find("System");
-            
-            LogUtil.Success("初始化完成");
-        }
-        
-        /// <summary>
-        /// 自动处理URP管线
-        /// </summary>
-        /// <summary>
-        /// 自动处理 URP camera stack
-        /// </summary>
-        private void SetupCameraStack()
-        {
-#if ENABLE_URP
-            var mainCam = Camera.main;
-            if (!mainCam || !uiCamera) return;
-
-            var mainData = mainCam.GetUniversalAdditionalCameraData();
-            var uiData = uiCamera.GetUniversalAdditionalCameraData();
-
-            uiData.renderType = CameraRenderType.Overlay;
-
-            if (!mainData.cameraStack.Contains(uiCamera))
-                mainData.cameraStack.Add(uiCamera);
-#endif
-        }
-        #endregion
-        
-        #region Key 生成逻辑统一封装
-        /// <summary>
-        /// 拼接面板Key
-        /// </summary>
-        /// <param name="uiRootType">仅在VR项目中使用 面板的根位置</param>
-        /// <param name="canvasId">画布id</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        private string BuildPanelKey<T>(E_UIRoot uiRootType, string canvasId)
-        {
-            return uiRootType != E_UIRoot.HUD ? $"{SceneManager.GetActiveScene().name}_{canvasId}_{typeof(T).Name}" : $"{DEFAULT_PREFIX}_{typeof(T).Name}";
-        }
-        #endregion
-
-        #region 主层级父节点获取
-        /// <summary>
-        /// 获取Main对应层级的父对象
-        /// </summary>
-        /// <param name="layer">层级枚举值</param>
-        /// <returns></returns>
-        public Transform GetMainLayerFather(E_MainLayer layer)
-        {
-            return layer switch
-            {
-                E_MainLayer.Bottom => bottomLayer,
-                E_MainLayer.Middle => middleLayer,
-                E_MainLayer.Top => topLayer,
-                E_MainLayer.System => systemLayer,
-                _ => null
-            };
-        }
-        #endregion
-
-        #region 同步显示面板 (支持参数初始化)
-        
-        /// <summary>
-        /// 关闭其他面板后 单独同步显示此面板 （支持参数初始化，单画布模式）
-        /// ------------------------------------------------------------
-        /// - 通过泛型参数向面板传递初始化数据
-        /// - 面板是否支持参数由其自身决定（IPanelParam 可选实现）
-        /// - 不影响无参数面板的既有行为
-        /// </summary> 
-        public T ShowExclusivePanel<T, TParam>(
-            TParam param,
-            string fullPath = null,
-            E_MainLayer layer = E_MainLayer.Middle,
-            bool destroyOthers = false
-        ) where T : BasePanel
-        {
-            HideAllPanels(destroyOthers);
-            return ShowPanel<T, TParam>(param, fullPath, layer);
-        }
-        
-        /// <summary>
-        /// 同步显示面板 （支持参数初始化，单画布模式）
-        /// ------------------------------------------------------------
-        /// - 通过泛型参数向面板传递初始化数据
-        /// - 面板是否支持参数由其自身决定（IPanelParam 可选实现）
-        /// - 不影响无参数面板的既有行为
-        /// </summary> 
-        public T ShowPanel<T, TParam>(TParam param, string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
-        {
-            return ShowPanelInternal<T, TParam>(
-                param,
-                fullPath,
-                layer,
-                E_UIRoot.HUD,
-                ""
-            );
-        }
-        
-        /// <summary>
-        /// 关闭其他面板后 单独同步显示此面板（支持参数初始化，多画布模式）
-        /// ------------------------------------------------------------
-        /// - 支持向面板传递初始化参数
-        /// - 参数注入早于面板生命周期方法
-        /// - 画布由 uiRootType + canvasId 决定
-        /// </summary>
-        public T ShowExclusivePanelMultiCanvas<T, TParam>(TParam param, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            HidePanelsInCanvas(uiRootType, canvasId);
-            return ShowPanelMultiCanvas<T, TParam>(param,  layer, uiRootType, canvasId, fullPath);
-        }
-        
-        /// <summary>
-        /// 同步显示面板（支持参数初始化，多画布模式）
-        /// ------------------------------------------------------------
-        /// - 支持向面板传递初始化参数
-        /// - 参数注入早于面板生命周期方法
-        /// - 画布由 uiRootType + canvasId 决定
-        /// </summary>
-        public T ShowPanelMultiCanvas<T, TParam>(TParam param, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            return ShowPanelInternal<T, TParam>(param, fullPath, layer, uiRootType, canvasId);
-        }
-        
-        /// <summary>
-        ///  内部同步显示面板通用逻辑 （支持参数初始化）
-        /// </summary>
-        private T ShowPanelInternal<T, TParam>(TParam param,string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId) where T : BasePanel
-        {
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
-
-            // ===== 面板已存在（缓存） ===== 
-            if (panelDic.TryGetValue(panelKey, out var baseInfo))
-            {
-                // 取出字典中已经占好位置的数据
-                var info = baseInfo as PanelInfo<T>;
-                // === 情况 1：已加载结束 === 
-                if (info.panel) // 已加载完成
-                {
-                    // 先注入参数
-                    if (info.panel is IPanelParam<TParam> rec)
-                        rec.SetParam(param);
-                    if (!info.panel.gameObject.activeSelf)
-                        info.panel.gameObject.SetActive(true);
-                    if (!info.isInit)
-                        info.panel.ShowMe();
-                    info.panel.OnShow();  
-                    return info.panel;
-                }
-                else
-                {
-                    // === 情况 2：正在异步加载 === 
-                    LogUtil.Error($"[UIManager] 面板 {typeof(T).Name} 正在异步加载中，无法同步加载！");
+                    LogUtil.Error(
+                        "UI",
+                        $"{key} 正在异步加载，不能用同步 Preload 等待它。请继续使用 PreloadAsync。");
                     return null;
                 }
+
+                if (existing.Panel)
+                    return PreparePreloadedPanel<T>(existing, surface, options);
+
+                RemoveBrokenRecord(existing);
             }
 
-            //  ===== 面板不存在 → 先在字典占位 ===== 
-            var newInfo = new PanelInfo<T> { isInit = false };
-            panelDic.Add(panelKey, newInfo);
-
-            //  ===== 同步加载 面板预制体 =====
-            // fullPath 如果不为空 = 用户完全自定义加载来源（例如 ab://、res://、remote://）
-            // 如果完整路径为空
-            if (string.IsNullOrEmpty(fullPath))
-            {
-                // 自动拼接路径（默认为res://UI/Panels/类名）
-                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
-            }
-            GameObject prefab = ResManager.Instance.Load<GameObject>(fullPath);
-            // 异步期间 ClearAllPanels / Destroy 面板 → 要提前退出
-            if (!panelDic.ContainsKey(panelKey))
+            string assetPath = loader.GetAssetPath<T>();
+            var record = new UIPanelRecord(
+                key,
+                assetPath,
+                options,
+                ResolveOwnerSceneHandle(surface, options.Lifetime));
+            if (!repository.Add(record))
                 return null;
-            if (!prefab)
-            {
-                panelDic.Remove(panelKey);
-                LogUtil.Error($"ShowPanelInternal 加载失败：{typeof(T).Name}");
-                return null;
-            }
 
-            // 异步期间被标记为隐藏
-            if (newInfo.isHide)
+            try
             {
-                panelDic.Remove(panelKey);
+                T panel = loader.Load<T>(assetPath, surface.GetRoot(options.Layer));
+                AttachLoadedPanel(record, panel);
+                return PreparePreloadedPanel<T>(record, surface, options);
+            }
+            catch (Exception exception)
+            {
+                FailRecord(record, exception);
                 return null;
             }
-            
-            // ==== 获取父节点 ====
-            Transform canvasRoot = uiRootType != E_UIRoot.HUD
-                ? CanvasManager.Instance.GetCanvasInfo(uiRootType, canvasId)?.panelParent
-                : GetMainLayerFather(layer);
+        }
 
-            if (!canvasRoot) canvasRoot = middleLayer;
+        /// <summary>异步预加载默认 Surface 上的面板，不触发打开生命周期。</summary>
+        public UniTask<T> PreloadAsync<T>(CancellationToken cancellationToken = default)
+            where T : BasePanel =>
+            PreloadAsync<T>(UIOpenOptions.Default, cancellationToken);
 
-            // ==== 实例化 ====
-            GameObject obj = Object.Instantiate(prefab, canvasRoot, false);
-            T panelCom = obj.GetComponent<T>();
+        /// <summary>
+        /// 异步预加载面板。调用方取消等待不会取消其他调用方共享的底层加载。
+        /// </summary>
+        public async UniTask<T> PreloadAsync<T>(
+            UIOpenOptions options,
+            CancellationToken cancellationToken = default)
+            where T : BasePanel
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            options = options.Normalize();
+            if (!TryResolveSurface(options.SurfaceId, out UISurface surface))
+                return null;
+            if (!CanUseOptions(surface, options))
+                return null;
 
-            newInfo.panel = panelCom;
-            newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
+            UIPanelKey key = BuildKey<T>(options);
+            if (!repository.TryGet(key, out var record))
+            {
+                string assetPath = loader.GetAssetPath<T>();
+                record = new UIPanelRecord(
+                    key,
+                    assetPath,
+                    options,
+                    ResolveOwnerSceneHandle(surface, options.Lifetime));
+                if (!repository.Add(record))
+                    return null;
 
-            // 先注入参数（关键）
-            if (panelCom is IPanelParam<TParam> receiver)
-                receiver.SetParam(param);
-            
-            // ==== 生命周期 ====
-            panelCom.ShowMe();
-            panelCom.OnShow();
-            newInfo.isInit = true;
+                record.LoadTask = LoadRecordAsync<T>(
+                    record,
+                    surface.GetRoot(options.Layer)).Preserve();
+            }
+            else if (record.State != UIPanelState.Loading && !record.Panel)
+            {
+                RemoveBrokenRecord(record);
+                return await PreloadAsync<T>(options, cancellationToken);
+            }
 
-            return panelCom;
+            if (record.State == UIPanelState.Loading
+                && !await record.LoadTask.AttachExternalCancellation(cancellationToken))
+                return null;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (record.Removed || !record.Panel)
+                return null;
+
+            return PreparePreloadedPanel<T>(record, surface, options);
+        }
+
+        private T PreparePreloadedPanel<T>(
+            UIPanelRecord record,
+            UISurface surface,
+            UIOpenOptions options)
+            where T : BasePanel
+        {
+            if (!(record.Panel is T panel) || !panel)
+            {
+                LogUtil.Error("UI", $"面板记录 {record.Key} 的实例类型与 {typeof(T).Name} 不一致。");
+                return null;
+            }
+
+            // 已显示的实例只保证“已经加载”，不能让预加载调用偷偷改变它的显示配置。
+            if (record.State != UIPanelState.Hidden)
+                return panel;
+
+            Transform targetRoot = surface.GetRoot(options.Layer);
+            if (targetRoot && panel.transform.parent != targetRoot)
+                panel.transform.SetParent(targetRoot, false);
+
+            record.Options = options;
+            record.OwnerSceneHandle = ResolveOwnerSceneHandle(surface, options.Lifetime);
+            panel.Context.Layer = options.Layer;
+            panel.gameObject.SetActive(false);
+            return panel;
         }
 
         #endregion
-        
-        #region 同步显示面板 (无参)
-        
-        /// <summary>
-        /// 关闭其他面板后 单独同步显示此面板 （单画布模式）
-        /// </summary>
-        public T ShowExclusivePanel<T>(
-            string fullPath = null,
-            E_MainLayer layer = E_MainLayer.Middle,
-            bool destroyOthers = false
-        ) where T : BasePanel
-        {
-            HideAllPanels(destroyOthers);
-            return ShowPanel<T>(fullPath, layer);
-        }
-        
-        /// <summary>
-        /// 同步显示面板 （单画布模式）
-        /// </summary>
-        public T ShowPanel<T>(string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
-        {
-            return ShowPanelInternal<T>(fullPath, layer, E_UIRoot.HUD, "");
-        }
-        
-        /// <summary>
-        /// 关闭同一 Canvas 下其他面板后 单独同步显示此面板（多画布模式）
-        /// </summary>
-        public T ShowExclusivePanelMultiCanvas<T>(
-            E_MainLayer layer = E_MainLayer.Middle,
-            E_UIRoot uiRootType = E_UIRoot.HUD,
-            string canvasId = "",
-            string fullPath = null,
-            bool destroyOthers = false
-        ) where T : BasePanel
-        {
-            HidePanelsInCanvas(uiRootType, canvasId, destroyOthers);
-            return ShowPanelMultiCanvas<T>(layer, uiRootType, canvasId, fullPath);
-        }
-        
-        /// <summary>
-        /// 同步显示面板 （多画布模式）
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public T ShowPanelMultiCanvas<T>(E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            return ShowPanelInternal<T>(fullPath, layer, uiRootType, canvasId);
-        }
-        
-        /// <summary>
-        /// 内部同步加载显示面板通用逻辑
-        /// </summary>
-        private T ShowPanelInternal<T>(string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId) where T : BasePanel
-        {
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
 
-            // ===== 面板已存在（缓存） ===== 
-            if (panelDic.TryGetValue(panelKey, out var baseInfo))
+        #region Open
+
+        /// <summary>同步打开默认 Surface 上的面板。</summary>
+        public T Open<T>() where T : BasePanel => Open<T>(UIOpenOptions.Default);
+
+        /// <summary>同步打开面板。资源必须能被底层 Provider 同步加载。</summary>
+        public T Open<T>(UIOpenOptions options) where T : BasePanel =>
+            OpenCore<T>(options.Normalize(), null);
+
+        /// <summary>同步打开并传入强类型参数。</summary>
+        public T Open<T, TArgs>(TArgs args) where T : BasePanel, IUIArgsReceiver<TArgs> =>
+            Open<T, TArgs>(args, UIOpenOptions.Default);
+
+        /// <summary>同步打开并传入强类型参数。</summary>
+        public T Open<T, TArgs>(TArgs args, UIOpenOptions options)
+            where T : BasePanel, IUIArgsReceiver<TArgs> =>
+            OpenCore<T>(options.Normalize(), panel => panel.ApplyArgs(args));
+
+        /// <summary>异步打开默认 Surface 上的面板。</summary>
+        public UniTask<T> OpenAsync<T>(CancellationToken cancellationToken = default)
+            where T : BasePanel =>
+            OpenAsync<T>(UIOpenOptions.Default, cancellationToken);
+
+        /// <summary>
+        /// 异步打开面板。首次打开会真正等待异步资源加载；已缓存的面板会立即完成。
+        /// </summary>
+        public UniTask<T> OpenAsync<T>(
+            UIOpenOptions options,
+            CancellationToken cancellationToken = default)
+            where T : BasePanel =>
+            OpenAsyncCore<T>(options.Normalize(), null, cancellationToken);
+
+        /// <summary>异步打开并传入强类型参数。</summary>
+        public UniTask<T> OpenAsync<T, TArgs>(
+            TArgs args,
+            CancellationToken cancellationToken = default)
+            where T : BasePanel, IUIArgsReceiver<TArgs> =>
+            OpenAsync<T, TArgs>(args, UIOpenOptions.Default, cancellationToken);
+
+        /// <summary>异步打开并传入强类型参数。</summary>
+        public UniTask<T> OpenAsync<T, TArgs>(
+            TArgs args,
+            UIOpenOptions options,
+            CancellationToken cancellationToken = default)
+            where T : BasePanel, IUIArgsReceiver<TArgs> =>
+            OpenAsyncCore<T>(
+                options.Normalize(),
+                panel => panel.ApplyArgs(args),
+                cancellationToken);
+
+        private T OpenCore<T>(UIOpenOptions options, Action<T> applyArgs) where T : BasePanel
+        {
+            if (!TryResolveSurface(options.SurfaceId, out UISurface surface))
+                return null;
+            if (!CanUseOptions(surface, options))
+                return null;
+            if (!CanOpen(options))
+                return null;
+
+            UIPanelKey key = BuildKey<T>(options);
+            if (repository.TryGet(key, out UIPanelRecord existing))
             {
-                // 取出字典中已经占好位置的数据
-                var info = baseInfo as PanelInfo<T>;
-                // === 情况 1：已加载结束 === 
-                if (info.panel) // 已加载完成
+                if (existing.State == UIPanelState.Loading)
                 {
-                    if (!info.panel.gameObject.activeSelf)
-                        info.panel.gameObject.SetActive(true);
-                    if (!info.isInit)
-                        info.panel.ShowMe();
-                    info.panel.OnShow();  
-                    return info.panel;
-                }
-                else
-                {
-                    // === 情况 2：正在异步加载 === 
-                    LogUtil.Error($"[UIManager] 面板 {typeof(T).Name} 正在异步加载中，无法同步加载！");
+                    LogUtil.Error(
+                        "UI",
+                        $"{key} 正在异步加载，不能用同步 Open 等待它。请继续使用 OpenAsync。");
                     return null;
                 }
+
+                if (existing.Panel)
+                    return Present(existing, surface, options, applyArgs);
+
+                RemoveBrokenRecord(existing);
             }
 
-            //  ===== 面板不存在 → 先在字典占位 ===== 
-            var newInfo = new PanelInfo<T> { isInit = false };
-            panelDic.Add(panelKey, newInfo);
-
-            //  ===== 同步加载 面板预制体 =====
-            // fullPath 如果不为空 = 用户完全自定义加载来源（例如 ab://、res://、remote://）
-            // 如果完整路径为空
-            if (string.IsNullOrEmpty(fullPath))
-            {
-                // 自动拼接路径（默认为res://UI/Panels/类名）
-                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
-            }
-            GameObject prefab = ResManager.Instance.Load<GameObject>(fullPath);
-            // 异步期间 ClearAllPanels / Destroy 面板 → 要提前退出
-            if (!panelDic.ContainsKey(panelKey))
+            string assetPath = loader.GetAssetPath<T>();
+            var record = new UIPanelRecord(
+                key,
+                assetPath,
+                options,
+                ResolveOwnerSceneHandle(surface, options.Lifetime));
+            if (!repository.Add(record))
                 return null;
-            if (!prefab)
-            {
-                panelDic.Remove(panelKey);
-                LogUtil.Error($"ShowPanelInternal 加载失败：{typeof(T).Name}");
-                return null;
-            }
 
-            // 异步期间被标记为隐藏
-            if (newInfo.isHide)
+            try
             {
-                panelDic.Remove(panelKey);
+                T panel = loader.Load<T>(assetPath, surface.GetRoot(options.Layer));
+                AttachLoadedPanel(record, panel);
+                return Present(record, surface, options, applyArgs);
+            }
+            catch (Exception exception)
+            {
+                FailRecord(record, exception);
                 return null;
             }
-            
-            // ==== 获取父节点 ====
-            Transform canvasRoot = uiRootType != E_UIRoot.HUD
-                ? CanvasManager.Instance.GetCanvasInfo(uiRootType, canvasId)?.panelParent
-                : GetMainLayerFather(layer);
-
-            if (!canvasRoot) canvasRoot = middleLayer;
-
-            // ==== 实例化 ====
-            GameObject obj = Object.Instantiate(prefab, canvasRoot, false);
-            T panelCom = obj.GetComponent<T>();
-
-            newInfo.panel = panelCom;
-            newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
-
-            // ==== 生命周期 ====
-            panelCom.ShowMe();
-            panelCom.OnShow();
-            newInfo.isInit = true;
-
-            return panelCom;
         }
-        
-        #endregion
-        
-        #region 异步显示面板单画布模式 (支持参数初始化)
-        
-        /// <summary>
-        /// 异步显示主画布的面板 await形式（支持参数初始化，单画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public async UniTask<T> ShowPanelAsync<T, TParam>(  TParam param, string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
+
+        private async UniTask<T> OpenAsyncCore<T>(
+            UIOpenOptions options,
+            Action<T> applyArgs,
+            CancellationToken cancellationToken)
+            where T : BasePanel
         {
-            return await ShowPanelInternalAsync<T>(
-                fullPath,
-                layer,
-                E_UIRoot.HUD,
-                "",
-                panel =>
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!TryResolveSurface(options.SurfaceId, out UISurface surface))
+                return null;
+            if (!CanUseOptions(surface, options))
+                return null;
+            if (!CanOpen(options))
+                return null;
+
+            UIPanelKey key = BuildKey<T>(options);
+
+            if (!repository.TryGet(key, out var record))
+            {
+                string assetPath = loader.GetAssetPath<T>();
+                record = new UIPanelRecord(
+                    key,
+                    assetPath,
+                    options,
+                    ResolveOwnerSceneHandle(surface, options.Lifetime));
+                if (!repository.Add(record))
+                    return null;
+
+                record.LoadTask = LoadRecordAsync<T>(
+                    record,
+                    surface.GetRoot(options.Layer)).Preserve();
+            }
+            else if (record.State != UIPanelState.Loading && !record.Panel)
+            {
+                RemoveBrokenRecord(record);
+                return await OpenAsyncCore(options, applyArgs, cancellationToken);
+            }
+
+            if (record.State == UIPanelState.Loading)
+            {
+                var loadedPanel = await record.LoadTask.AttachExternalCancellation(cancellationToken);
+                if (!loadedPanel)
+                    return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (record.Removed || !record.Panel)
+                return null;
+
+            return await PresentAsync(record, surface, options, applyArgs, cancellationToken);
+        }
+
+        private async UniTask<BasePanel> LoadRecordAsync<T>(UIPanelRecord record, Transform parent)
+            where T : BasePanel
+        {
+            try
+            {
+                T panel = await loader.LoadAsync<T>(record.AssetPath, parent);
+                if (record.Removed)
                 {
-                    if (panel is IPanelParam<TParam> receiver)
-                        receiver.SetParam(param);
+                    panel.DisposeInternal();
+                    Object.Destroy(panel.gameObject);
+                    loader.Release(record.AssetPath);
+                    return null;
                 }
-            );
+
+                AttachLoadedPanel(record, panel);
+                return panel;
+            }
+            catch (Exception exception)
+            {
+                if (!record.Removed)
+                    FailRecord(record, exception);
+                return null;
+            }
         }
 
-        /// <summary>
-        /// 异步显示主画布的面板 回调形式（支持参数初始化，单画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public void ShowPanelCallback<T, TParam>(  TParam param, string fullPath = null, UnityAction<T> callback = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
+        private T Present<T>(
+            UIPanelRecord record,
+            UISurface surface,
+            UIOpenOptions options,
+            Action<T> applyArgs)
+            where T : BasePanel
         {
-            _ = Wrapper();
-            return;
+            return BeginPresent(record, surface, options, applyArgs, true, out _);
+        }
 
-            async UniTask Wrapper()
+        private async UniTask<T> PresentAsync<T>(
+            UIPanelRecord record,
+            UISurface surface,
+            UIOpenOptions options,
+            Action<T> applyArgs,
+            CancellationToken cancellationToken)
+            where T : BasePanel
+        {
+            T panel = BeginPresent(
+                record,
+                surface,
+                options,
+                applyArgs,
+                false,
+                out int operationVersion);
+
+            if (!panel)
+                return panel;
+
+            UIPanelTransitionOperation operation = record.TransitionOperation;
+            if (operation == null
+                && operationVersion != 0
+                && record.State == UIPanelState.Opening)
             {
-                var panel = await ShowPanelInternalAsync<T>(
-                    fullPath,
-                    layer,
-                    E_UIRoot.HUD,
-                    "",
-                    p =>
+                operation = transitions.StartEnter(
+                    record,
+                    panel,
+                    operationVersion,
+                    HandleEnterTransitionCompleted);
+            }
+
+            if (operation != null)
+                await operation.Task.AttachExternalCancellation(cancellationToken);
+
+            return panel;
+        }
+
+        private T BeginPresent<T>(
+            UIPanelRecord record,
+            UISurface surface,
+            UIOpenOptions options,
+            Action<T> applyArgs,
+            bool completeImmediately,
+            out int operationVersion)
+            where T : BasePanel
+        {
+            operationVersion = 0;
+            if (!(record.Panel is T panel) || !panel)
+                return null;
+
+            try
+            {
+                Transform targetRoot = surface.GetRoot(options.Layer);
+                if (targetRoot && panel.transform.parent != targetRoot)
+                    panel.transform.SetParent(targetRoot, false);
+
+                bool alreadyPresented = record.State is
+                    UIPanelState.Active or UIPanelState.Opening or
+                    UIPanelState.Paused or UIPanelState.Closing;
+                if (alreadyPresented && record.Options.Presentation != options.Presentation)
+                {
+                    LogUtil.Error(
+                        "UI",
+                        $"面板 {record.Key} 正在显示，不能直接从 {record.Options.Presentation} "
+                        + $"切换为 {options.Presentation}。请先关闭面板。");
+                    return null;
+                }
+
+                if (alreadyPresented
+                    && options.Presentation == UIPresentationMode.Modal
+                    && modals.TryPeek(options.SurfaceId, out UIPanelKey topModal)
+                    && !topModal.Equals(record.Key))
+                {
+                    LogUtil.Warn(
+                        "UI",
+                        $"面板 {record.Key} 上方仍有 Modal，不能直接把它提到最上层。请先关闭上层 Modal。");
+                    return null;
+                }
+
+                record.Options = options;
+                record.OwnerSceneHandle = ResolveOwnerSceneHandle(surface, options.Lifetime);
+                panel.Context.Layer = options.Layer;
+                applyArgs?.Invoke(panel);
+                panel.transform.SetAsLastSibling();
+
+                if (record.State == UIPanelState.Closing)
+                    transitions.Cancel(record);
+
+                if (options.Presentation == UIPresentationMode.Page)
+                {
+                    PreparePageNavigation(record.Key, options.Navigation);
+                    if (navigation.Push(record.Key, out UIPanelKey previousTop))
+                        PauseNavigationTarget(previousTop);
+                }
+                else if (options.Presentation == UIPresentationMode.Modal)
+                {
+                    if (!alreadyPresented)
                     {
-                        if (p is IPanelParam<TParam> receiver)
-                            receiver.SetParam(param);
+                        UIPanelKey underlyingKey = ResolveTopPresentationKey(options.SurfaceId);
+                        modals.Push(record.Key, underlyingKey);
+                        BlockInteraction(underlyingKey);
                     }
-                );
-
-                callback?.Invoke(panel);
-            }
-        }
-        
-        /// <summary>
-        /// 异步显示主画布的面板 句柄形式（支持参数初始化，单画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns>句柄</returns>
-        public UIOperation<T> LoadPanelHandle<T, TParam>( TParam param, string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
-        {
-            var op = new UIOperation<T>();
-            _ = LoadPanelHandleInternalAsync(
-                op,
-                layer,
-                E_UIRoot.HUD,
-                "",
-                fullPath,
-                panel =>
-                {
-                    if (panel is IPanelParam<TParam> receiver)
-                        receiver.SetParam(param);
+                    modalBackdrops.Show(record);
                 }
-            );
 
-            return op;
-        }
-        
-        #endregion
-        
-        #region 异步显示面板单画布模式 (无参)
-        
-        /// <summary>
-        /// 异步显示主画布的面板 await形式（单画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public async UniTask<T> ShowPanelAsync<T>(string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
-        {
-            return await ShowPanelInternalAsync<T>(fullPath, layer, E_UIRoot.HUD, "");
-        }
+                if (record.State == UIPanelState.Active)
+                    return panel;
 
-        /// <summary>
-        /// 异步显示主画布的面板 回调形式（单画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public void ShowPanelCallback<T>(string fullPath = null, UnityAction<T> callback = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
-        {
-            _ = Wrapper();
-            return;
-
-            async UniTask Wrapper()
-            {
-                var panel = await ShowPanelInternalAsync<T>(fullPath, layer, E_UIRoot.HUD, "");
-                callback?.Invoke(panel);
-            }
-        }
-        
-        /// <summary>
-        /// 异步显示主画布的面板 句柄形式（单画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns>句柄</returns>
-        public UIOperation<T> LoadPanelHandle<T>( string fullPath = null, E_MainLayer layer = E_MainLayer.Middle) where T : BasePanel
-        {
-            var op = new UIOperation<T>();
-            _ = LoadPanelHandleInternalAsync(op, layer, E_UIRoot.HUD, "", fullPath);
-            return op;
-        }
-        
-        #endregion
-        
-        #region 异步显示面板多画布模式 (支持参数初始化)
-
-        /// <summary>
-        /// 异步显示面板 await形式（支持参数初始化，多画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public async UniTask<T> ShowPanelMultiCanvasAsync<T, TParam>( TParam param,E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            return await ShowPanelInternalAsync<T>(
-                fullPath,
-                layer,
-                uiRootType,
-                canvasId,
-                panel =>
+                if (record.State == UIPanelState.Opening)
                 {
-                    if (panel is IPanelParam<TParam> receiver)
-                        receiver.SetParam(param);
-                }
-            );
-        }
-        
-        /// <summary>
-        /// 异步显示面板 回调形式（支持参数初始化，多画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public void ShowPanelMultiCanvasCallback<T, TParam>( TParam param, UnityAction<T> callback = null, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            _ = Wrapper();
-            return;
-
-            async UniTask Wrapper()
-            {
-                var panel = await ShowPanelInternalAsync<T>(
-                    fullPath,
-                    layer,
-                    uiRootType,
-                    canvasId,
-                    p =>
+                    if (completeImmediately)
                     {
-                        if (p is IPanelParam<TParam> receiver)
-                            receiver.SetParam(param);
+                        transitions.Cancel(record);
+                        transitions.CompleteEnter(record, panel);
+                        ChangeState(record, UIPanelState.Active);
+                        interactions.Unblock(record);
                     }
-                );
 
-                callback?.Invoke(panel);
-            }
-        }
-
-        /// <summary>
-        /// 异步显示面板 句柄形式（支持参数初始化，多画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns>句柄</returns>
-        public UIOperation<T> LoadPanelMultiCanvasHandle<T, TParam>( TParam param, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot root = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            var op = new UIOperation<T>();
-
-            _ = LoadPanelHandleInternalAsync(
-                op,
-                layer,
-                root,
-                canvasId,
-                fullPath,
-                panel =>
-                {
-                    if (panel is IPanelParam<TParam> receiver)
-                        receiver.SetParam(param);
-                }
-            );
-
-            return op;
-        }
-        
-        #endregion
-
-        #region 异步显示面板多画布模式 (无参)
-
-        /// <summary>
-        /// 异步显示面板 await形式（多画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public async UniTask<T> ShowPanelMultiCanvasAsync<T>(E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            return await ShowPanelInternalAsync<T>(fullPath, layer, uiRootType, canvasId);
-        }
-        
-        /// <summary>
-        /// 异步显示面板 回调形式（多画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns></returns>
-        public void ShowPanelMultiCanvasCallback<T>(UnityAction<T> callback = null, E_MainLayer layer = E_MainLayer.Middle, E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            _ = Wrapper();
-            return;
-
-            async UniTask Wrapper()
-            {
-                var panel = await ShowPanelInternalAsync<T>(fullPath, layer, uiRootType, canvasId);
-                callback?.Invoke(panel);
-            }
-        }
-
-        /// <summary>
-        /// 异步显示面板 句柄形式（多画布模式） 
-        /// </summary>
-        /// <param name="layer">UI层级 默认为中层</param>
-        /// <param name="uiRootType">传入的画布模式 默认为HUD 即为主画布</param>
-        /// <param name="canvasId">若传入的画布模式不为主画布 则基于此Id查找对应画布</param>
-        /// <param name="fullPath">面板预制体文件所在的带前缀的完整路径</param>
-        /// <typeparam name="T">面板类</typeparam>
-        /// <returns>句柄</returns>
-        public UIOperation<T> LoadPanelMultiCanvasHandle<T>(E_MainLayer layer = E_MainLayer.Middle, E_UIRoot root = E_UIRoot.HUD, string canvasId = "", string fullPath = null) where T : BasePanel
-        {
-            var op = new UIOperation<T>();
-            _ = LoadPanelHandleInternalAsync(op, layer, root, canvasId, fullPath);
-            return op;
-        }
-        
-        #endregion
-        
-        #region 异步显示面板核心逻辑
-           
-        /// <summary>
-        /// 内部异步加载显示面板通用逻辑
-        /// </summary>
-        private async UniTask<T> ShowPanelInternalAsync<T>(string fullPath, E_MainLayer layer, E_UIRoot uiRootType, string canvasId,Action<T> beforeShow = null) where T : BasePanel
-        {
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
-
-            // 找到父节点（MainCanvas 或 WorldCanvas）
-            Transform canvasRoot = uiRootType != E_UIRoot.HUD
-                ? CanvasManager.Instance.GetCanvasInfo(uiRootType, canvasId)?.panelParent
-                : GetMainLayerFather(layer);
-
-            if (!canvasRoot) canvasRoot = middleLayer;
-
-            // ===== 面板已存在（缓存） ===== 
-            if (panelDic.TryGetValue(panelKey, out var baseInfo))
-            {
-                // 取出字典中已经占好位置的数据
-                var info = baseInfo as PanelInfo<T>;
-                // === 情况 1：正在异步加载 === 
-                if (!info!.panel)
-                {
-                    // 若之前显示过又隐藏后想再次显示直接设置为false 防止重复异步加载
-                    info.isHide = false; // 取消 hide
-                    // 等待加载完成（等 Internal 再 return）
-                    var panel = await WaitForPanelLoaded(info,panelKey);
-                    panel.gameObject.SetActive(true);
-                    // 参数 / 初始化钩子 (主要用于传入初始化的参数)
-                    beforeShow?.Invoke(panel);
-                    if (!info.isInit)
-                        panel.ShowMe();
-                    panel.OnShow();  
                     return panel;
                 }
-                // === 情况 2：已加载结束 === 
-                // 若面板是失活状态直接激活面板
-                if (!info.panel.gameObject.activeSelf)
-                    info.panel.gameObject.SetActive(true);
-                if (!info.isInit)
-                    info.panel.ShowMe();
-                info.panel.OnShow();
-                return info.panel;
-            }
 
-            //  ===== 面板不存在 → 先在字典占位 ===== 
-            var newInfo = new PanelInfo<T> { isInit = false };
-            panelDic.Add(panelKey, newInfo);
+                UIPanelState previousState = record.State;
+                bool resumesPausedPanel = previousState == UIPanelState.Paused;
+                if (!resumesPausedPanel)
+                    panel.Context.BeginVisibilitySession();
 
-            //  ===== 异步加载 面板预制体 =====
-            // fullPath 如果不为空 = 用户完全自定义加载来源（例如 ab://、res://、remote://）
-            // 如果完整路径为空
-            if (string.IsNullOrEmpty(fullPath))
-            {
-                // 自动拼接路径（默认为res://UI/Panels/类名）
-                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
-            }
-            GameObject prefab = await ResManager.Instance.LoadAsync<GameObject>(fullPath);
-            // 异步期间 ClearAllPanels / Destroy 面板 → 要提前退出
-            if (!panelDic.ContainsKey(panelKey))
-                return null;
-            if (!prefab)
-            {
-                panelDic.Remove(panelKey);
-                LogUtil.Error($"ShowPanelInternal 加载失败：{typeof(T).Name}");
-                return null;
-            }
+                panel.gameObject.SetActive(true);
+                if (!completeImmediately)
+                    interactions.Block(record);
+                ChangeState(record, UIPanelState.Opening);
+                operationVersion = ++record.OperationVersion;
 
-            // 异步期间被标记为隐藏
-            if (newInfo.isHide)
+                if (resumesPausedPanel)
+                    panel.ResumeInternal();
+                else
+                    panel.EnterInternal();
+
+                if (completeImmediately)
+                {
+                    transitions.CompleteEnter(record, panel);
+                    ChangeState(record, UIPanelState.Active);
+                }
+                return panel;
+            }
+            catch (Exception exception)
             {
-                panelDic.Remove(panelKey);
+                LogUtil.Error("UI", $"打开面板 {record.Key} 时发生异常：{exception}");
+                transitions.Cancel(record);
+                if (panel)
+                    panel.gameObject.SetActive(false);
+                ChangeState(record, UIPanelState.Hidden);
+                RemoveFromPresentation(record, true);
                 return null;
             }
+        }
 
-            // 实例化面板
-            GameObject obj = Object.Instantiate(prefab, canvasRoot, false);
-            T panelCom = obj.GetComponent<T>();
+        #endregion
 
-            newInfo.panel = panelCom;
-            newInfo.rootCanvas = obj.GetComponentInParent<Canvas>();
-            // 参数 / 初始化钩子
-            beforeShow?.Invoke(panelCom);
-            panelCom.ShowMe();
-            panelCom.OnShow();
-            newInfo.isInit = true;
+        #region Close
 
-            return panelCom;
+        public bool Close<T>(bool destroy = false) where T : BasePanel =>
+            Close<T>(UIInstanceId.Default, UISurfaceId.Main, destroy);
+
+        public bool Close<T>(
+            UIInstanceId instanceId,
+            UISurfaceId surfaceId,
+            bool destroy = false)
+            where T : BasePanel
+        {
+            UIPanelKey key = new(UIPanelId.From<T>(), instanceId, surfaceId);
+            return Close(key, destroy);
+        }
+
+        /// <summary>按完整实例标识同步关闭面板，供调试工具和非泛型业务入口使用。</summary>
+        public bool Close(UIPanelKey key, bool destroy = false) =>
+            repository.TryGet(key, out UIPanelRecord record) && CloseRecord(record, destroy);
+
+        /// <summary>异步关闭面板，并等待可选的退出过渡完成。</summary>
+        public UniTask<bool> CloseAsync<T>(
+            bool destroy = false,
+            CancellationToken cancellationToken = default)
+            where T : BasePanel =>
+            CloseAsync<T>(UIInstanceId.Default, UISurfaceId.Main, destroy, cancellationToken);
+
+        public async UniTask<bool> CloseAsync<T>(
+            UIInstanceId instanceId,
+            UISurfaceId surfaceId,
+            bool destroy = false,
+            CancellationToken cancellationToken = default)
+            where T : BasePanel
+        {
+            UIPanelKey key = new(UIPanelId.From<T>(), instanceId, surfaceId);
+            return await CloseAsync(key, destroy, cancellationToken);
+        }
+
+        /// <summary>按完整实例标识异步关闭面板。</summary>
+        public async UniTask<bool> CloseAsync(
+            UIPanelKey key,
+            bool destroy = false,
+            CancellationToken cancellationToken = default)
+        {
+            return repository.TryGet(key, out UIPanelRecord record)
+                   && await CloseRecordAsync(record, destroy, cancellationToken);
+        }
+
+        /// <summary>关闭指定 Surface 的栈顶页面，并恢复上一页。</summary>
+        public bool Back(UISurfaceId surfaceId = default, bool destroy = false)
+        {
+            return TryGetBackTarget(surfaceId, out UIPanelRecord record)
+                   && RequestBack(record, destroy);
+        }
+
+        public async UniTask<bool> BackAsync(
+            UISurfaceId surfaceId = default,
+            bool destroy = false,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!TryGetBackTarget(surfaceId, out UIPanelRecord record))
+                return false;
+
+            return await RequestBackAsync(record, destroy, cancellationToken);
+        }
+
+        public int GetNavigationDepth(UISurfaceId surfaceId = default) =>
+            navigation.GetDepth(surfaceId);
+
+        public bool HasModal(UISurfaceId surfaceId = default) => modals.HasModal(surfaceId);
+
+        public int CloseSurface(UISurfaceId surfaceId, bool destroy = false)
+        {
+            int closed = 0;
+            foreach (UIPanelRecord record in repository.Snapshot())
+            {
+                if (record.Key.SurfaceId.Equals(surfaceId)
+                    && CloseRecord(record, destroy, false))
+                    closed++;
+            }
+
+            navigation.Clear(surfaceId);
+            modals.Clear(surfaceId);
+            return closed;
+        }
+
+        public int CloseAll(bool destroy = false)
+        {
+            int closed = 0;
+            foreach (UIPanelRecord record in repository.Snapshot())
+            {
+                if (CloseRecord(record, destroy, false))
+                    closed++;
+            }
+
+            navigation.ClearAll();
+            modals.ClearAll();
+            interactions.Clear();
+            return closed;
         }
 
         /// <summary>
-        /// 内部异步加载显示面板通用逻辑(句柄式)
+        /// 释放归属于指定场景的场景级面板。持久面板以及其他场景的面板不受影响。
         /// </summary>
-        private async UniTask LoadPanelHandleInternalAsync<T>(UIOperation<T> op, E_MainLayer layer, E_UIRoot root, string canvasId, string fullPath, Action<T> beforeSetResult = null) where T : BasePanel
+        public int CloseScenePanels(UnityEngine.SceneManagement.Scene scene)
         {
-            // 与 ShowPanelInternalAsync 基本一样
-            // 只是最后不调 OnShow，只返回面板实例
+            if (!scene.IsValid())
+                return 0;
 
-            if (string.IsNullOrEmpty(fullPath))
-                fullPath = $"res://{PANEL_PATH}{typeof(T).Name}";
+            return CloseScenePanels(scene.handle);
+        }
 
-            op.SetProgress(0.2f);
+        /// <summary>销毁全部面板实例和对应的面板资源引用。</summary>
+        public void ClearAll()
+        {
+            // CloseAll(true) 已同步清空导航、Modal 与交互状态；无需重复执行。
+            CloseAll(true);
+        }
 
-            var prefab = await ResManager.Instance.LoadAsync<GameObject>(fullPath);
+        private bool CloseRecord(
+            UIPanelRecord record,
+            bool destroy,
+            bool restorePresentation = true)
+        {
+            if (record == null || record.Removed || record.State == UIPanelState.Disposed)
+                return false;
 
-            if (!prefab)
+            if (record.State == UIPanelState.Loading)
             {
-                op.SetFailed();
+                record.Removed = true;
+                repository.Remove(record.Key, out _);
+                ChangeState(record, UIPanelState.Disposed);
+                return true;
+            }
+
+            BasePanel panel = record.Panel;
+            if (!panel)
+            {
+                RemoveBrokenRecord(record);
+                return false;
+            }
+
+            bool shouldDestroy = destroy
+                                 || record.Options.CachePolicy == UICachePolicy.DestroyOnClose
+                                 || record.TransitionOperation?.DestroyOnComplete == true;
+            if (record.State == UIPanelState.Hidden && !shouldDestroy)
+                return false;
+
+            bool wasClosing = record.State == UIPanelState.Closing;
+            bool needsExit = record.State is
+                UIPanelState.Active or UIPanelState.Opening or UIPanelState.Paused;
+            transitions.Cancel(record);
+            try
+            {
+                if (needsExit)
+                {
+                    panel.Context.EndVisibilitySession();
+                    ChangeState(record, UIPanelState.Closing);
+                    panel.ExitInternal();
+                }
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"关闭面板 {record.Key} 时发生异常：{exception}");
+            }
+
+            if (needsExit || wasClosing)
+            {
+                transitions.CompleteExit(record, panel);
+            }
+
+            if (!shouldDestroy)
+            {
+                panel.gameObject.SetActive(false);
+                ChangeState(record, UIPanelState.Hidden);
+                RemoveFromPresentation(record, restorePresentation);
+                return true;
+            }
+
+            DestroyRecord(record);
+            RemoveFromPresentation(record, restorePresentation);
+            return true;
+        }
+
+        private async UniTask<bool> CloseRecordAsync(
+            UIPanelRecord record,
+            bool destroy,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (record == null || record.Removed || record.State == UIPanelState.Disposed)
+                return false;
+
+            if (record.State == UIPanelState.Loading || !record.Panel)
+                return CloseRecord(record, destroy);
+
+            if (record.State == UIPanelState.Closing)
+            {
+                UIPanelTransitionOperation current = record.TransitionOperation;
+                if (current == null)
+                    return CloseRecord(record, destroy);
+
+                if (destroy)
+                    current.DestroyOnComplete = true;
+
+                await current.Task.AttachExternalCancellation(cancellationToken);
+                return true;
+            }
+
+            bool shouldDestroy = destroy || record.Options.CachePolicy == UICachePolicy.DestroyOnClose;
+            if (record.State == UIPanelState.Hidden)
+                return shouldDestroy && CloseRecord(record, true);
+
+            BasePanel panel = record.Panel;
+            transitions.Cancel(record);
+            interactions.Block(record);
+            panel.Context.EndVisibilitySession();
+            ChangeState(record, UIPanelState.Closing);
+            int operationVersion = ++record.OperationVersion;
+
+            try
+            {
+                panel.ExitInternal();
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"面板 {record.Key} 的退出生命周期发生异常：{exception}");
+            }
+
+            UIPanelTransitionOperation operation = transitions.StartExit(
+                record,
+                panel,
+                operationVersion,
+                shouldDestroy,
+                HandleExitTransitionCompleted);
+            await operation.Task.AttachExternalCancellation(cancellationToken);
+
+            return true;
+        }
+
+        private bool RequestBack(UIPanelRecord record, bool destroy)
+        {
+            if (TryHandleBack(record))
+                return true;
+
+            return CloseRecord(record, destroy);
+        }
+
+        private async UniTask<bool> RequestBackAsync(
+            UIPanelRecord record,
+            bool destroy,
+            CancellationToken cancellationToken)
+        {
+            if (TryHandleBack(record))
+                return true;
+
+            return await CloseRecordAsync(record, destroy, cancellationToken);
+        }
+
+        /// <summary>
+        /// 统一解析返回目标，并顺便清理外部销毁后残留的导航记录。
+        /// 同步和异步返回入口必须共用这条规则，避免两个 API 的栈行为分叉。
+        /// </summary>
+        private bool TryGetBackTarget(UISurfaceId surfaceId, out UIPanelRecord record)
+        {
+            record = null;
+            if (modals.TryPeek(surfaceId, out UIPanelKey modalKey))
+            {
+                if (repository.TryGet(modalKey, out record))
+                    return true;
+
+                modals.Remove(modalKey, out _);
+            }
+
+            if (!navigation.TryPeek(surfaceId, out UIPanelKey pageKey))
+                return false;
+
+            if (repository.TryGet(pageKey, out record))
+                return true;
+
+            if (navigation.Remove(pageKey, out UIPanelKey nextTop))
+                FocusOrResumeNavigationTarget(nextTop);
+            return false;
+        }
+
+        private static bool TryHandleBack(UIPanelRecord record)
+        {
+            // ReSharper 只能看到当前程序集，无法识别业务或外部程序集未来对该扩展接口的实现。
+            // ReSharper disable once SuspiciousTypeConversion.Global
+            if (record?.Panel is not IUIBackHandler handler)
+                return false;
+
+            try
+            {
+                return handler.TryHandleBack();
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"面板 {record.Key} 处理返回请求时发生异常：{exception}");
+                return false;
+            }
+        }
+
+        #endregion
+
+        private static UIPanelKey BuildKey<T>(UIOpenOptions options) where T : BasePanel =>
+            new(UIPanelId.From<T>(), options.InstanceId, options.SurfaceId);
+
+        private static int ResolveOwnerSceneHandle(
+            UISurface surface,
+            UIPanelLifetime lifetime)
+        {
+            if (lifetime == UIPanelLifetime.Persistent)
+                return -1;
+
+            return surface.Lifetime == UISurfaceLifetime.Scene
+                ? surface.OwnerSceneHandle
+                : SceneManager.GetActiveScene().handle;
+        }
+
+        private bool TryResolveSurface(UISurfaceId surfaceId, out UISurface surface)
+        {
+            if (surfaces.TryGet(surfaceId, out surface))
+                return true;
+
+            LogUtil.Error(
+                "UI",
+                $"未注册 UI Surface：{surfaceId}。请在对应 Canvas 上添加 UISurfaceRoot，"
+                + "或先调用 UIManager.RegisterSurface。");
+            return false;
+        }
+
+        private void AttachLoadedPanel(UIPanelRecord record, BasePanel panel)
+        {
+            record.Panel = panel;
+            panel.Destroyed += HandlePanelDestroyed;
+            panel.InitializeInternal(new UIPanelContext(record.Key, record.Options.Layer, record.AssetPath));
+            ChangeState(record, UIPanelState.Hidden);
+        }
+
+        private void FailRecord(UIPanelRecord record, Exception exception)
+        {
+            transitions.Cancel(record);
+            ChangeState(record, UIPanelState.Failed);
+            record.Removed = true;
+            repository.Remove(record.Key, out _);
+
+            if (record.Panel)
+            {
+                record.Panel.DisposeInternal();
+                Object.Destroy(record.Panel.gameObject);
+                loader.Release(record.AssetPath);
+            }
+
+            LogUtil.Error("UI", $"加载面板 {record.Key} 失败：{exception}");
+        }
+
+        private void RemoveBrokenRecord(UIPanelRecord record)
+        {
+            transitions.Cancel(record);
+            record.Removed = true;
+            repository.Remove(record.Key, out _);
+            ChangeState(record, UIPanelState.Disposed);
+            loader.Release(record.AssetPath);
+        }
+
+        private void DestroyRecord(UIPanelRecord record)
+        {
+            transitions.Cancel(record);
+            record.Removed = true;
+            repository.Remove(record.Key, out _);
+            ChangeState(record, UIPanelState.Disposed);
+            interactions.Remove(record);
+            modalBackdrops.Remove(record);
+
+            if (record.Panel)
+            {
+                record.Panel.DisposeInternal();
+                Object.Destroy(record.Panel.gameObject);
+            }
+
+            loader.Release(record.AssetPath);
+        }
+
+        private void HandlePanelDestroyed(BasePanel panel)
+        {
+            if (panel?.Context == null)
+                return;
+
+            UIPanelKey key = panel.Context.Key;
+            if (!repository.TryGet(key, out UIPanelRecord record) || record.Panel != panel)
+                return;
+
+            transitions.Cancel(record);
+            record.Removed = true;
+            repository.Remove(key, out _);
+            ChangeState(record, UIPanelState.Disposed);
+            interactions.Remove(record);
+            modalBackdrops.Remove(record);
+            loader.Release(record.AssetPath);
+            RemoveFromPresentation(record, true);
+        }
+
+        private void ChangeState(UIPanelRecord record, UIPanelState state)
+        {
+            record.State = state;
+
+            switch (state)
+            {
+                case UIPanelState.Active:
+                    if (record.Options.TakeFocus && CanReceiveFocus(record))
+                        inputRouter.Activate(record);
+                    break;
+                case UIPanelState.Closing:
+                case UIPanelState.Paused:
+                case UIPanelState.Hidden:
+                    inputRouter.Deactivate(record);
+                    break;
+                case UIPanelState.Disposed:
+                case UIPanelState.Failed:
+                    inputRouter.Remove(record);
+                    break;
+            }
+
+            try
+            {
+                PanelStateChanged?.Invoke(record.Key, state);
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"面板状态监听器发生异常：{exception}");
+            }
+        }
+
+        private void PreparePageNavigation(UIPanelKey targetKey, UINavigationMode mode)
+        {
+            foreach (UIPanelKey key in navigation.GetRemovalPlan(targetKey, mode))
+                RemoveNavigationEntrySilently(key);
+        }
+
+        private void RemoveNavigationEntrySilently(UIPanelKey key)
+        {
+            if (repository.TryGet(key, out UIPanelRecord record)
+                && CloseRecord(record, false, false))
+                return;
+
+            navigation.Remove(key, out _);
+        }
+
+        private void PauseNavigationTarget(UIPanelKey key)
+        {
+            if (string.IsNullOrEmpty(key.PanelId.Value)
+                || !repository.TryGet(key, out UIPanelRecord record))
+                return;
+
+            if (!record.Panel
+                || record.State is not (UIPanelState.Active or UIPanelState.Opening))
+                return;
+
+            if (record.State == UIPanelState.Opening)
+            {
+                transitions.Cancel(record);
+                transitions.CompleteEnter(record, record.Panel);
+            }
+
+            try
+            {
+                record.Panel.PauseInternal();
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"暂停面板 {record.Key} 时发生异常：{exception}");
+            }
+
+            ChangeState(record, UIPanelState.Paused);
+            record.Panel.gameObject.SetActive(false);
+        }
+
+        private void RemoveFromPresentation(UIPanelRecord record, bool restoreFocus = true)
+        {
+            if (record == null)
+                return;
+
+            interactions.Remove(record);
+            UIPanelKey key = record.Key;
+            if (record.Options.Presentation == UIPresentationMode.Modal
+                && modals.Remove(key, out UIPanelKey restoreKey))
+            {
+                if (record.Removed)
+                    modalBackdrops.Remove(record);
+                else
+                    modalBackdrops.Hide(record);
+                interactions.Unblock(restoreKey);
+                if (restoreFocus)
+                    FocusOrResumeNavigationTarget(restoreKey);
                 return;
             }
-            op.SetProgress(0.6f);
 
-            Transform parent = root != E_UIRoot.HUD
-                ? CanvasManager.Instance.GetCanvasInfo(root, canvasId)?.panelParent
-                : GetMainLayerFather(layer);
-            if (!parent) parent = middleLayer;
-            var obj = Object.Instantiate(prefab, parent);
-            var panel = obj.GetComponent<T>();
-            // 参数 / 初始化钩子（不触发生命周期）
-            beforeSetResult?.Invoke(panel);
-            op.SetProgress(1f);
-            op.SetResult(panel);
-        }
-        
-        /// <summary>
-        /// 异步等待 面板加载完毕
-        /// </summary>
-        private async UniTask<T> WaitForPanelLoaded<T>(PanelInfo<T> info, string panelKey) where T : BasePanel
-        {
-            while (!info.panel && !info.isHide)
+            if (record.Options.Presentation == UIPresentationMode.Page
+                && navigation.Remove(key, out UIPanelKey nextTop))
             {
-                // 若面板在等待期间被清理（如 ClearAllPanels），安全退出
-                if (!panelDic.ContainsKey(panelKey))
-                    return null;
-                await UniTask.Yield();
+                if (restoreFocus)
+                    FocusOrResumeNavigationTarget(nextTop);
+                return;
             }
-            return info.panel;
+
+            if (restoreFocus)
+                FocusTopPresentation(key.SurfaceId);
         }
 
-        #endregion
-        
-        #region 隐藏面板
-        
-        /// <summary>
-        /// 隐藏面板
-        /// </summary>
-        /// <typeparam name="T">面板类型</typeparam>
-        public void HidePanel<T>(bool isDestroy = false, E_UIRoot uiRootType = E_UIRoot.HUD,string canvasId = "") where T : BasePanel
+        private void FocusOrResumeNavigationTarget(UIPanelKey key)
         {
-            // 拼接面板key
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
-            if(panelDic.TryGetValue(panelKey,out var panel))
+            if (string.IsNullOrEmpty(key.PanelId.Value)
+                || !repository.TryGet(key, out UIPanelRecord record))
+                return;
+
+            if (!record.Panel)
+                return;
+
+            if (record.State == UIPanelState.Active)
             {
-                // 取出字典中已经占好位置的数据
-                var panelInfo = panel as PanelInfo<T>;
-                // 1.正在加载中
-                if (!panelInfo!.panel)
+                inputRouter.Activate(record);
+                return;
+            }
+
+            if (record.State != UIPanelState.Paused)
+                return;
+
+            try
+            {
+                record.Panel.gameObject.SetActive(true);
+                record.Panel.ResumeInternal();
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"恢复面板 {record.Key} 时发生异常：{exception}");
+            }
+
+            ChangeState(record, UIPanelState.Active);
+        }
+
+        private bool CanOpen(UIOpenOptions options)
+        {
+            if (options.Presentation != UIPresentationMode.Page
+                || !modals.HasModal(options.SurfaceId))
+                return true;
+
+            LogUtil.Warn(
+                "UI",
+                $"Surface {options.SurfaceId} 上仍有 Modal，不能在其下方打开新页面。"
+                + "请先关闭 Modal，或将新面板明确设置为 Modal/Overlay。");
+            return false;
+        }
+
+        private static bool CanUseOptions(UISurface surface, UIOpenOptions options)
+        {
+            if (options.Lifetime != UIPanelLifetime.Persistent
+                || surface.Lifetime == UISurfaceLifetime.Persistent)
+                return true;
+
+            LogUtil.Error(
+                "UI",
+                $"不能把跨场景面板挂载到场景级 Surface：{surface.Id}。"
+                + "请将 UISurfaceRoot 的生命周期设为‘持久级’，"
+                + "或把面板生命周期改为‘场景级’。");
+            return false;
+        }
+
+        private void BlockInteraction(UIPanelKey key)
+        {
+            if (!string.IsNullOrEmpty(key.PanelId.Value)
+                && repository.TryGet(key, out UIPanelRecord record))
+                interactions.Block(record);
+        }
+
+        private void FocusTopPresentation(UISurfaceId surfaceId)
+        {
+            if (modals.TryPeek(surfaceId, out UIPanelKey modalKey))
+            {
+                FocusOrResumeNavigationTarget(modalKey);
+                return;
+            }
+
+            if (navigation.TryPeek(surfaceId, out UIPanelKey pageKey))
+                FocusOrResumeNavigationTarget(pageKey);
+        }
+
+        private void HandleInputModeChanged(UIInputMode mode)
+        {
+            try
+            {
+                InputModeChanged?.Invoke(mode);
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UI", $"输入模式监听器发生异常：{exception}");
+            }
+        }
+
+        private int CloseScenePanels(int sceneHandle)
+        {
+            int closed = 0;
+            var affectedSurfaces = new HashSet<UISurfaceId>();
+            foreach (UIPanelRecord record in repository.Snapshot())
+            {
+                if (record.Options.Lifetime == UIPanelLifetime.Scene
+                    && record.OwnerSceneHandle == sceneHandle
+                    && CloseRecord(record, true, false))
                 {
-                    // 修改隐藏标识 标识该面板需要被隐藏
-                    panelInfo.isHide = true;
-                }
-                // 2. 已经加载结束
-                else
-                {
-                    //执行默认的隐藏面板想要做的事情
-                    panelInfo.panel.HideMe();
-                    //调用生命周期钩子（轻逻辑：暂停UI、保存状态）
-                    panelInfo.panel.OnHide();
-                    // 若需要销毁
-                    if (isDestroy)
-                    {
-                        //销毁前调用生命周期钩子（重逻辑：解绑事件、释放引用）
-                        panelInfo.panel.OnDestroyPanel();
-                        //销毁面板
-                        Object.Destroy(panelInfo.panel.gameObject);
-                        //从容器中移除
-                        panelDic.Remove(panelKey);
-                    }
-                    else
-                    {
-                        // 若不销毁 则直接让UI面板失活
-                        panelInfo.panel.gameObject.SetActive(false);
-                    }
+                    closed++;
+                    affectedSurfaces.Add(record.Key.SurfaceId);
                 }
             }
+
+            foreach (UISurfaceId surfaceId in affectedSurfaces)
+                FocusTopPresentation(surfaceId);
+
+            return closed;
         }
-        
-        /// <summary>
-        /// 隐藏Main主画布中某层级的全部面板
-        /// </summary>
-        public void HidePanelsInLayer(E_MainLayer layer, bool isDestroy = false)
+
+        private void HandleSceneUnloaded(UnityEngine.SceneManagement.Scene scene)
         {
-            Transform targetLayer = GetMainLayerFather(layer);
-            if (!targetLayer) return;
-            // 收集需要隐藏的 (key, panelInfo)
-            List<KeyValuePair<string, BasePanelInfo>> toHide = new();
-            foreach (var kv in panelDic)
+            CloseScenePanels(scene.handle);
+
+            foreach (UISurface surface in surfaces.Snapshot())
             {
-                if (kv.Value?.panel && kv.Value.panel.transform.IsChildOf(targetLayer))
-                    toHide.Add(kv);
-            }
-            // 执行隐藏/销毁
-            foreach (var kv in toHide)
-            {
-                HidePanelInternal(kv.Key, kv.Value, isDestroy);
-            }
-        }
-        
-        /// <summary>
-        /// 隐藏WorldSpace模式中特定 Canvas 下的所有面板
-        /// </summary>
-        public void HidePanelsInCanvas(E_UIRoot uiRootType = E_UIRoot.HUD,string canvasId = "", bool isDestroy = false)
-        {
-            switch (GlobalSettingsRuntimeLoader.Current.CurrentUIMode)
-            {
-                case EnvironmentState.UIMode.WorldSpace:
-                {
-                    Canvas canvas = CanvasManager.Instance.GetCanvas(uiRootType,canvasId);
-                    if (!canvas)
-                    {
-                        return;
-                    }
-                    // 收集需要隐藏的 (key, panelInfo)
-                    List<KeyValuePair<string, BasePanelInfo>> toHide = new();
-
-                    foreach (var kv in panelDic)
-                    {
-                        if (kv.Value.rootCanvas == canvas)
-                        {
-                            toHide.Add(kv);
-                        }
-                    }
-
-                    // 执行隐藏/销毁
-                    foreach (var kv in toHide)
-                    {
-                        HidePanelInternal(kv.Key, kv.Value, isDestroy);
-                    }
-
-                    break;
-                }
-                case EnvironmentState.UIMode.Auto when EnvironmentState.FinalIsVR:
-                {
-                    Canvas canvas = CanvasManager.Instance.GetCanvas(uiRootType,canvasId);
-                    if (!canvas)
-                    {
-                        return;
-                    }
-                    // 收集需要隐藏的 (key, panelInfo)
-                    List<KeyValuePair<string, BasePanelInfo>> toHide = new();
-
-                    foreach (var kv in panelDic)
-                    {
-                        if (kv.Value.rootCanvas == canvas)
-                        {
-                            toHide.Add(kv);
-                        }
-                    }
-
-                    // 执行隐藏/销毁
-                    foreach (var kv in toHide)
-                    {
-                        HidePanelInternal(kv.Key, kv.Value, isDestroy);
-                    }
-
-                    break;
-                }
-                case EnvironmentState.UIMode.ScreenSpace:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-        }
-        
-        /// <summary>
-        /// 单个面板的隐藏/销毁逻辑
-        /// </summary>
-        private void HidePanelInternal(string key, BasePanelInfo panelInfo, bool isDestroy)
-        {
-            var panelObj = panelInfo.panel;
-            if (!panelObj) return;
-
-            panelObj.HideMe();
-            panelObj.OnHide();
-
-            if (isDestroy)
-            {
-                panelObj.OnDestroyPanel();
-                Object.Destroy(panelObj.gameObject);
-                panelDic.Remove(key);
-            }
-            else
-            {
-                panelObj.gameObject.SetActive(false);
-            }
-        }
-        
-        /// <summary>
-        /// 隐藏全部面板
-        /// </summary>
-        /// <param name="isDestroy"></param>
-        public void HideAllPanels(bool isDestroy = false)
-        {
-            // 复制一份 key，防止遍历时修改字典
-            var keys = new List<string>(panelDic.Keys);
-
-            foreach (var key in keys)
-            {
-                if (!panelDic.TryGetValue(key, out var info))
+                if (surface.Lifetime != UISurfaceLifetime.Scene
+                    || surface.OwnerSceneHandle != scene.handle)
                     continue;
 
-                HidePanelInternal(key, info, isDestroy);
+                CloseSurface(surface.Id, true);
+                surfaces.Remove(surface.Id);
             }
         }
-        
-        #endregion
 
-        #region 获取面板信息
-        
-        /// <summary>
-        /// 面板是否处于打开（显示）状态
-        /// </summary>
-        public bool IsPanelOpened<T>(E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "") where T : BasePanel
+        private static string GetSceneName(int sceneHandle)
         {
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
+            if (sceneHandle < 0)
+                return "跨场景";
 
-            if (!panelDic.TryGetValue(panelKey, out var info))
-                return false;
+            for (int index = 0; index < SceneManager.sceneCount; index++)
+            {
+                UnityEngine.SceneManagement.Scene scene = SceneManager.GetSceneAt(index);
+                if (scene.handle == sceneHandle)
+                    return scene.name;
+            }
 
-            if (!(info is PanelInfo<T> panelInfo))
-                return false;
-
-            if (!panelInfo.panel)
-                return false;
-
-            if (panelInfo.isHide)
-                return false;
-
-            return panelInfo.panel.gameObject.activeSelf;
+            return $"已卸载场景 ({sceneHandle})";
         }
-        
-        /// <summary>
-        /// 获取面板
-        /// </summary>
-        /// <typeparam name="T">面板的类型</typeparam>
-        public void GetPanel<T>( UnityAction<T> callBack, E_UIRoot uiRootType = E_UIRoot.HUD,string canvasId = "") where T:BasePanel
+
+        private void HandleEnterTransitionCompleted(UIPanelRecord record, BasePanel panel)
         {
-            // 拼接面板key
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
-            if (panelDic.TryGetValue(panelKey, out var panel))
+            if (panel)
             {
-                //取出字典中已经占好位置的数据
-                if (panel is not PanelInfo<T> panelInfo)
-                {
-                    LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：类型不匹配");
-                    return;
-                }
-                //正在加载中
-                if(!panelInfo!.panel)
-                {
-                    // 加载中 应该等待加载结束 启动等待流程
-                    _ = WaitAndCallback();
-                    return;
-
-                    async UniTask WaitAndCallback()
-                    {
-                        var uiPanel = await WaitForPanelLoaded(panelInfo, panelKey);
-                        if (uiPanel)
-                            callBack?.Invoke(uiPanel);
-                    }
-                }
-                if(!panelInfo.isHide)//加载结束 并且没有隐藏
-                {
-                    callBack?.Invoke(panelInfo.panel);
-                }
-            }
-            else
-            {
-                LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：尚未显示过该面板");
+                ChangeState(record, UIPanelState.Active);
+                interactions.Unblock(record);
             }
         }
-        
-        /// <summary>
-        /// 获取面板（异步，无回调）
-        /// </summary>
-        /// <typeparam name="T">面板类型</typeparam>
-        public async UniTask<T> GetPanelAsync<T>(E_UIRoot uiRootType = E_UIRoot.HUD, string canvasId = "") where T : BasePanel
+
+        private void HandleExitTransitionCompleted(
+            UIPanelRecord record,
+            BasePanel panel,
+            bool destroyOnComplete)
         {
-            string panelKey = BuildPanelKey<T>(uiRootType, canvasId);
-
-            if (!panelDic.TryGetValue(panelKey, out var panel))
+            if (destroyOnComplete)
+                DestroyRecord(record);
+            else if (panel)
             {
-                LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：尚未显示过该面板");
-                return null;
+                panel.gameObject.SetActive(false);
+                ChangeState(record, UIPanelState.Hidden);
             }
 
-            if (!(panel is PanelInfo<T> panelInfo))
-            {
-                LogUtil.Warn($"[UIManager] GetPanel<{typeof(T).Name}>：类型不匹配");
-                return null;
-            }
-
-            // 如果 panel 还没加载完，等待
-            if (!panelInfo.panel)
-            {
-                var uiPanel = await WaitForPanelLoaded(panelInfo, panelKey);
-                return uiPanel;
-            }
-
-            // 已加载但被隐藏 —— 按你原来的逻辑，这里是不回调的
-            if (panelInfo.isHide)
-                return null;
-
-            return panelInfo.panel;
+            RemoveFromPresentation(record, true);
         }
-        
-        #endregion
 
-        #region 为控件添加自定义事件
-        /// <summary>
-        /// 为控件添加自定义事件
-        /// </summary>
-        /// <param name="control">对应的控件</param>
-        /// <param name="type">事件的类型</param>
-        /// <param name="callBack">响应的函数</param>
-        public void AddCustomEventListener(UIBehaviour control, EventTriggerType type, UnityAction<BaseEventData> callBack)
+        private UIPanelKey ResolveTopPresentationKey(UISurfaceId surfaceId)
         {
-            //这种逻辑主要是用于保证 控件上只会挂载一个EventTrigger
-            EventTrigger trigger = control.GetComponent<EventTrigger>();
-            if (!trigger )
-                trigger = control.gameObject.AddComponent<EventTrigger>();
+            if (modals.TryPeek(surfaceId, out UIPanelKey modalKey))
+                return modalKey;
 
-            EventTrigger.Entry entry = new()
-            {
-                eventID = type
-            };
-            entry.callback.AddListener(callBack);
+            UIPanelKey activeKey = inputRouter.ActiveKey;
+            if (!string.IsNullOrEmpty(activeKey.PanelId.Value)
+                && activeKey.SurfaceId.Equals(surfaceId))
+                return activeKey;
 
-            trigger.triggers.Add(entry);
+            return navigation.TryPeek(surfaceId, out UIPanelKey pageKey) ? pageKey : default;
         }
-        #endregion
-        
-        #region 内存清理接口
-        /// <summary>
-        /// 清空所有已加载的面板（用于切场景或调试）
-        /// </summary>
-        public void ClearAllPanels()
+
+        private bool CanReceiveFocus(UIPanelRecord record)
         {
-            int count = 0;
-            foreach (var kv in panelDic.Values)
-            {
-                try
-                {
-                    if (kv.panel)
-                    {
-                        kv.panel.OnHide();
-                        kv.panel.OnDestroyPanel();
-                        Object.Destroy(kv.panel.gameObject);
-                        count++;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogUtil.Warn($"清理面板时出错: {ex.Message}");
-                }
-            }
-            panelDic.Clear();
-            LogUtil.Success($"清理完毕，共清空 {count} 个面板。");
+            return !modals.TryPeek(record.Key.SurfaceId, out UIPanelKey modalKey)
+                   || modalKey.Equals(record.Key);
         }
-        #endregion
-        
     }
 }

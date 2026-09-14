@@ -108,12 +108,15 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                     MessageType.Error);
                 if (GUILayout.Button("重新加载配置"))
                     ReloadSettings();
+                GUILayout.FlexibleSpace();
+                FFEditorGUI.DrawFrameworkFooter(8f);
                 return;
             }
 
             if (tableMode == LocalizationTableMode.Asset)
             {
                 DrawAssetMode();
+                FFEditorGUI.DrawFrameworkFooter(6f);
                 return;
             }
 
@@ -147,11 +150,13 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                     MessageType.Info);
 
                 EditorGUILayout.EndVertical();
-
+                GUILayout.FlexibleSpace();
+                FFEditorGUI.DrawFrameworkFooter(8f);
                 return;
             }
 
             DrawTable();
+            FFEditorGUI.DrawFrameworkFooter(6f);
         }
 
         #endregion

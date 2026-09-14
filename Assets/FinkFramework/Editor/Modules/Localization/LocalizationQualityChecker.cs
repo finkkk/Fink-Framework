@@ -15,9 +15,7 @@ using UnityEngine.SceneManagement;
 #if ENABLE_TEXTMESHPRO
 using TMPro;
 #endif
-#if ENABLE_UGUI
 using UnityEngine.UI;
-#endif
 
 namespace FinkFramework.Editor.Modules.Localization
 {
@@ -1372,10 +1370,8 @@ namespace FinkFramework.Editor.Modules.Localization
             if (gameObject == null)
                 return false;
 
-#if ENABLE_UGUI
-            if (EnvironmentState.AutoUGUI && gameObject.GetComponent<Text>() != null)
+            if (gameObject.GetComponent<Text>() != null)
                 return true;
-#endif
 #if ENABLE_TEXTMESHPRO
             if (EnvironmentState.AutoTMP && gameObject.GetComponent<TMP_Text>() != null)
                 return true;
@@ -1389,22 +1385,17 @@ namespace FinkFramework.Editor.Modules.Localization
             ProjectReferenceScanResult result,
             ICollection<Issue> issues)
         {
-#if ENABLE_UGUI
-            if (EnvironmentState.AutoUGUI)
+            Text[] legacyTexts = root.GetComponentsInChildren<Text>(true);
+            foreach (Text text in legacyTexts)
             {
-                Text[] legacyTexts = root.GetComponentsInChildren<Text>(true);
-                foreach (Text text in legacyTexts)
-                {
-                    if (text == null || string.IsNullOrWhiteSpace(text.text))
-                        continue;
+                if (text == null || string.IsNullOrWhiteSpace(text.text))
+                    continue;
 
-                    if (HasLocalizationBindingComponent(text.gameObject))
-                        continue;
+                if (HasLocalizationBindingComponent(text.gameObject))
+                    continue;
 
-                    AddStaticTextIssue(text, "UnityEngine.UI.Text", assetLabel, result, issues);
-                }
+                AddStaticTextIssue(text, "UnityEngine.UI.Text", assetLabel, result, issues);
             }
-#endif
 
 #if ENABLE_TEXTMESHPRO
             if (EnvironmentState.AutoTMP)
@@ -1452,10 +1443,8 @@ namespace FinkFramework.Editor.Modules.Localization
 
         private static string GetComponentText(Component component)
         {
-#if ENABLE_UGUI
             if (component is Text legacyText)
                 return legacyText.text;
-#endif
 #if ENABLE_TEXTMESHPRO
             if (component is TMP_Text tmpText)
                 return tmpText.text;

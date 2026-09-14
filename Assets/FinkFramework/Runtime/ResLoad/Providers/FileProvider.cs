@@ -6,6 +6,8 @@ using FinkFramework.Runtime.Utils;
 using UnityEngine;
 using UnityEngine.Networking;
 using Object = UnityEngine.Object;
+// ReSharper disable HeuristicUnreachableCode
+#pragma warning disable CS0162 // 检测到不可到达的代码
 
 namespace FinkFramework.Runtime.ResLoad.Providers
 {

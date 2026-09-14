@@ -39,6 +39,8 @@ namespace FinkFramework.Runtime.Localization
         private static bool initialized;
         // 每次重新初始化或 Clear 都递增，防止旧异步任务在新数据库上继续提交结果。
         private static int runtimeGeneration;
+        // 每次有效的语言切换请求都递增，确保并发切换只有最后一次请求能够提交。
+        private static int localeSwitchVersion;
         private static bool warnedSynchronousUriAccess;
         private static bool settingsResourceLoaded;
         private static bool asyncPreloadAttempted;
@@ -183,6 +185,7 @@ namespace FinkFramework.Runtime.Localization
             bool releaseRuntimeResources)
         {
             runtimeGeneration++;
+            localeSwitchVersion++;
             if (releaseRuntimeResources)
                 ReleaseRuntimeResources();
             database.Clear();
@@ -549,59 +552,148 @@ namespace FinkFramework.Runtime.Localization
             if (!EnsureInitialized() || Settings == null || !Settings.EnableLocalization)
                 return false;
 
+            if (!TryResolveLocaleSwitch(localeCode, out string normalizedLocale))
+                return false;
+
             int generation = runtimeGeneration;
-
-            if (!LocaleInfo.TryNormalize(localeCode, out string normalizedLocale))
-            {
-                LogUtil.Warn("Localization", $"无法切换到无效语言：{localeCode}");
-                return false;
-            }
-
-            if (!Settings.SupportsLocale(normalizedLocale))
-            {
-                LogUtil.Warn("Localization", $"语言不在支持列表中：{normalizedLocale}");
-                return false;
-            }
-
+            int switchVersion = ++localeSwitchVersion;
             string previousLocale = CurrentLocale;
+            RuntimeLoadingMode loadingMode = Settings.LoadingMode;
+            string fallbackLocale = Settings.DefaultFallbackLocale;
             if (string.Equals(previousLocale, normalizedLocale, StringComparison.OrdinalIgnoreCase))
             {
-                database.SetLocaleContext(CurrentLocale, Settings.DefaultFallbackLocale);
+                database.SetLocaleContext(CurrentLocale, fallbackLocale);
                 return true;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
             await EnsureAsyncReady(cancellationToken);
-            if (generation != runtimeGeneration)
+            if (!IsLocaleSwitchCurrent(generation, switchVersion))
                 return false;
 
-            if (Settings.LoadingMode == RuntimeLoadingMode.OnDemandModule)
+            if (loadingMode == RuntimeLoadingMode.OnDemandModule)
             {
-                foreach (string category in usedCategories)
+                var categoriesToReload = new List<string>(usedCategories);
+                foreach (string category in categoriesToReload)
                 {
                     await LoadCategoryAsync(category, normalizedLocale, cancellationToken);
-                    if (!string.Equals(normalizedLocale, Settings.DefaultFallbackLocale, StringComparison.OrdinalIgnoreCase))
+                    if (!IsLocaleSwitchCurrent(generation, switchVersion))
+                        return false;
+
+                    if (!string.Equals(normalizedLocale, fallbackLocale, StringComparison.OrdinalIgnoreCase))
                     {
                         await LoadCategoryAsync(
                             category,
-                            Settings.DefaultFallbackLocale,
+                            fallbackLocale,
                             cancellationToken);
+                        if (!IsLocaleSwitchCurrent(generation, switchVersion))
+                            return false;
                     }
                 }
             }
 
-            if (Settings.LoadingMode == RuntimeLoadingMode.OnDemandLocalePackage)
+            if (loadingMode == RuntimeLoadingMode.OnDemandLocalePackage)
             {
                 await LoadAllCategoriesAsync(normalizedLocale, cancellationToken);
-                if (!string.Equals(normalizedLocale, Settings.DefaultFallbackLocale, StringComparison.OrdinalIgnoreCase))
+                if (!IsLocaleSwitchCurrent(generation, switchVersion))
+                    return false;
+
+                if (!string.Equals(normalizedLocale, fallbackLocale, StringComparison.OrdinalIgnoreCase))
                 {
-                    await LoadAllCategoriesAsync(Settings.DefaultFallbackLocale, cancellationToken);
+                    await LoadAllCategoriesAsync(fallbackLocale, cancellationToken);
                 }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (generation != runtimeGeneration)
+            if (!IsLocaleSwitchCurrent(generation, switchVersion))
                 return false;
+
+            CommitLocaleSwitch(previousLocale, normalizedLocale);
+            return true;
+        }
+
+        /// <summary>
+        /// 同步切换当前运行时语言。返回时语言上下文和所需本地语言表已经更新。
+        /// URI 形式的 StreamingAssets 无法同步读取，应改用 SwitchLocaleAsync。
+        /// </summary>
+        public static bool SwitchLocale(string localeCode)
+        {
+            if (!EnsureInitialized() || Settings == null || !Settings.EnableLocalization)
+                return false;
+
+            if (!TryResolveLocaleSwitch(localeCode, out string normalizedLocale))
+                return false;
+
+            string previousLocale = CurrentLocale;
+            if (string.Equals(previousLocale, normalizedLocale, StringComparison.OrdinalIgnoreCase))
+            {
+                localeSwitchVersion++;
+                database.SetLocaleContext(CurrentLocale, Settings.DefaultFallbackLocale);
+                return true;
+            }
+
+            if (IsStreamingAssetsUri)
+            {
+                return RejectSynchronousUriAccess(
+                    "当前平台的 StreamingAssets 是 URI，无法同步切换语言，请使用 SwitchLocaleAsync。");
+            }
+
+            int generation = runtimeGeneration;
+            int switchVersion = ++localeSwitchVersion;
+
+            LoadLocaleForSynchronousSwitch(normalizedLocale);
+            if (!IsLocaleSwitchCurrent(generation, switchVersion))
+                return false;
+
+            CommitLocaleSwitch(previousLocale, normalizedLocale);
+            return true;
+        }
+
+        private static bool TryResolveLocaleSwitch(string localeCode, out string normalizedLocale)
+        {
+            if (!LocaleInfo.TryNormalize(localeCode, out normalizedLocale))
+            {
+                LogUtil.Warn("Localization", $"无法切换到无效语言：{localeCode}");
+                return false;
+            }
+
+            if (Settings.SupportsLocale(normalizedLocale))
+                return true;
+
+            LogUtil.Warn("Localization", $"语言不在支持列表中：{normalizedLocale}");
+            return false;
+        }
+
+        private static bool IsLocaleSwitchCurrent(int generation, int switchVersion)
+        {
+            return generation == runtimeGeneration && switchVersion == localeSwitchVersion;
+        }
+
+        private static void LoadLocaleForSynchronousSwitch(string localeCode)
+        {
+            string fallbackLocale = Settings.DefaultFallbackLocale;
+            if (Settings.LoadingMode == RuntimeLoadingMode.OnDemandModule)
+            {
+                var categoriesToReload = new List<string>(usedCategories);
+                for (int i = 0; i < categoriesToReload.Count; i++)
+                {
+                    string category = categoriesToReload[i];
+                    LoadCategory(category, localeCode);
+                    if (!string.Equals(localeCode, fallbackLocale, StringComparison.OrdinalIgnoreCase))
+                        LoadCategory(category, fallbackLocale);
+                }
+
+                return;
+            }
+
+            // LoadAll 初始化后通常已经具备这些表；再次调用可以补齐缺失或被卸载的表。
+            LoadAllCategories(localeCode);
+            if (!string.Equals(localeCode, fallbackLocale, StringComparison.OrdinalIgnoreCase))
+                LoadAllCategories(fallbackLocale);
+        }
+
+        private static void CommitLocaleSwitch(string previousLocale, string normalizedLocale)
+        {
             CurrentLocale = normalizedLocale;
             database.SetLocaleContext(CurrentLocale, Settings.DefaultFallbackLocale);
 
@@ -612,17 +704,6 @@ namespace FinkFramework.Runtime.Localization
             }
 
             NotifyLocaleChanged(previousLocale, CurrentLocale);
-            return true;
-        }
-
-        /// <summary>
-        /// 启动一次全平台语言切换，不要求调用方书写 await。
-        /// 方法会立即返回；切换完成后会自动触发 OnLocaleChanged。
-        /// 如需等待结果或捕获失败，请直接 await SwitchLocaleAsync。
-        /// </summary>
-        public static void SwitchLocale(string localeCode)
-        {
-            SwitchLocaleAsync(localeCode).Forget();
         }
 
         /// <summary>
@@ -675,6 +756,7 @@ namespace FinkFramework.Runtime.Localization
         public static void Clear()
         {
             runtimeGeneration++;
+            localeSwitchVersion++;
             ReleaseRuntimeResources();
             database.Clear();
             Settings = null;
@@ -1641,6 +1723,10 @@ namespace FinkFramework.Runtime.Localization
                     failedTableLoads.Add(BuildTableLoadKey(normalizedLocale, category));
                 return false;
             }
+
+            // 同步切换可能已在异步读取期间提交了同一张表；此时复用现有结果。
+            if (database.IsTableLoaded(normalizedLocale, category))
+                return true;
 
             if (!database.TryAddJson(
                     fileData.Json,

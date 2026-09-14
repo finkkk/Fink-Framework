@@ -57,13 +57,20 @@ namespace FinkFramework.Runtime.ResLoad
                 provider.Initialize(settings);
                 AddProvider("ab", provider);
             }
-            // 注册 addressables 加载模块
+            // Addressables 位于独立程序集。核心程序集不直接引用该包，
+            // 以便未安装 Addressables 的项目仍可正常编译和使用 Resources / AB。
 #if ENABLE_ADDRESSABLES
             if (globalSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
             {
-                var addrProvider = new AddressablesProvider();
-                AddProvider("addr", addrProvider);
-                AddProvider("addressables", addrProvider);
+                RegisterAddressablesProvider();
+            }
+#else
+            if (globalSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
+            {
+                LogUtil.Error(
+                    "ResManager",
+                    "当前资源后端配置为 Addressables，但项目未安装 com.unity.addressables 包。"
+                    + "请安装该包，或在全局配置中改用 Resources / AssetBundle / Custom。");
             }
 #endif
             // 注册 Editor 加载模块
@@ -91,6 +98,43 @@ namespace FinkFramework.Runtime.ResLoad
         {
             providers[prefix] = provider;
         }
+
+#if ENABLE_ADDRESSABLES
+        /// <summary>
+        /// 从可选的 Addressables 程序集创建 Provider。
+        /// Runtime 核心不持有 Addressables 的编译期引用，避免包缺失时整个框架无法编译。
+        /// </summary>
+        private void RegisterAddressablesProvider()
+        {
+            const string providerTypeName =
+                "FinkFramework.Runtime.ResLoad.Providers.AddressablesProvider, FinkFramework.Addressables";
+            Type providerType = Type.GetType(providerTypeName);
+            if (providerType == null || !typeof(IResProvider).IsAssignableFrom(providerType))
+            {
+                LogUtil.Error(
+                    "ResManager",
+                    "已检测到 Addressables 包，但 FinkFramework.Addressables 扩展程序集不可用。"
+                    + "请确认框架的 Addressables 扩展未被删除且没有编译错误。");
+                return;
+            }
+
+            try
+            {
+                if (Activator.CreateInstance(providerType) is not IResProvider provider)
+                {
+                    LogUtil.Error("ResManager", "无法创建 Addressables Provider。");
+                    return;
+                }
+
+                AddProvider("addr", provider);
+                AddProvider("addressables", provider);
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("ResManager", $"Addressables Provider 初始化失败：{exception.Message}");
+            }
+        }
+#endif
 
         /// <summary>
         /// 解析提供器专用路径
@@ -514,9 +558,7 @@ namespace FinkFramework.Runtime.ResLoad
                 }
                 if (provider is ResourcesProvider)
                 {
-                    // Resources 必须通过对象卸载
-                    if (resInfo.asset)
-                        Resources.UnloadAsset(resInfo.asset);
+                    ReleaseResourcesAsset(resInfo.asset);
                 }
                 else
                 {
@@ -582,8 +624,7 @@ namespace FinkFramework.Runtime.ResLoad
                     }
                     if (provider is ResourcesProvider)
                     {
-                        // Resources 必须通过对象卸载
-                        if (asset) Resources.UnloadAsset(asset);
+                        ReleaseResourcesAsset(asset);
                     }
                     else
                     {
@@ -595,6 +636,22 @@ namespace FinkFramework.Runtime.ResLoad
             }
             // Step 3：系统清理未引用资源
             await Resources.UnloadUnusedAssets();
+        }
+
+        /// <summary>
+        /// 释放可单独卸载的 Resources 资源。
+        /// GameObject、Component 与 AssetBundle 不能传入 Resources.UnloadAsset；
+        /// 移除框架引用后交由 Resources.UnloadUnusedAssets 在合适时机统一回收。
+        /// </summary>
+        private static void ReleaseResourcesAsset(Object asset)
+        {
+            if (!asset
+                || asset is GameObject
+                || asset is Component
+                || asset is AssetBundle)
+                return;
+
+            Resources.UnloadAsset(asset);
         }
         
         #endregion

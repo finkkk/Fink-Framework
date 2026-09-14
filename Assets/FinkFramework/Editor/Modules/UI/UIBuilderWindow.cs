@@ -3,7 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using FinkFramework.Editor.Common;
 using FinkFramework.Editor.Modules.Settings.Loaders;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
+using FinkFramework.Runtime.UI.Base;
+using FinkFramework.Runtime.UI.Layout;
+using FinkFramework.Runtime.UI.Transitions;
 using FinkFramework.Runtime.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -16,8 +20,8 @@ namespace FinkFramework.Editor.Modules.UI
     /// </summary>
     public class UIBuilderWindow : EditorWindow
     {
-        private const float DefaultWindowWidth = 480f;
-        private const float MinimumWindowHeight = 360f;
+        private const float DefaultWindowWidth = 540f;
+        private const float MinimumWindowHeight = 460f;
         private const float InitialWindowHeightPadding = 30f;
 
         // 这些值只用于跨脚本重编译传递一次性的生成任务，不属于项目配置。
@@ -29,17 +33,23 @@ namespace FinkFramework.Editor.Modules.UI
         private const string PendingAddInputKey = "FinkFramework.UIBuilder.Pending.AddInput";
         private const string PendingAddToggleKey = "FinkFramework.UIBuilder.Pending.AddToggle";
         private const string PendingAddSliderKey = "FinkFramework.UIBuilder.Pending.AddSlider";
+        private const string PendingAddTransitionKey = "FinkFramework.UIBuilder.Pending.AddTransition";
+        private const string PendingAddSafeAreaKey = "FinkFramework.UIBuilder.Pending.AddSafeArea";
 
-        private string panelName = "TestPanel";
-        // EditorWindow 构造阶段禁止访问 Resources；默认路径在 OnEnable 中初始化。
+        private string panelName = "NewPanel";
         private string scriptPath;
-        private string prefabPath = "Assets/Resources/UI/Panels";
-        private bool useTMP = true;  // 默认使用 TMP（Unity 推荐）
-        // 是否生成示例 UI
+        private string prefabPath;
+        private static bool IsTMPAvailable => EnvironmentState.AutoTMP;
+
+        private bool useTMP = IsTMPAvailable;
+        // 用于区分“用户主动取消”与“因项目缺少 TMP 被强制取消”。
+        private bool tmpDisabledByUnavailablePackage;
         private bool addExampleButton = false;
         private bool addExampleInput = false;
         private bool addExampleToggle = false;
         private bool addExampleSlider = false;
+        private bool addDefaultTransition = true;
+        private bool addSafeArea = true;
         private Vector2 contentScrollPosition;
         [SerializeField] private bool initialSizeConfigured;
         private bool initialResizeScheduled;
@@ -51,8 +61,15 @@ namespace FinkFramework.Editor.Modules.UI
         /// </summary>
         private void OnEnable()
         {
-            if (string.IsNullOrWhiteSpace(scriptPath))
-                scriptPath = GetDefaultScriptPath();
+            SynchronizeTMPAvailability();
+            if (!TrySyncConfiguredPaths(out _))
+            {
+                scriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(
+                    GlobalSettingsAsset.DefaultScriptRootDirectory,
+                    GlobalSettingsAsset.DefaultUIPanelScriptOutputSuffix);
+                prefabPath = GlobalSettingsAsset.GetUIPanelPrefabOutputPath(
+                    GlobalSettingsAsset.DefaultUIPanelPrefabOutputRelativePath);
+            }
         }
 
         private void OnDisable()
@@ -60,10 +77,16 @@ namespace FinkFramework.Editor.Modules.UI
             EditorApplication.delayCall -= ApplyInitialWindowSize;
         }
 
-        [MenuItem("Fink Framework/创建 UI 面板")]
+        private void OnFocus()
+        {
+            SynchronizeTMPAvailability();
+            TrySyncConfiguredPaths(out _);
+        }
+
+        [MenuItem("Fink Framework/UI 系统/创建 UI 面板", false, 100)]
         public static void Open()
         {
-            var window = GetWindow<UIBuilderWindow>("创建UI面板");
+            var window = GetWindow<UIBuilderWindow>("创建 UI 面板");
             window.minSize = new Vector2(DefaultWindowWidth, MinimumWindowHeight);
             if (!window.initialSizeConfigured)
                 window.Repaint();
@@ -75,57 +98,33 @@ namespace FinkFramework.Editor.Modules.UI
             contentScrollPosition = EditorGUILayout.BeginScrollView(
                 contentScrollPosition,
                 GUILayout.ExpandHeight(true));
+            FFEditorGUI.BeginWindowContent();
+            GUILayout.Space(10f);
 
-            // ========== 主标题 ==========
-            FFEditorGUI.Center(() =>
-            {
-                GUILayout.Label("创建 UI 面板", FFEditorStyles.Title);
-            });
+            FFEditorGUI.Center(() => GUILayout.Label("创建 UI 面板", FFEditorStyles.Title));
+            FFEditorGUI.Center(() => GUILayout.Label(
+                "生成可直接由 UIManager 打开的面板脚本与预制体",
+                EditorStyles.centeredGreyMiniLabel));
+            GUILayout.Space(8f);
+            FFEditorGUI.Separator();
+            GUILayout.Space(FFEditorStyles.SectionSpacing);
 
-            FFEditorGUI.Separator(1);
-            GUILayout.Space(12);
-
-            // ========== 输入区域 ==========
             DrawInputs();
 
-            GUILayout.Space(12);
-            
-            // ----------- 说明标题 -------------
-            GUILayout.Label("特别说明 Description", FFEditorStyles.SectionTitle);
+            GUILayout.Space(FFEditorStyles.SectionSpacing);
+            DrawOutputPreview();
+            GUILayout.Space(FFEditorStyles.SectionSpacing);
+            DrawUsageTips();
+            GUILayout.Space(14f);
+            FFEditorGUI.Separator();
+            GUILayout.Space(14f);
 
-            // ========== 说明文字 ==========
-            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
-            GUILayout.Space(5);
-
-            GUILayout.Label(
-                "· 面板名称建议以 <b>XXXPanel</b> 形式命名，如：<color=#66CCFF>TestPanel</color>。\n" +
-                "· 注意面板名称请勿与对应路径下的已有预制体或脚本名重名！\n" +
-                "· 面板预制体默认路径：<b>Assets/Resources/UI/Panels</b>。\n" +
-                "· 若使用默认路径，可直接调用：<color=#A8FF60>UIManager.Instance.ShowPanel<面板名称>()</color>\n" +
-                "· 若更改了预制体路径，则需要手动传入带前缀的完整路径 fullPath 才能加载。",
-                FFEditorStyles.Description);
-
-            GUILayout.Space(6);
-            GUILayout.EndVertical();
-
-            GUILayout.Space(12);
-            FFEditorGUI.Separator(1);
-            GUILayout.Space(15);
-
-            // ========== 创建按钮 ==========
             DrawCreateButton();
-
-            // 使用固定间距，让首次自动测量得到内容的真实高度，而不是被 FlexibleSpace 放大。
             GUILayout.Space(12f);
-
-            // ========== 底部版权 ==========
-            FFEditorGUI.Center(() =>
-            {
-                GUILayout.Label("Copyright \u00A9 2025  Fink Framework",
-                    FFEditorStyles.Footer);
-            });
+            FFEditorGUI.DrawFrameworkFooter(4f);
 
             ScheduleInitialResize();
+            FFEditorGUI.EndWindowContent();
             EditorGUILayout.EndScrollView();
         }
 
@@ -174,73 +173,229 @@ namespace FinkFramework.Editor.Modules.UI
         
         private void DrawInputs()
         {
-            // ----------- Panel Settings -------------
-            GUILayout.Label("面板设置 Panel Settings", FFEditorStyles.SectionTitle);
+            FFEditorGUI.DrawSectionHeader(
+                "基础信息",
+                "面板名称同时作为脚本类名和预制体名称。建议使用以 Panel 结尾的英文标识符。");
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            panelName = EditorGUILayout.TextField("面板名称", panelName);
+            if (!string.IsNullOrWhiteSpace(panelName)
+                && !ValidatePanelName(panelName, out string nameError))
+                EditorGUILayout.HelpBox(GetFirstLine(nameError), MessageType.Warning);
+            GUILayout.EndVertical();
+
+            GUILayout.Space(FFEditorStyles.SectionSpacing);
+            FFEditorGUI.DrawSectionHeader(
+                "基础能力",
+                "这些选项会直接添加到生成的面板根节点或内容节点上。");
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            using (new EditorGUI.DisabledScope(!IsTMPAvailable))
+            {
+                useTMP = EditorGUILayout.ToggleLeft(
+                    new GUIContent(
+                        "使用 TextMeshPro 文本组件",
+                        IsTMPAvailable
+                            ? "已检测到 TextMeshPro；取消勾选后改用 Unity 旧版文本控件。"
+                            : "当前项目未安装 TextMeshPro。"),
+                    useTMP);
+            }
+
+            if (!IsTMPAvailable)
+            {
+                EditorGUILayout.HelpBox(
+                    "当前项目未安装 TextMeshPro，生成器将自动使用 Unity 旧版文本控件。",
+                    MessageType.Info);
+            }
+            addDefaultTransition = EditorGUILayout.ToggleLeft("添加默认进入和退出过渡", addDefaultTransition);
+            addSafeArea = EditorGUILayout.ToggleLeft("内容适配屏幕安全区域", addSafeArea);
+            GUILayout.EndVertical();
+
+            GUILayout.Space(FFEditorStyles.SectionSpacing);
+            FFEditorGUI.DrawSectionHeader(
+                "示例控件（可选）",
+                "仅用于快速搭建原型；正式面板可以全部不选。");
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            EditorGUILayout.BeginHorizontal();
+            addExampleButton = EditorGUILayout.ToggleLeft("按钮", addExampleButton);
+            addExampleInput = EditorGUILayout.ToggleLeft("输入框", addExampleInput);
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            addExampleToggle = EditorGUILayout.ToggleLeft("开关", addExampleToggle);
+            addExampleSlider = EditorGUILayout.ToggleLeft("滑动条", addExampleSlider);
+            EditorGUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawOutputPreview()
+        {
+            bool pathsValid = TrySyncConfiguredPaths(out string pathError);
+            FFEditorGUI.DrawSectionHeader(
+                "输出预览",
+                "输出目录由 UI 配置统一管理，本窗口只显示最终结果。");
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
 
-            GUILayout.Space(5);
+            if (!pathsValid)
+            {
+                EditorGUILayout.HelpBox(pathError, MessageType.Error);
+            }
+            else
+            {
+                string safeName = string.IsNullOrWhiteSpace(panelName) ? "面板名称" : panelName.Trim();
+                DrawReadOnlyPath("脚本文件", $"{scriptPath}/{safeName}.cs");
+                DrawReadOnlyPath("面板预制体", $"{prefabPath}/{safeName}.prefab");
+            }
 
-            panelName = EditorGUILayout.TextField("面板名称 Panel Name", panelName);
-            GUILayout.Space(4);
+            GUILayout.Space(4f);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("打开 UI 配置", FFEditorStyles.ActionButton, GUILayout.Width(120f)))
+                SettingsService.OpenProjectSettings("Project/Fink Framework/UI Settings");
+            EditorGUILayout.EndHorizontal();
+            GUILayout.EndVertical();
+        }
 
-            scriptPath = EditorGUILayout.TextField(
-                "代码文件输出路径 Script Output Folder",
-                scriptPath);
-            prefabPath = EditorGUILayout.TextField("UI预制体输出路径 Prefab Output Folder", prefabPath);
-
-            GUILayout.Space(5);
-            GUILayout.EndVertical();     // ← 提前结束 Panel Settings
-
-            GUILayout.Space(12);
-
-            // ----------- Example UI (独立卡片) -------------
-            GUILayout.Label("示例控件 Example UI", FFEditorStyles.SectionTitle);
+        private void DrawUsageTips()
+        {
+            FFEditorGUI.DrawSectionHeader("创建流程");
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            EditorGUILayout.LabelField(
+                "1. 先生成脚本并等待 Unity 完成编译。\n" +
+                "2. 编译成功后自动创建预制体、挂载脚本并定位资源。\n" +
+                "3. 业务代码只需通过 UIManager 打开面板，无需传入资源路径。",
+                FFEditorStyles.Description);
+            GUILayout.EndVertical();
+        }
 
-            GUILayout.Space(5);
-            useTMP = EditorGUILayout.Toggle("是否使用 TextMeshPro", useTMP);
-            addExampleButton = EditorGUILayout.Toggle("添加示例按钮 Button", addExampleButton);
-            addExampleInput  = EditorGUILayout.Toggle("添加示例输入框 InputField", addExampleInput);
-            addExampleToggle = EditorGUILayout.Toggle("添加示例 Toggle", addExampleToggle);
-            addExampleSlider = EditorGUILayout.Toggle("添加示例 Slider", addExampleSlider);
+        private static void DrawReadOnlyPath(string label, string value)
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(label, EditorStyles.miniBoldLabel, GUILayout.Width(72f));
+            using (new EditorGUI.DisabledScope(true))
+                EditorGUILayout.TextField(value);
+            EditorGUILayout.EndHorizontal();
+        }
 
-            GUILayout.Space(5);
-            GUILayout.EndVertical();     // ← Example UI 卡片结束
+        private static string GetFirstLine(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return string.Empty;
+
+            int lineBreak = value.IndexOf('\n');
+            return lineBreak < 0 ? value : value.Substring(0, lineBreak);
+        }
+
+        private void SynchronizeTMPAvailability()
+        {
+            if (!IsTMPAvailable)
+            {
+                useTMP = false;
+                tmpDisabledByUnavailablePackage = true;
+                return;
+            }
+
+            if (tmpDisabledByUnavailablePackage)
+                useTMP = true;
+
+            tmpDisabledByUnavailablePackage = false;
         }
 
         /// <summary>
-        /// 获取 UI 面板脚本的默认输出目录。用户仍可以在本窗口中临时指定其他目录，
-        /// 但新窗口默认会跟随 Framework 设置中的全局脚本根目录。
+        /// 从统一 UI 配置读取生成目录。窗口不保存路径副本，确保生成器和运行时始终使用同一配置。
         /// </summary>
-        private static string GetDefaultScriptPath()
+        private bool TrySyncConfiguredPaths(out string error)
         {
             GlobalSettingsAsset settings = GlobalSettingsEditorLoader.LoadOrCreate();
-            string scriptRoot = GlobalSettingsAsset.NormalizeScriptRootDirectory(
-                settings?.ScriptRootDirectory);
-            return $"Assets/{scriptRoot}/UI/Panels";
+            if (!settings)
+            {
+                error = "未找到 UI 配置文件。";
+                return false;
+            }
+
+            if (!GlobalSettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
+                    settings.UIPanelScriptOutputSuffix,
+                    settings.ScriptRootDirectory,
+                    out string scriptOutputSuffix,
+                    out error))
+                return false;
+
+            if (!GlobalSettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
+                    settings.UIPanelPrefabOutputRelativePath,
+                    out string prefabOutputRelativePath,
+                    out error))
+                return false;
+
+            scriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(
+                settings.ScriptRootDirectory,
+                scriptOutputSuffix);
+            prefabPath = GlobalSettingsAsset.GetUIPanelPrefabOutputPath(
+                prefabOutputRelativePath);
+            error = string.Empty;
+            return true;
         }
         
         private void DrawCreateButton()
         {
-            FFEditorGUI.Center(() =>
+            bool canCreate = CanCreatePanel(out string reason);
+            using (new EditorGUI.DisabledScope(!canCreate))
             {
-                if (GUILayout.Button("创建 UI 面板", FFEditorStyles.BigButton, GUILayout.Width(220)))
-                {
+                if (GUILayout.Button(
+                        "创建 UI 面板",
+                        FFEditorStyles.BigButton,
+                        GUILayout.ExpandWidth(true)))
                     CreatePanel();
-                }
-            });
+            }
+
+            if (!canCreate)
+                EditorGUILayout.HelpBox(reason, MessageType.Warning);
+            else
+                FFEditorGUI.Center(() => GUILayout.Label(
+                    "创建后将自动等待脚本编译并继续生成预制体",
+                    EditorStyles.centeredGreyMiniLabel));
+        }
+
+        private bool CanCreatePanel(out string reason)
+        {
+            if (!TrySyncConfiguredPaths(out reason))
+                return false;
+
+            if (!ValidatePanelName(panelName, out reason))
+            {
+                reason = GetFirstLine(reason);
+                return false;
+            }
+
+            if (CheckScriptConflict(panelName, scriptPath))
+            {
+                reason = "目标目录中已经存在同名脚本。";
+                return false;
+            }
+
+            if (CheckPrefabConflict(panelName, prefabPath))
+            {
+                reason = "目标目录中已经存在同名面板预制体。";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
         }
         
         #endregion
 
-        #region 生成UI面板主流程
+        #region 生成 UI 面板主流程
 
-        /// <summary>
-        /// 创建UI面板主入口
-        /// </summary>
+        /// <summary>校验配置并启动面板生成流程。</summary>
         private void CreatePanel()
         {
-            // ====== PanelName 合法性校验 ======
+            SynchronizeTMPAvailability();
+            if (!TrySyncConfiguredPaths(out string pathError))
+            {
+                EditorUtility.DisplayDialog(
+                    "UI 路径配置无效",
+                    $"{pathError}\n\n请前往 Project Settings > Fink Framework > UI Settings 修改。",
+                    "确认");
+                return;
+            }
+
             if (!ValidatePanelName(panelName, out var error))
             {
                 EditorUtility.DisplayDialog(
@@ -250,26 +405,38 @@ namespace FinkFramework.Editor.Modules.UI
                 );
                 return;
             }
+
+            if (CheckScriptConflict(panelName, scriptPath))
+            {
+                string fullScriptPath = $"{scriptPath}/{panelName}.cs";
+                EditorUtility.DisplayDialog(
+                    "脚本已存在",
+                    $"检测到同名 UI 脚本：\n\n{fullScriptPath}\n\n请更换面板名称，或先处理已有脚本。",
+                    "确认");
+                LogUtil.Warn("UIBuilderWindow", $"UI 脚本已存在，已中断创建：{fullScriptPath}");
+                return;
+            }
     
             if (CheckPrefabConflict(panelName, prefabPath))
             {
                 string fullPrefabPath = $"{prefabPath}/{panelName}.prefab";
 
                 EditorUtility.DisplayDialog(
-                    "Prefab 已存在",
-                    $"检测到已存在同名 UI Prefab：\n\n{fullPrefabPath}\n\n" +
-                    "请更换面板名称，或手动删除已有 Prefab 后再创建。",
+                    "预制体已存在",
+                    $"检测到已存在同名 UI 预制体：\n\n{fullPrefabPath}\n\n" +
+                    "请更换面板名称，或手动删除已有预制体后再创建。",
                     "确认"
                 );
 
                 LogUtil.Warn("UIBuilderWindow",
-                    $"检测到同名 Prefab，已完全中断 UI 面板创建流程：{fullPrefabPath}");
+                    $"检测到同名预制体，已中断 UI 面板创建流程：{fullPrefabPath}");
                 return;
             }
 
-            CreateScript();
+            if (!CreateScript())
+                return;
 
-            // 保存一次性任务状态，供脚本重编译完成后的回调继续创建 Prefab。
+            // 保存一次性任务状态，供脚本重编译完成后的回调继续创建预制体。
             // SessionState 会跨程序集重载保留，但 Unity 退出后自动清空，不会残留旧任务。
             SessionState.SetString(PendingPanelNameKey, panelName);
             SessionState.SetString(PendingPrefabPathKey, prefabPath);
@@ -281,6 +448,8 @@ namespace FinkFramework.Editor.Modules.UI
             SessionState.SetBool(PendingAddInputKey, addExampleInput);
             SessionState.SetBool(PendingAddToggleKey, addExampleToggle);
             SessionState.SetBool(PendingAddSliderKey, addExampleSlider);
+            SessionState.SetBool(PendingAddTransitionKey, addDefaultTransition);
+            SessionState.SetBool(PendingAddSafeAreaKey, addSafeArea);
 
             // 触发编译
             AssetDatabase.Refresh();
@@ -294,7 +463,7 @@ namespace FinkFramework.Editor.Modules.UI
         
         #region 生成面板对应脚本
         
-        private void CreateScript()
+        private bool CreateScript()
         {
             if (!AssetDatabase.IsValidFolder(scriptPath))
                 Directory.CreateDirectory(scriptPath);
@@ -307,7 +476,11 @@ namespace FinkFramework.Editor.Modules.UI
             if (!templateAsset)
             {
                 LogUtil.Error("UIBuilderWindow", "模板文件未找到：Assets/FinkFramework/Editor/EditorResources/UI/template_ui_panel.txt");
-                return;
+                EditorUtility.DisplayDialog(
+                    "无法创建 UI 面板",
+                    "未找到 UI 面板脚本模板，请确认框架文件完整。",
+                    "确认");
+                return false;
             }
 
             string template = templateAsset.text;
@@ -339,6 +512,7 @@ namespace FinkFramework.Editor.Modules.UI
             File.WriteAllText(filePath, code);
 
             LogUtil.Info($"UIBuilderWindow: 生成 UI 脚本 → {filePath}");
+            return true;
         }
         
         /// <summary>
@@ -349,18 +523,18 @@ namespace FinkFramework.Editor.Modules.UI
             string result = "";
 
             if (addBtn)
-                result += "        private Button DemoButton;\n";
+                result += "        private Button demoButton;\n";
 
             if (addInput)
                 result += useTMPro
-                    ? "        private TMP_InputField DemoInput;\n"
-                    : "        private InputField DemoInput;\n";
+                    ? "        private TMP_InputField demoInput;\n"
+                    : "        private InputField demoInput;\n";
 
             if (addToggle)
-                result += "        private Toggle DemoToggle;\n";
+                result += "        private Toggle demoToggle;\n";
 
             if (addSlider)
-                result += "        private Slider DemoSlider;\n";
+                result += "        private Slider demoSlider;\n";
 
             return result;
         }
@@ -373,18 +547,18 @@ namespace FinkFramework.Editor.Modules.UI
             string result = "";
 
             if (addBtn)
-                result += "            DemoButton = GetControl<Button>(\"DemoButton\");\n";
+                result += "            demoButton = GetControl<Button>(\"DemoButton\");\n";
 
             if (addInput)
                 result += useTMPro
-                    ? "            DemoInput = GetControl<TMP_InputField>(\"DemoInput\");\n"
-                    : "            DemoInput = GetControl<InputField>(\"DemoInput\");\n";
+                    ? "            demoInput = GetControl<TMP_InputField>(\"DemoInput\");\n"
+                    : "            demoInput = GetControl<InputField>(\"DemoInput\");\n";
 
             if (addToggle)
-                result += "            DemoToggle = GetControl<Toggle>(\"DemoToggle\");\n";
+                result += "            demoToggle = GetControl<Toggle>(\"DemoToggle\");\n";
 
             if (addSlider)
-                result += "            DemoSlider = GetControl<Slider>(\"DemoSlider\");\n";
+                result += "            demoSlider = GetControl<Slider>(\"DemoSlider\");\n";
 
             return result;
         }
@@ -435,11 +609,14 @@ namespace FinkFramework.Editor.Modules.UI
             // 2. 读取其余配置
             string prefabPath = SessionState.GetString(PendingPrefabPathKey, string.Empty);
             string scriptPath = SessionState.GetString(PendingScriptPathKey, string.Empty);
-            bool useTMP = SessionState.GetBool(PendingUseTMPKey, true);
+            bool useTMP = IsTMPAvailable
+                          && SessionState.GetBool(PendingUseTMPKey, true);
             bool addButton = SessionState.GetBool(PendingAddButtonKey, false);
             bool addInput = SessionState.GetBool(PendingAddInputKey, false);
             bool addToggle = SessionState.GetBool(PendingAddToggleKey, false);
             bool addSlider = SessionState.GetBool(PendingAddSliderKey, false);
+            bool addTransition = SessionState.GetBool(PendingAddTransitionKey, true);
+            bool addSafeArea = SessionState.GetBool(PendingAddSafeAreaKey, true);
 
             // 读取完成后立即消费状态，避免延迟回调或异常导致重复执行。
             ClearPendingOperation();
@@ -455,7 +632,9 @@ namespace FinkFramework.Editor.Modules.UI
                     addButton,
                     addInput,
                     addToggle,
-                    addSlider);
+                    addSlider,
+                    addTransition,
+                    addSafeArea);
             };
         }
         
@@ -469,6 +648,8 @@ namespace FinkFramework.Editor.Modules.UI
             SessionState.EraseBool(PendingAddInputKey);
             SessionState.EraseBool(PendingAddToggleKey);
             SessionState.EraseBool(PendingAddSliderKey);
+            SessionState.EraseBool(PendingAddTransitionKey);
+            SessionState.EraseBool(PendingAddSafeAreaKey);
         }
 
         private static void CreatePrefabAfterCompile(
@@ -479,7 +660,9 @@ namespace FinkFramework.Editor.Modules.UI
             bool addBtn,
             bool addInput,
             bool addToggle,
-            bool addSlider)
+            bool addSlider,
+            bool addTransition,
+            bool addSafeArea)
         {
             // 确保 Prefab 文件夹存在
             if (!Directory.Exists(prefabPath))
@@ -494,9 +677,12 @@ namespace FinkFramework.Editor.Modules.UI
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
+
+            if (addTransition)
+                root.AddComponent<UICanvasGroupTransition>();
             
             // ==========================================================
-            // 1. 创建背景 Background（全屏半透明 Image）
+            // 1. 创建背景 Background（全屏透明 Image）
             // ==========================================================
             GameObject bg = new GameObject("Background", typeof(RectTransform), typeof(Image));
             bg.transform.SetParent(root.transform, false);
@@ -507,11 +693,12 @@ namespace FinkFramework.Editor.Modules.UI
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
 
-            // 设置半透明颜色（随便你改）
+            // 默认透明但仍拦截射线，避免一个新建页面无意间呈现白色蒙层，
+            // 也避免点击直接穿透到场景或下层 UI。
             var img = bg.GetComponent<Image>();
-            img.color = new Color(1f, 1f, 1f, 0.35f); // 白色 35% 透明
+            img.color = Color.clear;
 
-            // 让背景不挡住子节点事件（如果你想挡就不要开启）
+            // 背景参与射线检测，可用于实现点击遮罩关闭等交互。
             img.raycastTarget = true;
 
             // ==========================================================
@@ -525,13 +712,16 @@ namespace FinkFramework.Editor.Modules.UI
             contentRect.anchorMax = Vector2.one;
             contentRect.offsetMin = new Vector2(0, 0);
             contentRect.offsetMax = new Vector2(0, 0);
+            if (addSafeArea)
+                content.AddComponent<UISafeArea>();
             
             // ==========================================================
             // 3. 创建示例 UI 控件（根据用户选择）
             // ==========================================================
             Transform parent = content.transform;
 
-            // 自动布局（避免控件堆叠）
+            // Content 是全屏容器，由锚点决定自身尺寸；只让 Layout Group 排列子控件。
+            // 不在同一对象添加 ContentSizeFitter，避免它与拉伸锚点、Layout Group 相互争夺尺寸。
             if (addSlider || addInput || addToggle || addBtn)
             {
                 var layout = content.AddComponent<VerticalLayoutGroup>();
@@ -540,9 +730,6 @@ namespace FinkFramework.Editor.Modules.UI
                 layout.childAlignment = TextAnchor.UpperCenter;
                 layout.childForceExpandWidth = false;
                 layout.childForceExpandHeight = false;
-
-                content.gameObject.AddComponent<ContentSizeFitter>().verticalFit =
-                    ContentSizeFitter.FitMode.PreferredSize;
             }
             // 按需实例化控件（全部从预制体生成）
             if (addBtn)  CreateDemoControl("DemoButton",     useTMP, parent);
@@ -557,15 +744,19 @@ namespace FinkFramework.Editor.Modules.UI
             MonoScript ms = AssetDatabase.LoadAssetAtPath<MonoScript>(fullScriptPath);
             Type scriptType = ms != null ? ms.GetClass() : null;
 
-            if (scriptType != null)
+            if (scriptType == null
+                || scriptType.IsAbstract
+                || !typeof(BasePanel).IsAssignableFrom(scriptType))
             {
-                root.AddComponent(scriptType);
+                string error = $"无法挂载 UI 面板脚本：{fullScriptPath}\n\n"
+                               + "请确认脚本已成功编译、类名与文件名一致，并继承自非抽象的 BasePanel。";
+                LogUtil.Error("UIBuilderWindow", error);
+                EditorUtility.DisplayDialog("创建 UI 面板失败", error, "确认");
+                GameObject.DestroyImmediate(root);
+                return;
             }
-            else
-            {
-                // 如果精准路径找不到，再尝试兜底（可选）或报错
-                LogUtil.Warn($"无法挂载脚本，路径: {fullScriptPath} 请检查类名是否与文件名一致。");
-            }
+
+            root.AddComponent(scriptType);
 
             // ==========================================================
             // 5. 保存 Prefab
@@ -575,16 +766,16 @@ namespace FinkFramework.Editor.Modules.UI
             if (AssetDatabase.LoadAssetAtPath<GameObject>(fullPrefabPath) != null)
             {
                 EditorUtility.DisplayDialog(
-                    "Prefab 已存在",
-                    $"检测到已存在同名 UI Prefab：\n\n{fullPrefabPath}\n\n" +
-                    "请更换面板名称，或手动删除已有 Prefab 后再创建。",
+                    "预制体已存在",
+                    $"检测到已存在同名 UI 预制体：\n\n{fullPrefabPath}\n\n" +
+                    "请更换面板名称，或手动删除已有预制体后再创建。",
                     "确认"
                 );
 
                 LogUtil.Warn("UIBuilderWindow",
-                    $"UI Prefab 已存在，已中断创建：{fullPrefabPath}");
+                    $"UI 预制体已存在，已中断创建：{fullPrefabPath}");
 
-                // 中断流程
+                GameObject.DestroyImmediate(root);
                 return;
             }
             
@@ -593,7 +784,7 @@ namespace FinkFramework.Editor.Modules.UI
             // 销毁场景中的临时对象
             GameObject.DestroyImmediate(root);
 
-            EditorUtility.DisplayDialog("Success", $"UI面板 {panelName} 创建完毕!", "确认");
+            EditorUtility.DisplayDialog("创建完成", $"UI 面板 {panelName} 已创建。", "确认");
             
             // 高亮选中新文件
             EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<GameObject>(fullPrefabPath));
@@ -635,10 +826,17 @@ namespace FinkFramework.Editor.Modules.UI
             return true;
         }
         
-        private bool CheckPrefabConflict(string panelName, string prefabPath)
+        private bool CheckPrefabConflict(string panel, string path)
         {
-            string fullPrefabPath = $"{prefabPath}/{panelName}.prefab";
+            string fullPrefabPath = $"{path}/{panel}.prefab";
             return AssetDatabase.LoadAssetAtPath<GameObject>(fullPrefabPath) != null;
+        }
+
+        private bool CheckScriptConflict(string panel, string path)
+        {
+            string fullScriptPath = $"{path}/{panel}.cs";
+            return File.Exists(fullScriptPath)
+                   || AssetDatabase.LoadAssetAtPath<MonoScript>(fullScriptPath) != null;
         }
         
         private string BuildNamespace(string scriptFolder)
@@ -675,10 +873,11 @@ namespace FinkFramework.Editor.Modules.UI
         /// <summary>
         /// 根据用户选的控件类型，动态生成 using 区域
         /// </summary>
-        private string BuildUsings(bool useTMP, bool addBtn, bool addInput, bool addToggle, bool addSlider)
+        private string BuildUsings(bool usedTMP, bool addBtn, bool addInput, bool addToggle, bool addSlider)
         {
             var us = new HashSet<string> {
                 // BasePanel 必须要
+                "using FinkFramework.Runtime.UI;",
                 "using FinkFramework.Runtime.UI.Base;" };
 
             // LogUtil 必须要（只要有任何逻辑）
@@ -686,11 +885,11 @@ namespace FinkFramework.Editor.Modules.UI
                 us.Add("using FinkFramework.Runtime.Utils;");
 
             // 是否需要 UGUI
-            if (addBtn || addToggle || addSlider || (addInput && !useTMP))
+            if (addBtn || addToggle || addSlider || (addInput && !usedTMP))
                 us.Add("using UnityEngine.UI;");
 
             // TMP 版本控件必加
-            if (useTMP && (addBtn || addInput || addToggle))
+            if (usedTMP && (addBtn || addInput || addToggle))
                 us.Add("using TMPro;");
 
             // 整理输出
@@ -723,8 +922,7 @@ namespace FinkFramework.Editor.Modules.UI
             }
 
             GameObject obj = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
-            obj.transform.SetParent(parent, false);
-            
+            if (obj != null) obj.transform.SetParent(parent, false);
         }
         
         #endregion

@@ -86,5 +86,19 @@ namespace FinkFramework.Runtime.Settings.Loaders
                         : null);
             }
         }
+
+        /// <summary>
+        /// UI 面板预制体在 Resources 下的目录，不包含 res:// 前缀。
+        /// </summary>
+        public static string UIPanelResourcesPath
+        {
+            get
+            {
+                return GlobalSettingsAsset.GetUIPanelResourcesPath(
+                    TryGet(out GlobalSettingsAsset settings)
+                        ? settings?.UIPanelPrefabOutputRelativePath
+                        : null);
+            }
+        }
     }
 }

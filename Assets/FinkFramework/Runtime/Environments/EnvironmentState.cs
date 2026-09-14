@@ -66,16 +66,6 @@ namespace FinkFramework.Runtime.Environments
         #endif
 
         /// <summary>
-        /// 自动检测：当前项目是否导入了 UGUI。
-        /// 根据 ENABLE_UGUI 宏判断。
-        /// </summary>
-        #if ENABLE_UGUI
-        public const bool AutoUGUI = true;
-        #else
-        public const bool AutoUGUI = false;
-        #endif
-
-        /// <summary>
         /// 自动检测：当前项目是否导入了 TextMeshPro。
         /// 根据 ENABLE_TEXTMESHPRO 宏判断。
         /// </summary>

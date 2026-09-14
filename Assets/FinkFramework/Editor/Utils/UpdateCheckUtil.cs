@@ -7,6 +7,7 @@ using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using Unity.Plastic.Newtonsoft.Json.Linq;
 using UnityEditor;
+using UnityEngine;
 
 namespace FinkFramework.Editor.Utils
 {
@@ -21,6 +22,8 @@ namespace FinkFramework.Editor.Utils
         private static readonly HttpClient Client = CreateHttpClient();
 
         private static bool _checking;
+        // 编辑器启动后的自动检查尚未结束时，保留用户主动点击的意图，不能静默丢弃。
+        private static bool _manualCheckQueued;
 
         private static HttpClient CreateHttpClient()
         {
@@ -38,8 +41,22 @@ namespace FinkFramework.Editor.Utils
         [InitializeOnLoadMethod]
         private static void CheckUpdateOnLoad() => _ = CheckUpdateAsync(false);
         
-        // 手动触发：不需要检查间隔、不写入 EditorPrefs
-        public static void CheckUpdateManual() => _ = CheckUpdateAsync(true);
+        /// <summary>
+        /// 手动触发更新检查：忽略自动检查间隔，也不会改写自动检查时间。
+        /// 若已有自动检查在执行，则在其结束后补做一次手动检查。
+        /// </summary>
+        public static void CheckUpdateManual()
+        {
+            if (_checking)
+            {
+                _manualCheckQueued = true;
+                ShowManualCheckNotification("已有检查正在进行，完成后将重新检查。");
+                return;
+            }
+
+            ShowManualCheckNotification("正在检查 Fink Framework 更新…");
+            _ = CheckUpdateAsync(true);
+        }
         
         private static async Task CheckUpdateAsync(bool isManual)
         {
@@ -142,7 +159,22 @@ namespace FinkFramework.Editor.Utils
             finally
             {
                 _checking = false;
+
+                if (_manualCheckQueued)
+                {
+                    _manualCheckQueued = false;
+                    // 不在当前 async continuation 中递归启动，避免状态切换与 Editor GUI 事件交错。
+                    EditorApplication.delayCall += CheckUpdateManual;
+                }
             }
+        }
+
+        /// <summary>
+        /// 为触发检查的编辑器窗口提供即时反馈；没有可用窗口时仅保留控制台日志。
+        /// </summary>
+        private static void ShowManualCheckNotification(string message)
+        {
+            EditorWindow.focusedWindow?.ShowNotification(new GUIContent(message));
         }
 
         private static string FindPackageUrl(JObject release, string version)

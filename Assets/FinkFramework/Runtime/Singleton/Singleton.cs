@@ -1,6 +1,6 @@
 using System;
 using System.Reflection;
-using FinkFramework.Runtime.Utils;
+using UnityEngine;
 
 namespace FinkFramework.Runtime.Singleton
 {
@@ -10,10 +10,14 @@ namespace FinkFramework.Runtime.Singleton
     /// <typeparam name="T"></typeparam>
     public abstract class Singleton<T> where T : class
     {
+        // ReSharper disable once StaticMemberInGenericType
         private static T instance;
         // ReSharper disable once StaticMemberInGenericType
         protected static readonly object lockObj = new();
         
+        /// <summary>
+        /// 是否已经创建实例。该属性不会触发创建。
+        /// </summary>
         public static bool HasInstance => instance != null;
 
         public static T TryGetInstance()
@@ -25,32 +29,46 @@ namespace FinkFramework.Runtime.Singleton
         {
             get
             {
-                // 当两个线程都需要访问该实例时如果只是返回实例还需要等待线程完毕的话效率太低 因此直接判空  若实例存在直接返回 不需要等待线程
                 if (instance == null)
                 {
-                    // 锁住 防止多线程并发访问该实例的时候出现线程不安全的问题 锁住即可保证在访问完毕后再允许下一个线程访问
                     lock (lockObj)
                     {
                         if (instance == null)
                         {
-                            // 使用反射获取继承该类的类(即T)的私有无参构造函数
                             Type type = typeof(T);
                             ConstructorInfo info = type.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null,
                                 Type.EmptyTypes, null);
                             if (info != null)
                             {
-                                // 如果能获取到私有无参构造函数 就执行该函数 并将构造出来的实例赋值给instance
-                                instance = info.Invoke(null) as T;
+                                try
+                                {
+                                    instance = info.Invoke(null) as T;
+                                }
+                                catch (TargetInvocationException exception) when (exception.InnerException != null)
+                                {
+                                    // 反射会把构造函数的真实异常包装起来；保留原始异常，便于定位初始化依赖错误。
+                                    throw exception.InnerException;
+                                }
                             }
                             else
                             {
-                                LogUtil.Error("没有显式实现私有无参构造函数");
+                                throw new InvalidOperationException(
+                                    $"{type.Name} 必须显式实现私有无参构造函数。");
                             }
                         }
                     }
                 }
                 return instance;
             }
+        }
+
+        /// <summary>
+        /// 支持关闭 Domain Reload 的编辑器播放模式，避免跨次 Play 保留旧的静态实例。
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            instance = null;
         }
     }
 }

@@ -74,12 +74,12 @@ namespace FinkFramework.Runtime.Scene
         {
             if (GlobalSettingsRuntimeLoader.Current.EnableAudioModule)
             {
-                AudioManager.Instance.ClearSound();
+                AudioManager.TryGetInstance()?.ClearSound();
             }
-            PoolManager.Instance.CleanPool();
-            UIManager.Instance.ClearAllPanels();
-            EventManager.Instance.ClearAllEvent();
-            ResManager.Instance.ClearDic();
+            PoolManager.TryGetInstance()?.CleanPool();
+            UIManager.TryGetInstance()?.CloseScenePanels(SceneManager.GetActiveScene());
+            EventManager.TryGetInstance()?.ClearAllEvent();
+            ResManager.TryGetInstance()?.ClearDic();
             // 手动触发GC
 #if !UNITY_EDITOR
             System.GC.Collect();

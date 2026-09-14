@@ -75,6 +75,21 @@ namespace FinkFramework.Editor.Common
                 : new Color(0.6f, 0.6f, 0.6f);
             EditorGUI.DrawRect(rect, color);
         }
+
+        /// <summary>
+        /// 绘制框架编辑器窗口统一使用的品牌页脚。
+        /// </summary>
+        public static void DrawFrameworkFooter(float topSpacing = 12f)
+        {
+            GUILayout.Space(topSpacing);
+            Center(() =>
+            {
+                GUILayout.Label(
+                    "Copyright \u00A9 2025 Fink Framework",
+                    FFEditorStyles.Footer);
+            });
+            GUILayout.Space(4f);
+        }
         
         /// <summary>
         /// 显示统一的确认对话框。

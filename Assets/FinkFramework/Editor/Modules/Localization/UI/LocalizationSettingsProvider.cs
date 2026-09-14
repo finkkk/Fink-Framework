@@ -193,6 +193,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             DrawQualityCheck();
             GUILayout.Space(FFEditorStyles.SectionSpacing);
             DrawSaveActions();
+            FFEditorGUI.DrawFrameworkFooter(18f);
 
             FFEditorGUI.EndWindowContent();
         }

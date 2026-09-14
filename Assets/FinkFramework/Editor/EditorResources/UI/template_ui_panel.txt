@@ -21,34 +21,41 @@ namespace #NAMESPACE#
             base.Awake();
 
             // 自动生成：控件绑定
-            // BasePanel 内部自动扫描控件并加入 controlDic，
-            // 这里通过 GetControl<T>(name) 获取引用。
+            // BasePanel 会自动扫描控件并缓存。
+            // 这里只在需要长期持有引用时，通过 GetControl<T>(name) 获取。
 #ASSIGN#
         }
 
-        public override void ShowMe()
+        protected override void OnInitialize(UIPanelContext context)
         {
-            // 首次显示时执行一次
+            // 实例创建后只执行一次：建立长期监听、缓存数据源等。
         }
 
-        public override void HideMe()
+        protected override void OnEnter()
         {
-            // 首次隐藏时执行一次（一般用于退出动画等）
+            // 每次打开时执行：刷新显示数据、重置临时状态等。
+            // 若启动异步流程，请传入 Context.VisibilityToken；面板关闭时会自动取消。
         }
 
-        public override void OnShow()
+        protected override void OnPause()
         {
-            // 每次显示时执行（用于刷新 UI）
+            // 被导航栈中的上层页面覆盖时执行。
         }
 
-        public override void OnHide()
+        protected override void OnResume()
         {
-            // 每次隐藏时执行（用于暂停 UI、停止动画等）
+            // 上层页面退出、当前页面恢复交互时执行。
         }
 
-        public override void OnDestroyPanel()
+        protected override void OnExit()
         {
-            // 面板销毁前执行（用于释放引用、防止内存泄漏）
+            // 每次关闭时执行：停止临时动画、保存临时状态等。
+            // 此时 Context.VisibilityToken 已被取消，无需重复处理显示周期内的异步任务。
+        }
+
+        protected override void OnDispose()
+        {
+            // 实例销毁前只执行一次：取消长期监听并释放引用。
         }
 
         // ============================================================
@@ -60,7 +67,7 @@ namespace #NAMESPACE#
         /// 按钮点击事件回调
         /// btnName = 按钮对象名
         /// </summary>
-        protected override void ClickBtn(string btnName)
+        protected override void OnButtonClicked(string btnName)
         {
             #LOGIC_BUTTON#
         }
@@ -70,7 +77,7 @@ namespace #NAMESPACE#
         /// sliderName = 滑条对象名
         /// value = 当前值
         /// </summary>
-        protected override void SliderValueChange(string sliderName, float value)
+        protected override void OnSliderValueChanged(string sliderName, float value)
         {
             #LOGIC_SLIDER#
         }
@@ -80,7 +87,7 @@ namespace #NAMESPACE#
         /// inputName = 输入框对象名
         /// value = 内容
         /// </summary>
-        protected override void InputValueChange(string inputName, string value)
+        protected override void OnInputValueChanged(string inputName, string value)
         {
             #LOGIC_INPUT#
         }
@@ -90,7 +97,7 @@ namespace #NAMESPACE#
         /// toggleName = 控件对象名
         /// value = 是否勾选
         /// </summary>
-        protected override void ToggleValueChange(string toggleName, bool value)
+        protected override void OnToggleValueChanged(string toggleName, bool value)
         {
             #LOGIC_TOGGLE#
         }

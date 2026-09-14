@@ -113,12 +113,215 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         }
         
         #endregion
+
+        #region ===== 输入配置 =====
+
+        [Header("启用设备输入检测")]
+        [Tooltip("关闭后，框架不再判断当前主要输入设备，所有订阅者都会回到 Unknown 状态。")]
+        public bool EnableDeviceDetection = true;
+
+        [Header("鼠标移动视为键鼠输入")]
+        [Tooltip("关闭后，鼠标按键仍会被识别为键鼠输入，但单纯移动鼠标不会改变当前主要输入设备。")]
+        public bool TreatMouseMovementAsKeyboardMouseInput = true;
+
+        [Header("鼠标移动检测阈值（像素）")]
+        [Tooltip("单帧鼠标移动距离达到此值时，才视为键鼠输入。较大值可减少轻微抖动造成的设备切换。")]
+        [Min(0f)]
+        public float MouseMovementDetectionThreshold = DefaultMouseMovementDetectionThreshold;
+
+        public const float DefaultMouseMovementDetectionThreshold = 2f;
+
+        #endregion
         
         #region ===== UI配置 =====
         
-        [Header("当前 UI 渲染模式")]
-        [Tooltip("当前 UI 渲染模式。默认使用 ScreenSpace-Camera。如果项目为 VR，请务必使用 WorldSpace 模式。")]
+        [Header("Main Surface 渲染模式")]
+        [Tooltip("只控制框架默认 Main Surface。场景中的世界空间 UI 请使用独立 Canvas + UISurfaceRoot。")]
         public EnvironmentState.UIMode CurrentUIMode = EnvironmentState.UIMode.Auto;
+
+        [Header("按输入设备自动管理导航交互")]
+        [Tooltip("开启后，设备输入检测管理器会在 PC 键鼠或触摸输入时关闭导航交互、在手柄输入时重新开启。"
+                 + "此功能依赖设备输入检测已启用；关闭此项后不再自动切换，导航交互始终保持开启。")]
+        public bool EnableAutoNavigationInteractionByInputDevice = true;
+
+        [Header("UI 面板脚本输出目录")]
+        [Tooltip("全局脚本根目录后的相对目录，例如 UI/Panels。")]
+        [FormerlySerializedAs("UIPanelScriptOutputPath")]
+        public string UIPanelScriptOutputSuffix = DefaultUIPanelScriptOutputSuffix;
+
+        [Header("UI 面板预制体输出目录")]
+        [Tooltip("Assets 后的相对目录，例如 Resources/UI/Panels。必须位于 Resources 目录下。")]
+        [FormerlySerializedAs("UIPanelPrefabOutputPath")]
+        public string UIPanelPrefabOutputRelativePath = DefaultUIPanelPrefabOutputRelativePath;
+
+        public const string DefaultUIPanelScriptOutputSuffix = "UI/Panels";
+        public const string DefaultUIPanelPrefabOutputRelativePath = "Resources/UI/Panels";
+
+        /// <summary>
+        /// 返回全局脚本根目录后的 UI 面板目录。兼容迁移旧版保存的完整 Assets 路径。
+        /// </summary>
+        public static string NormalizeUIPanelScriptOutputSuffix(string value, string scriptRootDirectory)
+        {
+            return TryNormalizeUIPanelScriptOutputSuffix(
+                    value,
+                    scriptRootDirectory,
+                    out string normalized,
+                    out _)
+                ? normalized
+                : DefaultUIPanelScriptOutputSuffix;
+        }
+
+        public static bool TryNormalizeUIPanelScriptOutputSuffix(
+            string value,
+            string scriptRootDirectory,
+            out string normalized,
+            out string error)
+        {
+            string raw = string.IsNullOrWhiteSpace(value)
+                ? DefaultUIPanelScriptOutputSuffix
+                : value.Trim().Replace('\\', '/').Trim('/');
+            string scriptRoot = NormalizeScriptRootDirectory(scriptRootDirectory);
+            string legacyPrefix = $"Assets/{scriptRoot}";
+
+            if (raw.StartsWith(legacyPrefix + "/", System.StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring(legacyPrefix.Length + 1);
+            else if (raw.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = string.Empty;
+                error = $"脚本输出目录固定从 {legacyPrefix}/ 开始，输入框中只填写后续目录。";
+                return false;
+            }
+
+            return TryNormalizeRelativeFolderPath(
+                raw,
+                DefaultUIPanelScriptOutputSuffix,
+                "脚本输出目录",
+                out normalized,
+                out error);
+        }
+
+        /// <summary>
+        /// 返回 Assets 后的 UI 预制体相对目录。兼容迁移旧版保存的完整 Assets 路径。
+        /// </summary>
+        public static string NormalizeUIPanelPrefabOutputRelativePath(string value)
+        {
+            return TryNormalizeUIPanelPrefabOutputRelativePath(value, out string normalized, out _)
+                ? normalized
+                : DefaultUIPanelPrefabOutputRelativePath;
+        }
+
+        public static bool TryNormalizeUIPanelPrefabOutputRelativePath(
+            string value,
+            out string normalized,
+            out string error)
+        {
+            string raw = string.IsNullOrWhiteSpace(value)
+                ? DefaultUIPanelPrefabOutputRelativePath
+                : value.Trim().Replace('\\', '/').Trim('/');
+            if (raw.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring("Assets/".Length);
+
+            if (!TryNormalizeRelativeFolderPath(
+                    raw,
+                    DefaultUIPanelPrefabOutputRelativePath,
+                    "预制体输出目录",
+                    out normalized,
+                    out error))
+                return false;
+
+            string[] segments = normalized.Split('/');
+            int resourcesIndex = FindResourcesSegmentIndex(segments);
+            if (resourcesIndex < 0 || resourcesIndex == segments.Length - 1)
+            {
+                error = $"预制体输出目录必须位于 Resources 的子目录中，例如：{DefaultUIPanelPrefabOutputRelativePath}";
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 返回可用于 AssetDatabase 和文件系统 API 的完整 UI 脚本输出目录。
+        /// </summary>
+        public static string GetUIPanelScriptOutputPath(string scriptRootDirectory, string outputSuffix)
+        {
+            string scriptRoot = NormalizeScriptRootDirectory(scriptRootDirectory);
+            string suffix = NormalizeUIPanelScriptOutputSuffix(outputSuffix, scriptRoot);
+            return $"Assets/{scriptRoot}/{suffix}";
+        }
+
+        /// <summary>
+        /// 返回可用于 AssetDatabase 和文件系统 API 的完整 UI 预制体输出目录。
+        /// </summary>
+        public static string GetUIPanelPrefabOutputPath(string relativePath)
+        {
+            return $"Assets/{NormalizeUIPanelPrefabOutputRelativePath(relativePath)}";
+        }
+
+        /// <summary>
+        /// 把预制体目录转换为 Resources.Load 使用的相对路径。
+        /// </summary>
+        public static string GetUIPanelResourcesPath(string relativePath)
+        {
+            string normalized = NormalizeUIPanelPrefabOutputRelativePath(relativePath);
+            string[] segments = normalized.Split('/');
+            int resourcesIndex = FindResourcesSegmentIndex(segments);
+            return string.Join("/", segments, resourcesIndex + 1, segments.Length - resourcesIndex - 1);
+        }
+
+        private static bool TryNormalizeRelativeFolderPath(
+            string value,
+            string defaultValue,
+            string displayName,
+            out string normalized,
+            out string error)
+        {
+            normalized = string.Empty;
+            error = string.Empty;
+
+            string raw = string.IsNullOrWhiteSpace(value)
+                ? defaultValue
+                : value.Trim().Replace('\\', '/').Trim('/');
+
+            if (System.IO.Path.IsPathRooted(raw))
+            {
+                error = $"{displayName}只能填写相对目录，例如：{defaultValue}";
+                return false;
+            }
+
+            string[] segments = raw.Split('/');
+            for (int i = 0; i < segments.Length; i++)
+            {
+                string segment = segments[i].Trim();
+                if (string.IsNullOrWhiteSpace(segment) || segment == "." || segment == "..")
+                {
+                    error = $"{displayName}不能包含空目录、. 或 ..。";
+                    return false;
+                }
+
+                if (segment.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
+                {
+                    error = $"{displayName}包含非法目录名：{segment}";
+                    return false;
+                }
+
+                segments[i] = segment;
+            }
+
+            normalized = string.Join("/", segments);
+            return true;
+        }
+
+        private static int FindResourcesSegmentIndex(string[] segments)
+        {
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (string.Equals(segments[i], "Resources", System.StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+
+            return -1;
+        }
         
         #endregion
         
