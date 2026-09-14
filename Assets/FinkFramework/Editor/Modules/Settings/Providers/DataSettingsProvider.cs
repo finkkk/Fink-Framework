@@ -26,6 +26,16 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         public DataSettingsProvider(string path, SettingsScope scope)
             : base(path, scope) { }
 
+        /// <summary>
+        /// 从 Fink Framework 菜单直接打开数据管线项目配置页面。
+        /// </summary>
+        [MenuItem("Fink Framework/数据管线系统/数据管线配置", false, 110)]
+        public static void Open()
+        {
+            GlobalSettingsEditorLoader.LoadOrCreate();
+            SettingsService.OpenProjectSettings("Project/Fink Framework/Data Pipeline");
+        }
+
         [SettingsProvider]
         public static SettingsProvider CreateProvider()
         {

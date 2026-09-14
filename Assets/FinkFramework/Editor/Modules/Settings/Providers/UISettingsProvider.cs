@@ -16,6 +16,16 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         public UISettingsProvider(string path, SettingsScope scope)
             : base(path, scope) { }
 
+        /// <summary>
+        /// 从 Fink Framework 菜单直接打开 UI 项目配置页面。
+        /// </summary>
+        [MenuItem("Fink Framework/UI 系统/UI 系统配置", false, 120)]
+        public static void Open()
+        {
+            GlobalSettingsEditorLoader.LoadOrCreate();
+            SettingsService.OpenProjectSettings("Project/Fink Framework/UI Settings");
+        }
+
         [SettingsProvider]
         public static SettingsProvider CreateProvider()
         {

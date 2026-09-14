@@ -14,7 +14,7 @@ namespace FinkFramework.Editor.Modules.Data
         private string logOutput = "";
         private GUIStyle logStyle; 
 
-        [MenuItem("Fink Framework/数据工具面板")]
+        [MenuItem("Fink Framework/数据管线系统/数据工具面板", false, 100)]
         public static void Open()
         {
             var window = GetWindow<DataToolWindow>("数据工具面板");
