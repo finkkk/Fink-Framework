@@ -19,7 +19,6 @@ namespace FinkFramework.Editor.Utils
         private const string ConsoleSectionTitleColor = "#3D8747";
         private const string ConsoleLabelColor = "#9AA7AD";
         private const string ConsoleValueColor = "#D7DCDE";
-        private const string ConsoleSeparatorColor = "#66717A";
 
         public class StatOptions
         {
@@ -213,7 +212,7 @@ namespace FinkFramework.Editor.Utils
         {
             const string separator = "==============================";
             return useRichText
-                ? $"<color={ConsoleSeparatorColor}>{separator}</color>"
+                ? $"<color={ConsoleReportTitleColor}>{separator}</color>"
                 : separator;
         }
 
