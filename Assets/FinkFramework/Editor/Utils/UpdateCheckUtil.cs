@@ -17,7 +17,9 @@ namespace FinkFramework.Editor.Utils
         private const string VersionUrl = "https://api.github.com/repos/finkkk/Fink-Framework/releases/latest";
         private const string ReleasesUrl = "https://github.com/finkkk/Fink-Framework/releases";
 
-        private const string LastCheckKey = "FinkFramework_LastUpdateCheck";
+        // EditorPrefs 是全局的，必须按项目隔离，否则一个项目的检查记录会影响其他项目。
+        private static string LastCheckKey =>
+            $"FinkFramework_LastUpdateCheck:{Application.dataPath}";
         
         private static readonly HttpClient Client = CreateHttpClient();
 
@@ -65,11 +67,11 @@ namespace FinkFramework.Editor.Utils
             
             try
             {
-                if (!GlobalSettingsRuntimeLoader.TryGet(out var settings))
-                    return; // 首次导入时不报错，直接跳过检查
+                if (!GlobalSettingsRuntimeLoader.TryGet(out var settings) && !isManual)
+                    return; // 自动检查依赖配置；手动检查即使首次导入也应可用。
 
                 // 开关：关闭则不检查
-                if (!settings.EnableUpdateCheck && !isManual)
+                if (!isManual && (settings == null || !settings.EnableUpdateCheck))
                     return;
                 
                 // 自动检查才需要检查间隔
@@ -127,7 +129,7 @@ namespace FinkFramework.Editor.Utils
                 if (string.IsNullOrEmpty(packageUrl))
                 {
                     LogUtil.Warn("版本更新检查",
-                        $"发现新版本 {latestVersion}，但该 Release 未提供 FinkFramework-v{latestVersion}.unitypackage。\n更新地址：{releaseUrl}");
+                        $"发现新版本 {latestVersion}，但该 Release 未找到可下载的 unitypackage。\n更新地址：{releaseUrl}");
                     return;
                 }
 
@@ -179,13 +181,27 @@ namespace FinkFramework.Editor.Utils
 
         private static string FindPackageUrl(JObject release, string version)
         {
-            string expectedName = $"FinkFramework-v{version}.unitypackage";
             JArray assets = release["assets"] as JArray;
             if (assets == null) return null;
+
+            const string packagePrefix = "FinkFramework";
+            const string packageExtension = ".unitypackage";
+            string expectedVersion = NormalizeVersion(version);
+
             foreach (JToken asset in assets)
             {
                 string name = asset["name"]?.ToString();
-                if (string.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(name) ||
+                    !name.StartsWith(packagePrefix, StringComparison.OrdinalIgnoreCase) ||
+                    !name.EndsWith(packageExtension, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string assetVersion = name.Substring(
+                        packagePrefix.Length,
+                        name.Length - packagePrefix.Length - packageExtension.Length)
+                    .TrimStart('.', '-', '_');
+
+                if (string.Equals(NormalizeVersion(assetVersion), expectedVersion, StringComparison.OrdinalIgnoreCase))
                     return asset["browser_download_url"]?.ToString();
             }
             return null;

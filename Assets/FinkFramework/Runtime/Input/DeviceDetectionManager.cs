@@ -4,7 +4,6 @@ using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.Singleton;
 using UnityEngine;
-using FinkFramework.Runtime.Environments;
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 
 namespace FinkFramework.Runtime.Input

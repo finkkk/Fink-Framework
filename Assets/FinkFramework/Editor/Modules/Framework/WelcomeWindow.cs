@@ -11,8 +11,12 @@ namespace FinkFramework.Editor.Modules.Framework
     /// </summary>
     internal static class FrameworkWelcomeScheduler
     {
-        private const string DisableKey = "FinkFramework_Welcome_Disabled";
-        private const string SessionShownKey = "FinkFramework_Welcome_SessionShown";
+        internal static string DisableKey =>
+            $"FinkFramework_Welcome_Disabled:{Application.dataPath}";
+
+        internal static string SessionShownKey =>
+            $"FinkFramework_Welcome_SessionShown:{Application.dataPath}";
+
         private static int _waitCounter;
 
         public static void Schedule()
@@ -23,7 +27,8 @@ namespace FinkFramework.Editor.Modules.Framework
             if (SessionState.GetBool(SessionShownKey, false))
                 return;
 
-            SessionState.SetBool(SessionShownKey, true);
+            _waitCounter = 0;
+            EditorApplication.update -= WaitForEditorReady;
             EditorApplication.update += WaitForEditorReady;
         }
 
@@ -40,6 +45,7 @@ namespace FinkFramework.Editor.Modules.Framework
                 return;
 
             EditorApplication.update -= WaitForEditorReady;
+            SessionState.SetBool(SessionShownKey, true);
             WelcomeWindow.ShowWindow();
         }
     }
@@ -51,7 +57,6 @@ namespace FinkFramework.Editor.Modules.Framework
     {
         private static Texture2D logo;
         private GUIStyle footerStyle;
-        private const string DisableKey = "FinkFramework_Welcome_Disabled";
        
         private bool dontShowAgain = false;
         private Vector2 contentScrollPosition;
@@ -66,7 +71,7 @@ namespace FinkFramework.Editor.Modules.Framework
 
         private void OnEnable()
         {
-            dontShowAgain = EditorPrefs.GetBool(DisableKey, false);
+            dontShowAgain = EditorPrefs.GetBool(FrameworkWelcomeScheduler.DisableKey, false);
             logo = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/FinkFramework/Editor/EditorResources/Icon/FinkFramework_logo.png"
             );
         }
@@ -155,7 +160,7 @@ namespace FinkFramework.Editor.Modules.Framework
             if (newValue != dontShowAgain)
             {
                 dontShowAgain = newValue;
-                EditorPrefs.SetBool(DisableKey, dontShowAgain);
+                EditorPrefs.SetBool(FrameworkWelcomeScheduler.DisableKey, dontShowAgain);
             }
             
             GUILayout.Space(20);
