@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FinkFramework.Runtime.Utils;
-#if ENABLE_TEXTMESHPRO
 using TMPro;
-#endif
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -163,19 +161,13 @@ namespace FinkFramework.Runtime.UI.Base
             RegisterControls<Slider>();
             RegisterControls<Scrollbar>();
             RegisterControls<InputField>();
-#if ENABLE_TEXTMESHPRO
             RegisterControls<TMP_InputField>();
-#endif
             RegisterControls<Dropdown>();
-#if ENABLE_TEXTMESHPRO
             RegisterControls<TMP_Dropdown>();
-#endif
             RegisterControls<ScrollRect>();
             RegisterControls<ToggleGroup>();
             RegisterControls<Text>();
-#if ENABLE_TEXTMESHPRO
             RegisterControls<TextMeshProUGUI>();
-#endif
             RegisterControls<Image>();
             RegisterControls<RawImage>();
             RegisterControls<VerticalLayoutGroup>();
@@ -223,11 +215,9 @@ namespace FinkFramework.Runtime.UI.Base
                 case InputField input:
                     input.onValueChanged.AddListener(value => OnInputValueChanged(controlName, value));
                     break;
-#if ENABLE_TEXTMESHPRO
-                case TMP_InputField input:
-                    input.onValueChanged.AddListener(value => OnInputValueChanged(controlName, value));
+                case TMP_InputField tmpInput:
+                    tmpInput.onValueChanged.AddListener(value => OnInputValueChanged(controlName, value));
                     break;
-#endif
             }
         }
     }

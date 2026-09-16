@@ -103,7 +103,7 @@ namespace FinkFramework.Editor.Modules.Data
 
                 foreach (string file in generatedFiles
                              .Distinct(StringComparer.OrdinalIgnoreCase)
-                             .OrderBy(path => ToProjectRelativePath(path), StringComparer.OrdinalIgnoreCase))
+                             .OrderBy(ToProjectRelativePath, StringComparer.OrdinalIgnoreCase))
                 {
                     if (!File.Exists(file))
                         throw new FileNotFoundException($"生成文件不存在：{file}");

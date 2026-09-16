@@ -239,7 +239,7 @@ namespace FinkFramework.Runtime.Event
             if (proxy && proxy.hasReportedEnableError)
                 return;
             var stack = new StackTrace();
-            foreach (var frame in stack.GetFrames())
+            foreach (var frame in stack.GetFrames()!)
             {
                 var method = frame.GetMethod();
                 if (method == null)

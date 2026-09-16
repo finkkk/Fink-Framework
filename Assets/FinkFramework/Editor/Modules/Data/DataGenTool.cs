@@ -322,10 +322,7 @@ namespace FinkFramework.Editor.Modules.Data
         /// <returns></returns>
         private static string CollectRequiredUsings(string[] fieldTypes)
         {
-            HashSet<string> namespaces = new HashSet<string>();
-
-            // System 永远要
-            namespaces.Add("System");
+            var namespaces = new HashSet<string> { "System" };
 
             foreach (var typeName in fieldTypes)
             {

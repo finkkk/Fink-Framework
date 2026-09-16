@@ -1,10 +1,8 @@
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.Utils;
-using UnityEngine;
-#if ENABLE_TEXTMESHPRO
 using TMPro;
-#endif
+using UnityEngine;
 using UnityEngine.UI;
 
 namespace FinkFramework.Runtime.Localization
@@ -21,14 +19,13 @@ namespace FinkFramework.Runtime.Localization
         private Text legacyText;
         private TextAnchor legacyTextOriginalAlignment;
         private bool legacyTextOriginalAlignmentCaptured;
-#if ENABLE_TEXTMESHPRO
         private TMP_Text tmpText;
         private TextAlignmentOptions tmpTextOriginalAlignment;
         private bool tmpTextOriginalRightToLeft;
         private bool tmpTextOriginalAlignmentCaptured;
-#endif
         private CancellationTokenSource refreshCancellation;
         private bool missingKeyWarningLogged;
+        private bool subscribedToLocaleChanges;
 
         /// <summary>
         /// 绑定的本地化 Key。赋值后会立即尝试刷新目标文本。
@@ -41,7 +38,8 @@ namespace FinkFramework.Runtime.Localization
                 key = value;
                 if (!string.IsNullOrWhiteSpace(key))
                     missingKeyWarningLogged = false;
-                BeginAsyncRefresh();
+                if (isActiveAndEnabled && LocalizationManager.IsEnabled)
+                    BeginAsyncRefresh();
             }
         }
 
@@ -58,7 +56,11 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private void OnEnable()
         {
+            if (!LocalizationManager.IsEnabled)
+                return;
+
             LocalizationManager.OnLocaleChanged += HandleLocaleChanged;
+            subscribedToLocaleChanges = true;
             BeginAsyncRefresh();
         }
 
@@ -67,7 +69,12 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private void OnDisable()
         {
-            LocalizationManager.OnLocaleChanged -= HandleLocaleChanged;
+            if (subscribedToLocaleChanges)
+            {
+                LocalizationManager.OnLocaleChanged -= HandleLocaleChanged;
+                subscribedToLocaleChanges = false;
+            }
+
             CancelAsyncRefresh();
         }
 
@@ -93,6 +100,9 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public bool Refresh()
         {
+            if (!LocalizationManager.IsEnabled)
+                return false;
+
             if (string.IsNullOrWhiteSpace(key))
             {
                 WarnMissingKeyOnce();
@@ -116,6 +126,9 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public async UniTask<bool> RefreshAsync(CancellationToken cancellationToken = default)
         {
+            if (!LocalizationManager.IsEnabled)
+                return false;
+
             if (string.IsNullOrWhiteSpace(key))
             {
                 WarnMissingKeyOnce();
@@ -153,18 +166,16 @@ namespace FinkFramework.Runtime.Localization
                 applied = true;
             }
 
-#if ENABLE_TEXTMESHPRO
             if (tmpText != null)
             {
-                tmpText.isRightToLeftText = rightToLeft
-                    || tmpTextOriginalRightToLeft;
-                tmpText.alignment = rightToLeft
+                bool useRightToLeft = rightToLeft || tmpTextOriginalRightToLeft;
+                tmpText.isRightToLeftText = useRightToLeft;
+                tmpText.alignment = useRightToLeft
                     ? MirrorTmpAlignment(tmpTextOriginalAlignment)
                     : tmpTextOriginalAlignment;
                 tmpText.text = value;
                 applied = true;
             }
-#endif
 
             return applied;
         }
@@ -174,7 +185,8 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private void HandleLocaleChanged(string previousLocale, string currentLocale)
         {
-            BeginAsyncRefresh();
+            if (LocalizationManager.IsEnabled)
+                BeginAsyncRefresh();
         }
 
         /// <summary>
@@ -233,16 +245,19 @@ namespace FinkFramework.Runtime.Localization
                 legacyTextOriginalAlignmentCaptured = true;
             }
 
-#if ENABLE_TEXTMESHPRO
-            if (tmpText == null)
-                tmpText = GetComponent<TMP_Text>();
+            TMP_Text currentTmpText = GetComponent<TMP_Text>();
+            if (tmpText != currentTmpText)
+            {
+                tmpText = currentTmpText;
+                tmpTextOriginalAlignmentCaptured = false;
+            }
+
             if (tmpText != null && !tmpTextOriginalAlignmentCaptured)
             {
                 tmpTextOriginalAlignment = tmpText.alignment;
                 tmpTextOriginalRightToLeft = tmpText.isRightToLeftText;
                 tmpTextOriginalAlignmentCaptured = true;
             }
-#endif
         }
 
         /// <summary>
@@ -269,7 +284,6 @@ namespace FinkFramework.Runtime.Localization
             }
         }
 
-#if ENABLE_TEXTMESHPRO
         /// <summary>
         /// 将 TextMeshPro 的左右对齐方式镜像到 RTL 方向。
         /// </summary>
@@ -305,7 +319,6 @@ namespace FinkFramework.Runtime.Localization
                     return alignment;
             }
         }
-#endif
 
         /// <summary>
         /// 判断当前对象是否至少绑定了一个可应用本地化文本的目标组件。
@@ -314,10 +327,8 @@ namespace FinkFramework.Runtime.Localization
         {
             if (legacyText != null)
                 return true;
-#if ENABLE_TEXTMESHPRO
             if (tmpText != null)
                 return true;
-#endif
             return false;
         }
 

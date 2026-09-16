@@ -44,31 +44,37 @@ namespace FinkFramework.Runtime.Timer
         /// <summary>
         /// 初始化计时器数据
         /// </summary>
-        /// <param name="keyID">唯一ID</param>
-        /// <param name="allTime">需要计时的总时间</param>
-        /// <param name="onOver">计时结束的回调</param>
-        /// <param name="intervalTime">需要间隔执行的时间</param>
-        /// <param name="onInterval">每次间隔结束执行的回调</param>
-        /// <param name="isRunning">是否启动 默认启动</param>
-        public void InitInfo(int keyID,int allTime,UnityAction onOver, int intervalTime = 0, UnityAction onInterval = null, bool isRunning = true)
+        /// <param name="keyId">唯一 ID</param>
+        /// <param name="totalTime">需要计时的总时间</param>
+        /// <param name="onComplete">计时结束的回调</param>
+        /// <param name="intervalMs">需要间隔执行的时间</param>
+        /// <param name="onIntervalCallback">每次间隔结束执行的回调</param>
+        /// <param name="startImmediately">是否启动，默认启动</param>
+        public void InitInfo(
+            int keyId,
+            int totalTime,
+            UnityAction onComplete,
+            int intervalMs = 0,
+            UnityAction onIntervalCallback = null,
+            bool startImmediately = true)
         {
-            this.keyID = keyID;
-            maxAllTime = this.allTime = allTime;
-            this.onOver = onOver;
-            maxIntervalTime = this.intervalTime = intervalTime;
-            this.onInterval = onInterval;
-            this.isRunning = isRunning;
+            keyID = keyId;
+            maxAllTime = allTime = totalTime;
+            onOver = onComplete;
+            maxIntervalTime = intervalTime = intervalMs;
+            onInterval = onIntervalCallback;
+            isRunning = startImmediately;
         }
 
         /// <summary>
         /// 重置计时器
         /// </summary>
-        /// <param name="isRunning">是否启动 默认启动</param>
-        public void ResetTimer(bool isRunning = true)
+        /// <param name="startImmediately">是否启动，默认启动</param>
+        public void ResetTimer(bool startImmediately = true)
         {
             allTime = maxAllTime;
             intervalTime = maxIntervalTime;
-            this.isRunning = isRunning;
+            isRunning = startImmediately;
         }
         
         /// <summary>

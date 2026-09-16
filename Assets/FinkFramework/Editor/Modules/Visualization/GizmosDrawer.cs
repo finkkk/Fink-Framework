@@ -19,7 +19,7 @@ namespace FinkFramework.Editor.Modules.Visualization
         /// <summary>
         /// 总开关（控制整个绘制器）
         /// </summary>
-        public static bool EnableDrawer = true; 
+        public static readonly bool EnableDrawer = true; 
         
         // 绘制任务的委托列表
         private static readonly List<Action> gizmoDrawers = new();

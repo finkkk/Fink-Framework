@@ -13,14 +13,14 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// </summary>
         /// <param name="path">Provider 专用路径，不包含协议前缀（如 res:// / ab:// / addr://）</param>
         /// <typeparam name="T">资源类型</typeparam>
-        /// <returns>返回加载完毕的资源</returns>
+        /// <returns>返回加载完毕的资源；失败时返回 null，并由 Provider 回滚本次底层引用。</returns>
         T Load<T>(string path) where T : Object;
 
         /// <summary>
-        /// 异步加载资源方法
+        /// 异步加载资源方法。并发调用同一资源时由上层 ResManager 合并请求。
+        /// Provider 在返回 null 或抛出异常前，必须回滚本次已取得的底层 Bundle/句柄引用。
         /// </summary>
         /// <param name="path">Provider 专用路径，不包含协议前缀（如 res:// / ab:// / addr://）</param>
-        /// <param name="callback">加载完毕执行的回调 在回调处返回加载完毕的资源</param>
         /// <typeparam name="T">资源类型</typeparam>
         UniTask<T> LoadAsync<T>(string path) where T : Object;
         

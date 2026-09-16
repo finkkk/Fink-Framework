@@ -34,11 +34,6 @@
             "name": "com.unity.addressables",
             "expression": "",
             "define": "ENABLE_ADDRESSABLES"
-        },
-        {
-            "name": "com.unity.textmeshpro",
-            "expression": "",
-            "define": "ENABLE_TEXTMESHPRO"
         }
     ],
     "noEngineReferences": false

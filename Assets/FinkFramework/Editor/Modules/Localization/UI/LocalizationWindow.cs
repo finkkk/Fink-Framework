@@ -67,6 +67,9 @@ namespace FinkFramework.Editor.Modules.Localization.UI
         [MenuItem("Fink Framework/本地化系统/本地化语言表", false, 100)]
         public static void Open()
         {
+            if (!TryRequireEnabled("本地化语言表"))
+                return;
+
             var window = GetWindow<LocalizationWindow>("本地化语言表");
             window.minSize = new Vector2(860f, 560f);
             window.tableMode = LocalizationTableMode.Text;
@@ -81,6 +84,9 @@ namespace FinkFramework.Editor.Modules.Localization.UI
         [MenuItem("Fink Framework/本地化系统/本地化资源表", false, 110)]
         public static void OpenAsset()
         {
+            if (!TryRequireEnabled("本地化资源表"))
+                return;
+
             var window = GetWindow<LocalizationWindow>("本地化资源表");
             bool canSwitch = window.tableMode == LocalizationTableMode.Asset
                 ? window.ConfirmAssetDiscardChanges()
@@ -92,6 +98,22 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             window.tableMode = LocalizationTableMode.Asset;
             window.ReloadAssetMode();
             window.Show();
+        }
+
+        /// <summary>
+        /// 本地化表只能在模块启用时编辑。配置页始终保留，方便用户重新启用模块。
+        /// </summary>
+        private static bool TryRequireEnabled(string tableName)
+        {
+            LocalizationSettingsAsset settings = LocalizationSettingsEditorLoader.LoadOrCreate();
+            if (settings != null && settings.EnableLocalization)
+                return true;
+
+            EditorUtility.DisplayDialog(
+                "本地化模块未启用",
+                $"无法打开{tableName}。\n\n请前往 Project Settings > Fink Framework > Framework > 模块开关设置，启用本地化模块后再试。",
+                "确定");
+            return false;
         }
 
         private void OnEnable()
@@ -416,9 +438,6 @@ namespace FinkFramework.Editor.Modules.Localization.UI
         }
 
         #endregion
-
-
-
 
         #region 公共筛选与错误提示
 

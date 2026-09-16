@@ -16,12 +16,12 @@ namespace FinkFramework.Runtime.Singleton
         private static bool _applicationIsQuitting;
 
         /// <summary>是否已经有实例；不会自动创建。</summary>
-        public static bool HasInstance => _instance is not null;
+        public static bool HasInstance => !_applicationIsQuitting && _instance != null;
 
         /// <summary>获取已有实例；不存在时返回 null，不会自动创建。</summary>
         public static T TryGetInstance()
         {
-            return _applicationIsQuitting ? null : _instance;
+            return _applicationIsQuitting || _instance == null ? null : _instance;
         }
 
         /// <summary>

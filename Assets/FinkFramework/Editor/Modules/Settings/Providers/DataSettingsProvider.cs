@@ -1,5 +1,4 @@
-﻿using System;
-using FinkFramework.Editor.Modules.Settings.Loaders;
+﻿using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Common;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Environments;
@@ -286,10 +285,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             EditorGUI.EndDisabledGroup();
         }
 
-        private void DrawPathDisplay(string label, string path)
+        private void DrawPathDisplay(string l, string path)
         {
             GUILayout.Space(4);
-            EditorGUILayout.LabelField($"<b>{label}:</b>", FFEditorStyles.Description);
+            EditorGUILayout.LabelField($"<b>{l}:</b>", FFEditorStyles.Description);
             EditorGUILayout.LabelField(path, FFEditorStyles.Description);
         }
 

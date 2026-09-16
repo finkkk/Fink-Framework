@@ -76,29 +76,19 @@ namespace FinkFramework.Runtime.Settings.Loaders
         /// 获取所有脚本生成器共用的 Assets 下相对脚本根目录。
         /// 配置缺失或内容无效时回退到默认值，保证路径计算始终可用。
         /// </summary>
-        public static string ScriptRootDirectory
-        {
-            get
-            {
-                return GlobalSettingsAsset.NormalizeScriptRootDirectory(
-                    TryGet(out GlobalSettingsAsset settings)
-                        ? settings?.ScriptRootDirectory
-                        : null);
-            }
-        }
+        public static string ScriptRootDirectory =>
+            GlobalSettingsAsset.NormalizeScriptRootDirectory(
+                TryGet(out GlobalSettingsAsset settings)
+                    ? settings?.ScriptRootDirectory
+                    : null);
 
         /// <summary>
         /// UI 面板预制体在 Resources 下的目录，不包含 res:// 前缀。
         /// </summary>
-        public static string UIPanelResourcesPath
-        {
-            get
-            {
-                return GlobalSettingsAsset.GetUIPanelResourcesPath(
-                    TryGet(out GlobalSettingsAsset settings)
-                        ? settings?.UIPanelPrefabOutputRelativePath
-                        : null);
-            }
-        }
+        public static string UIPanelResourcesPath =>
+            GlobalSettingsAsset.GetUIPanelResourcesPath(
+                TryGet(out GlobalSettingsAsset settings)
+                    ? settings?.UIPanelPrefabOutputRelativePath
+                    : null);
     }
 }

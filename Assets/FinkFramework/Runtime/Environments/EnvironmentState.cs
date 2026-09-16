@@ -65,16 +65,6 @@ namespace FinkFramework.Runtime.Environments
         public const bool AutoURP = false;
         #endif
 
-        /// <summary>
-        /// 自动检测：当前项目是否导入了 TextMeshPro。
-        /// 根据 ENABLE_TEXTMESHPRO 宏判断。
-        /// </summary>
-        #if ENABLE_TEXTMESHPRO
-        public const bool AutoTMP = true;
-        #else
-        public const bool AutoTMP = false;
-        #endif
-
         #endregion 
 
         #region 配置枚举-为全局设置所需的枚举定义

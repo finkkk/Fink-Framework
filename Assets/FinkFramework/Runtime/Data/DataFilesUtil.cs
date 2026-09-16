@@ -84,7 +84,7 @@ namespace FinkFramework.Runtime.Data
                         ? await FindManifestEntryAsync<T>(cancellationToken)
                         : null;
                     relativePath = manifestEntry?.relativePath;
-                    relativePath ??= FindRelativePath<T>();
+                    relativePath ??= await FindRelativePathAsync<T>(cancellationToken);
                 }
 
                 if (string.IsNullOrEmpty(relativePath))
@@ -171,7 +171,7 @@ namespace FinkFramework.Runtime.Data
                     return default;
                 }
 
-                byte[] bytes = await File.ReadAllBytesAsync(fullPath);
+                byte[] bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken);
                 return DataUtil.LoadFromBytes<T>(bytes, extension);
             }
             catch (OperationCanceledException)
@@ -260,7 +260,7 @@ namespace FinkFramework.Runtime.Data
             string fullPath = BuildStreamingUri(relativePath);
 
             if (!IsStreamingAssetsUri)
-                return await File.ReadAllBytesAsync(fullPath);
+                return await File.ReadAllBytesAsync(fullPath, cancellationToken);
 
             using UnityWebRequest request = UnityWebRequest.Get(fullPath);
             await request.SendWebRequest().ToUniTask(cancellationToken: cancellationToken);
@@ -301,7 +301,7 @@ namespace FinkFramework.Runtime.Data
             string relativeFile = BuildRelativeFilePath(relativePath, extension);
             byte[] bytes = await ReadStreamingBytesAsync(relativeFile, cancellationToken);
             PathUtil.EnsureDirectory(persistentPath);
-            File.WriteAllBytes(persistentPath, bytes);
+            await File.WriteAllBytesAsync(persistentPath, bytes, cancellationToken);
             LogUtil.Info("DataFilesUtil", $"已初始化本地数据：{persistentPath}");
         }
 

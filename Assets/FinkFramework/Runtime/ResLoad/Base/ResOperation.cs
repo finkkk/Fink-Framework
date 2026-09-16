@@ -1,6 +1,7 @@
 ﻿using UnityEngine.Events;
 
 // ReSharper disable UnusedAutoPropertyAccessor.Global
+using UnityEngine;
 
 namespace FinkFramework.Runtime.ResLoad.Base
 {
@@ -43,7 +44,7 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// </summary>
         internal void SetProgress(float p)
         {
-            Progress = p;
+            Progress = Mathf.Clamp01(p);
         }
 
         /// <summary>
@@ -57,10 +58,20 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// <param name="r">加载完成的资源</param>
         internal void SetResult(T r)
         {
+            if (IsDone)
+                return;
+
             Result = r;
             Progress = 1f;
             IsDone = true;
-            Completed?.Invoke(this);
+            try
+            {
+                Completed?.Invoke(this);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogException(exception);
+            }
         }
     }
 }

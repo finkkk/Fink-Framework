@@ -1,11 +1,8 @@
 using UnityEngine;
-#if ENABLE_TEXTMESHPRO
 using TMPro;
-#endif
 
 namespace FinkFramework.Runtime.Localization
 {
-#if ENABLE_TEXTMESHPRO
     /// <summary>
     /// 将多语言 TMP Font Asset 应用到同一 GameObject 上的 TMP_Text。
     /// </summary>
@@ -31,5 +28,4 @@ namespace FinkFramework.Runtime.Localization
                 text.font = asset;
         }
     }
-#endif
 }

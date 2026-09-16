@@ -5,6 +5,7 @@ using System.Reflection;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+// ReSharper disable InvalidXmlDocComment
 
 namespace FinkFramework.Runtime.Data.JsonConverter{
 
@@ -71,11 +72,12 @@ namespace FinkFramework.Runtime.Data.JsonConverter{
 		/// <summary>
 		/// 从成员中读取值。
 		/// </summary>
-		private static object GetValue(MemberInfo member, object target){
+		private static object GetValue(MemberInfo member, object target)
+		{
 
 			if(member is FieldInfo info) return info.GetValue(target);
 
-			else return (member as PropertyInfo).GetValue(target, null);
+			return (member as PropertyInfo)?.GetValue(target, null);
 
 		}
 
@@ -86,7 +88,7 @@ namespace FinkFramework.Runtime.Data.JsonConverter{
 
 			if(member is FieldInfo info) info.SetValue(target, value);
 
-			else (member as PropertyInfo).SetValue(target, value, null);
+			else (member as PropertyInfo)?.SetValue(target, value, null);
 
 		}
 
@@ -97,7 +99,7 @@ namespace FinkFramework.Runtime.Data.JsonConverter{
 
 			if(member is FieldInfo info) return info.FieldType;
 
-			else return (member as PropertyInfo).PropertyType;
+			else return (member as PropertyInfo)?.PropertyType;
 
 		}
 
@@ -196,7 +198,7 @@ namespace FinkFramework.Runtime.Data.JsonConverter{
 			var _result = CreateInstance() as object;
 
 			foreach(var _pair in GetProperties()){
-				var _value = _object[_pair.Key].ToObject(GetValueType(_pair.Value), serializer);
+				var _value = _object[_pair.Key]?.ToObject(GetValueType(_pair.Value), serializer);
 				SetValue(_pair.Value, _result, _value);
 			}
 

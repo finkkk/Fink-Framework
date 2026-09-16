@@ -198,10 +198,10 @@ namespace FinkFramework.Editor.Utils
                 "更新会覆盖 Assets/FinkFramework 内的框架源码、Editor 工具、内置资源和插件文件。对这些文件的本地修改将会丢失；框架配置、数据文件和项目生成文件不会被修改。\n\n" +
                 "更新前会自动创建备份，更新失败将尝试恢复。",
                 "立即更新", "暂不更新");
-            if (confirmed) _ = DownloadAndUpdateAsync(packageUrl, latestVersion);
+            if (confirmed) _ = DownloadAndUpdateAsync(packageUrl);
         }
 
-        private static async Task DownloadAndUpdateAsync(string packageUrl, string version)
+        private static async Task DownloadAndUpdateAsync(string packageUrl)
         {
             const string packagePath = "Library/FinkFrameworkUpdate.unitypackage";
             try
@@ -212,7 +212,7 @@ namespace FinkFramework.Editor.Utils
                 byte[] package = await downloadClient.GetByteArrayAsync(packageUrl);
                 if (package == null || package.Length == 0) throw new InvalidOperationException("下载的更新包为空。");
                 await System.IO.File.WriteAllBytesAsync(packagePath, package);
-                EditorApplication.delayCall += () => FrameworkPackageUpdater.Start(packagePath, version);
+                EditorApplication.delayCall += () => FrameworkPackageUpdater.Start(packagePath);
             }
             catch (Exception ex)
             {

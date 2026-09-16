@@ -529,9 +529,12 @@ namespace FinkFramework.Editor.Modules.Data
                         if (asArray)
                         {
                             var list = (System.Collections.IList)obj;
-                            var arr = Array.CreateInstance(vecType, list.Count);
-                            list.CopyTo(arr, 0);
-                            return arr;
+                            if (list != null)
+                            {
+                                var arr = Array.CreateInstance(vecType, list.Count);
+                                list.CopyTo(arr, 0);
+                                return arr;
+                            }
                         }
                         return obj;
                     }

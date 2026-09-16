@@ -25,7 +25,6 @@ namespace FinkFramework.Editor.Utils
         private sealed class UpdateJournal
         {
             public string state;
-            public string version;
             public string packagePath;
         }
 
@@ -37,7 +36,7 @@ namespace FinkFramework.Editor.Utils
             EditorApplication.delayCall += RecoverInterruptedUpdate;
         }
 
-        internal static void Start(string packagePath, string version)
+        internal static void Start(string packagePath)
         {
             if (string.IsNullOrEmpty(packagePath) || !File.Exists(packagePath))
             {
@@ -55,11 +54,11 @@ namespace FinkFramework.Editor.Utils
 
             try
             {
-                WriteJournal(UpdatingState, version, packagePath);
+                WriteJournal(UpdatingState, packagePath);
                 CreateBackup();
                 AssetDatabase.DeleteAsset(FrameworkPath);
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                WriteJournal(ImportingState, version, packagePath);
+                WriteJournal(ImportingState, packagePath);
                 AssetDatabase.ImportPackage(packagePath, false);
             }
             catch (Exception ex)
@@ -167,7 +166,7 @@ namespace FinkFramework.Editor.Utils
         private static bool IsCurrentPackage(string packageName)
         {
             UpdateJournal journal = ReadJournal();
-            return journal != null && journal.state == ImportingState &&
+            return journal is { state: ImportingState } &&
                    string.Equals(Path.GetFullPath(packageName), Path.GetFullPath(journal.packagePath), StringComparison.OrdinalIgnoreCase);
         }
 
@@ -237,9 +236,9 @@ namespace FinkFramework.Editor.Utils
             Debug.Log("[Fink Framework] 已恢复更新前的框架文件。");
         }
 
-        private static void WriteJournal(string state, string version, string packagePath)
+        private static void WriteJournal(string state, string packagePath)
         {
-            File.WriteAllText(JournalPath, JsonUtility.ToJson(new UpdateJournal { state = state, version = version, packagePath = packagePath }));
+            File.WriteAllText(JournalPath, JsonUtility.ToJson(new UpdateJournal { state = state, packagePath = packagePath }));
         }
 
         private static UpdateJournal ReadJournal()

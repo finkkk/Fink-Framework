@@ -49,14 +49,22 @@ namespace FinkFramework.Runtime.UI
             surfaces.Register(runtimeRoot.MainSurface, true);
             inputRouter = new UIInputRouter(HandleInputModeChanged);
             inputDeviceDetectionManager = DeviceDetectionManager.Instance;
+            UIInputDriver.Create(inputRouter, inputDeviceDetectionManager);
             SceneManager.sceneUnloaded += HandleSceneUnloaded;
 
             LogUtil.Success("UI", "UI 系统初始化完成。");
         }
 
         public Camera UICamera => runtimeRoot.Camera;
+        public Camera MainCamera => runtimeRoot.MainCamera;
         public Canvas MainCanvas => runtimeRoot.MainCanvas;
         public UIInputMode InputMode => inputRouter.Mode;
+
+        /// <summary>
+        /// 设置与框架 UI Camera 组合的游戏主相机。
+        /// 玩家相机创建或替换后传入新实例；销毁前传入 null 以解除旧 URP 相机栈关系。
+        /// </summary>
+        public void SetMainCamera(Camera mainCamera) => runtimeRoot.SetMainCamera(mainCamera);
 
         /// <summary>面板状态发生变化时触发，适合调试工具和自动化测试订阅。</summary>
         public event Action<UIPanelKey, UIPanelState> PanelStateChanged;

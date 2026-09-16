@@ -23,14 +23,14 @@ namespace FinkFramework.Runtime.Singleton
         /// <summary>
         /// 是否已经存在实例（不会创建）
         /// </summary>
-        public static bool HasInstance => _instance is not null;
+        public static bool HasInstance => !_applicationIsQuitting && _instance != null;
 
         /// <summary>
         /// 获取已经由场景挂载的实例；不存在时返回 null，不会创建。
         /// </summary>
         public static T TryGetInstance()
         {
-            return _applicationIsQuitting ? null : _instance;
+            return _applicationIsQuitting || _instance == null ? null : _instance;
         }
         
         public static T Instance

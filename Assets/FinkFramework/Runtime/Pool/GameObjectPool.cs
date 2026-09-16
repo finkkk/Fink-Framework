@@ -35,6 +35,9 @@ namespace FinkFramework.Runtime.Pool
         public int Count => pool.Count;
         // 获取正在使用中的对象个数
         public int UsedCount => usedList.Count;
+        // 对象池持有的一份预制体资源引用，供 PoolManager 在池销毁时释放。
+        public readonly string PrefabPath;
+        public readonly GameObject Prefab;
         // 判断使用中的对象数量是否超出最大值上限 若未超出则返回true 表示可以进行实例化
         public bool canCreate => UsedCount < maxNum;
 
@@ -44,8 +47,12 @@ namespace FinkFramework.Runtime.Pool
         /// <param name="root">全局对象池根物体(父对象)</param>
         /// <param name="name">对象池的名字</param>
         /// <param name="usedObj">传入动态创建的对象 存入使用中对象池 标记其为正在使用的状态</param>
-        public GameObjectPool(GameObject root,string name,GameObject usedObj)
+        /// <param name="prefab"></param>
+        /// <param name="prefabPath"></param>
+        public GameObjectPool(GameObject root,string name,GameObject usedObj,GameObject prefab,string prefabPath)
         {
+            Prefab = prefab;
+            PrefabPath = prefabPath;
             // 只有当开启调试模式的时候 才会启用布局功能(即根据父子关系布局)
             if (PoolManager.debugMode)
             {
@@ -63,6 +70,32 @@ namespace FinkFramework.Runtime.Pool
             }
             // 从PoolObject获取上限数量值
             maxNum = poolObject.maxNum;
+        }
+
+        /// <summary>使用池持有的预制体创建实例，不重复向资源系统申请引用。</summary>
+        public GameObject Create()
+        {
+            return Prefab ? Object.Instantiate(Prefab) : null;
+        }
+
+        /// <summary>
+        /// 销毁池内所有实例，包括当前仍在使用中的实例。
+        /// 场景切换时如果只销毁闲置对象，会遗留活动对象和其组件引用。
+        /// </summary>
+        public void DestroyAll()
+        {
+            while (pool.Count > 0)
+                Object.Destroy(pool.Pop());
+
+            foreach (GameObject obj in usedList)
+            {
+                if (obj)
+                    Object.Destroy(obj);
+            }
+
+            usedList.Clear();
+            if (rootObj)
+                Object.Destroy(rootObj);
         }
 
         /// <summary>

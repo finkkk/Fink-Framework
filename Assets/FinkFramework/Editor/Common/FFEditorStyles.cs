@@ -105,15 +105,12 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (sectionTitle == null)
+                sectionTitle ??= new GUIStyle(EditorStyles.boldLabel)
                 {
-                    sectionTitle = new GUIStyle(EditorStyles.boldLabel)
-                    {
-                        fontSize = 13,
-                        alignment = TextAnchor.MiddleLeft,
-                        clipping = TextClipping.Clip
-                    };
-                }
+                    fontSize = 13,
+                    alignment = TextAnchor.MiddleLeft,
+                    clipping = TextClipping.Clip
+                };
 
                 return sectionTitle;
             }
@@ -126,14 +123,11 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (sectionBox == null)
+                sectionBox ??= new GUIStyle(EditorStyles.helpBox)
                 {
-                    sectionBox = new GUIStyle(EditorStyles.helpBox)
-                    {
-                        padding = new RectOffset(12, 12, 9, 10),
-                        stretchWidth = true
-                    };
-                }
+                    padding = new RectOffset(12, 12, 9, 10),
+                    stretchWidth = true
+                };
 
                 return sectionBox;
             }
@@ -146,14 +140,11 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (rowBox == null)
+                rowBox ??= new GUIStyle(EditorStyles.helpBox)
                 {
-                    rowBox = new GUIStyle(EditorStyles.helpBox)
-                    {
-                        padding = new RectOffset(0, 0, 0, 0),
-                        stretchWidth = true
-                    };
-                }
+                    padding = new RectOffset(0, 0, 0, 0),
+                    stretchWidth = true
+                };
 
                 return rowBox;
             }
@@ -163,14 +154,11 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (centeredLabel == null)
+                centeredLabel ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel)
                 {
-                    centeredLabel = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
-                    {
-                        alignment = TextAnchor.MiddleCenter,
-                        clipping = TextClipping.Clip
-                    };
-                }
+                    alignment = TextAnchor.MiddleCenter,
+                    clipping = TextClipping.Clip
+                };
 
                 return centeredLabel;
             }
@@ -183,15 +171,12 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (toolbarLabel == null)
+                toolbarLabel ??= new GUIStyle(EditorStyles.label)
                 {
-                    toolbarLabel = new GUIStyle(EditorStyles.label)
-                    {
-                        alignment = TextAnchor.MiddleLeft,
-                        clipping = TextClipping.Clip,
-                        padding = new RectOffset(2, 2, 0, 0)
-                    };
-                }
+                    alignment = TextAnchor.MiddleLeft,
+                    clipping = TextClipping.Clip,
+                    padding = new RectOffset(2, 2, 0, 0)
+                };
 
                 return toolbarLabel;
             }
@@ -201,16 +186,13 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (primaryButton == null)
+                primaryButton ??= new GUIStyle(GUI.skin.button)
                 {
-                    primaryButton = new GUIStyle(GUI.skin.button)
-                    {
-                        alignment = TextAnchor.MiddleCenter,
-                        fontStyle = FontStyle.Bold,
-                        fixedHeight = 0,
-                        padding = new RectOffset(8, 8, 3, 3)
-                    };
-                }
+                    alignment = TextAnchor.MiddleCenter,
+                    fontStyle = FontStyle.Bold,
+                    fixedHeight = 0,
+                    padding = new RectOffset(8, 8, 3, 3)
+                };
 
                 return primaryButton;
             }
@@ -220,15 +202,12 @@ namespace FinkFramework.Editor.Common
         {
             get
             {
-                if (actionButton == null)
+                actionButton ??= new GUIStyle(GUI.skin.button)
                 {
-                    actionButton = new GUIStyle(GUI.skin.button)
-                    {
-                        alignment = TextAnchor.MiddleCenter,
-                        fixedHeight = 0,
-                        padding = new RectOffset(8, 8, 3, 3)
-                    };
-                }
+                    alignment = TextAnchor.MiddleCenter,
+                    fixedHeight = 0,
+                    padding = new RectOffset(8, 8, 3, 3)
+                };
 
                 return actionButton;
             }

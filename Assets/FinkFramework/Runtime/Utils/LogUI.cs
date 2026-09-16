@@ -10,7 +10,7 @@ namespace FinkFramework.Runtime.Utils
     /// </summary>
     public class LogUI
     {
-        public static bool Enabled = true;
+        public static readonly bool Enabled = true;
         private const int MaxLogCount = 20;
         
         /// <summary>
@@ -141,7 +141,7 @@ namespace FinkFramework.Runtime.Utils
             float now = Time.time;
             
             // 只在锁内：清理过期 + 拷贝快照
-            List<LogItem> snapshot = null;
+            List<LogItem> snapshot;
             
             lock (logsLock)
             {
@@ -158,15 +158,12 @@ namespace FinkFramework.Runtime.Utils
             }
             
             // 锁外：GUIStyle 初始化 + 计算 + 绘制
-            if (style == null)
+            style ??= new GUIStyle(GUI.skin.label)
             {
-                style = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 26,
-                    wordWrap = true,
-                    alignment = TextAnchor.UpperCenter
-                };
-            }
+                fontSize = 26,
+                wordWrap = true,
+                alignment = TextAnchor.UpperCenter
+            };
             
             float screenWidth = Screen.width;
             float baseX = (screenWidth - maxWidth) * 0.5f;

@@ -4,11 +4,9 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using FinkFramework.Editor.Common;
 using FinkFramework.Runtime.Localization;
+using TMPro;
 using UnityEditor;
 using UnityEngine;
-#if ENABLE_TEXTMESHPRO
-using TMPro;
-#endif
 
 namespace FinkFramework.Editor.Modules.Localization.UI
 {
@@ -691,11 +689,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                 case LocalizationAssetType.ScriptableObject:
                     return asset is ScriptableObject ? null : "需要 ScriptableObject。";
                 case LocalizationAssetType.TMPFontAsset:
-#if ENABLE_TEXTMESHPRO
                     return asset is TMP_FontAsset ? null : "需要 TMP Font Asset。";
-#else
-                    return "当前项目未安装 TextMeshPro，无法使用 TMP Font Asset。";
-#endif
                 case LocalizationAssetType.Other:
                 default:
                     return null;
@@ -717,11 +711,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                 case LocalizationAssetType.ScriptableObject:
                     return typeof(ScriptableObject);
                 case LocalizationAssetType.TMPFontAsset:
-#if ENABLE_TEXTMESHPRO
                     return typeof(TMP_FontAsset);
-#else
-                    return typeof(UnityEngine.Object);
-#endif
                 case LocalizationAssetType.Other:
                 default:
                     return typeof(UnityEngine.Object);

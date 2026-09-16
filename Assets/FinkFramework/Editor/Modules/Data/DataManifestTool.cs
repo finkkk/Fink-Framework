@@ -47,7 +47,7 @@ namespace FinkFramework.Editor.Modules.Data
                 var files = Directory
                     .EnumerateFiles(dataRoot, "*" + extension, SearchOption.AllDirectories)
                     // 固定输出顺序，避免文件系统遍历顺序变化导致清单产生无意义差异。
-                    .OrderBy(path => PathUtil.NormalizePath(path), StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(PathUtil.NormalizePath, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
                 var manifest = new DataManifest();

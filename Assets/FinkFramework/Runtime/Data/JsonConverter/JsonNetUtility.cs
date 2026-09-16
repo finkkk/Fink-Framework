@@ -4,6 +4,7 @@ using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using UnityEngine;
+// ReSharper disable InvalidXmlDocComment
 
 namespace FinkFramework.Runtime.Data.JsonConverter{
 	
@@ -40,7 +41,7 @@ namespace FinkFramework.Runtime.Data.JsonConverter{
 		/// 2. 所有来自 <c>Framework.Data.Runtime.JsonConverter</c> 的内置转换器；
 		/// 3. 系统内置的 <see cref="StringEnumConverter"/> 与 <see cref="VersionConverter"/>。
 		/// </summary>
-		public static JsonSerializerSettings defaultSettings = new(){
+		public static readonly JsonSerializerSettings defaultSettings = new(){
 			Converters = CreateConverters()
 		};
 
@@ -56,8 +57,7 @@ namespace FinkFramework.Runtime.Data.JsonConverter{
 		[RuntimeInitializeOnLoadMethod]
 		public static void Initialize()
 		{
-			if (JsonConvert.DefaultSettings == null)
-				JsonConvert.DefaultSettings = () => defaultSettings;
+			JsonConvert.DefaultSettings ??= () => defaultSettings;
 		}
 		
 		#if UNITY_EDITOR

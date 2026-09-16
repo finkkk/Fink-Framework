@@ -21,6 +21,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
         private readonly List<string> savedCategoryNames = new List<string>();
         private readonly List<string> savedLocaleCodes = new List<string>();
         private string savedJsonFileNamePattern = "{0}.json";
+        private string localeCodeToAdd;
         private sealed class PendingDataDeletion
         {
             public readonly Dictionary<string, string> Files =
@@ -182,7 +183,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                 FFEditorStyles.Description);
             GUILayout.Space(14);
 
-            DrawModuleSettings();
+            DrawTextDirectionSettings();
             GUILayout.Space(FFEditorStyles.SectionSpacing);
             DrawLocaleSettings();
             GUILayout.Space(FFEditorStyles.SectionSpacing);
@@ -198,17 +199,14 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             FFEditorGUI.EndWindowContent();
         }
 
-        private void DrawModuleSettings()
+        private void DrawTextDirectionSettings()
         {
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
             FFEditorGUI.DrawSectionHeader(
-                "模块设置",
-                "控制运行时是否启用本地化模块。"
+                "文字方向设置",
+                "配置从右向左语言的文本排版适配。"
             );
             GUILayout.Space(6);
-            EditorGUILayout.PropertyField(
-                serializedAsset.FindProperty("enableLocalization"),
-                new GUIContent("启用本地化模块"));
             EditorGUILayout.PropertyField(
                 serializedAsset.FindProperty("enableRtlSupport"),
                 new GUIContent(
@@ -226,30 +224,40 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
             FFEditorGUI.DrawSectionHeader(
                 "语言设置",
-                "选择默认显示语言和回退语言；支持语言由框架内置常量固定。"
+                "从框架预置语言目录中选择项目需要支持的语言，并设置默认显示语言和回退语言。"
             );
             GUILayout.Space(6);
 
             SerializedProperty supportedLocalesProperty =
                 serializedAsset.FindProperty("supportedLocales");
+            SerializedProperty defaultLocaleProperty =
+                serializedAsset.FindProperty("defaultLocale");
+            SerializedProperty defaultFallbackLocaleProperty =
+                serializedAsset.FindProperty("defaultFallbackLocale");
             EditorGUILayout.BeginHorizontal();
             DrawLocaleSelectionCard(
                 "默认语言",
-                serializedAsset.FindProperty("defaultLocale"),
+                defaultLocaleProperty,
                 supportedLocalesProperty);
             GUILayout.Space(FFEditorStyles.ControlSpacing);
             DrawLocaleSelectionCard(
                 "默认 Fallback",
-                serializedAsset.FindProperty("defaultFallbackLocale"),
+                defaultFallbackLocaleProperty,
                 supportedLocalesProperty);
             EditorGUILayout.EndHorizontal();
 
             GUILayout.Space(8);
-            DrawSupportedLocales(supportedLocalesProperty);
+            DrawSupportedLocales(
+                supportedLocalesProperty,
+                defaultLocaleProperty,
+                defaultFallbackLocaleProperty);
             GUILayout.EndVertical();
         }
 
-        private void DrawSupportedLocales(SerializedProperty localesProperty)
+        private void DrawSupportedLocales(
+            SerializedProperty localesProperty,
+            SerializedProperty defaultLocaleProperty,
+            SerializedProperty defaultFallbackLocaleProperty)
         {
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(
@@ -257,11 +265,13 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                 FFEditorStyles.SectionTitle);
             GUILayout.FlexibleSpace();
             EditorGUILayout.LabelField(
-                "语言表和资源表使用这些固定语言列",
+                "语言表和资源表使用已启用的语言列",
                 FFEditorStyles.Description,
                 GUILayout.Width(220f));
             EditorGUILayout.EndHorizontal();
 
+            GUILayout.Space(3);
+            DrawAddSupportedLocale(localesProperty);
             GUILayout.Space(3);
             for (int i = 0; i < localesProperty.arraySize; i++)
             {
@@ -281,12 +291,123 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                     : $"{codeValue}（{displayValue}）";
                 EditorGUILayout.LabelField(value, EditorStyles.label);
 
+                bool isDefaultLocale = string.Equals(
+                    codeValue,
+                    defaultLocaleProperty.stringValue,
+                    StringComparison.OrdinalIgnoreCase);
+                bool isFallbackLocale = string.Equals(
+                    codeValue,
+                    defaultFallbackLocaleProperty.stringValue,
+                    StringComparison.OrdinalIgnoreCase);
+                bool isInUse = isDefaultLocale || isFallbackLocale;
+                string removeTooltip = isInUse
+                    ? "请先将默认语言和默认 Fallback 切换为其他支持语言。"
+                    : "从支持语言列表中移除该语言。保存时会检查并确认关联数据。";
+                using (new EditorGUI.DisabledScope(isInUse))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent("移除", removeTooltip),
+                            GUILayout.Width(58f)))
+                    {
+                        RemoveSupportedLocale(localesProperty, i);
+                        EditorGUILayout.EndHorizontal();
+                        break;
+                    }
+                }
                 EditorGUILayout.EndHorizontal();
             }
 
-            EditorGUILayout.HelpBox(
-                "语言 ID 已固定为框架内置常量，不能在此处新增或删除。",
-                MessageType.Info);
+        }
+
+        private void DrawAddSupportedLocale(SerializedProperty localesProperty)
+        {
+            List<LocaleInfo> availableLocales = GetAvailableBuiltInLocales(localesProperty);
+            if (availableLocales.Count == 0)
+                return;
+
+            var labels = new string[availableLocales.Count + 1];
+            labels[0] = "选择要添加的预置语言...";
+            for (int i = 0; i < availableLocales.Count; i++)
+                labels[i + 1] = LocaleCatalog.GetEditorLabel(availableLocales[i]);
+
+            EditorGUILayout.BeginHorizontal();
+            int selectedIndex = FindLocaleIndex(availableLocales, localeCodeToAdd) + 1;
+            int nextIndex = EditorGUILayout.Popup(
+                new GUIContent("添加支持语言"),
+                selectedIndex,
+                labels);
+            localeCodeToAdd = nextIndex > 0 ? availableLocales[nextIndex - 1].Code : null;
+
+            using (new EditorGUI.DisabledScope(nextIndex == 0))
+            {
+                if (GUILayout.Button("添加", GUILayout.Width(58f)))
+                {
+                    AddSupportedLocale(localesProperty, availableLocales[nextIndex - 1]);
+                    localeCodeToAdd = null;
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private static List<LocaleInfo> GetAvailableBuiltInLocales(
+            SerializedProperty localesProperty)
+        {
+            var configuredCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < localesProperty.arraySize; i++)
+            {
+                string code = localesProperty
+                    .GetArrayElementAtIndex(i)
+                    .FindPropertyRelative("code")
+                    .stringValue;
+                if (LocaleInfo.TryNormalize(code, out string normalized))
+                    configuredCodes.Add(normalized);
+            }
+
+            return LocaleCatalog.BuiltInLocales
+                .Where(locale => !configuredCodes.Contains(locale.Code))
+                .ToList();
+        }
+
+        private static void AddSupportedLocale(
+            SerializedProperty localesProperty,
+            LocaleInfo locale)
+        {
+            if (locale == null || FindLocaleIndex(GetConfiguredLocales(localesProperty), locale.Code) >= 0)
+                return;
+
+            int newIndex = localesProperty.arraySize;
+            localesProperty.arraySize++;
+            SerializedProperty newLocale = localesProperty.GetArrayElementAtIndex(newIndex);
+            newLocale.FindPropertyRelative("code").stringValue = locale.Code;
+            newLocale.FindPropertyRelative("displayName").stringValue = locale.DisplayName;
+        }
+
+        private static void RemoveSupportedLocale(SerializedProperty localesProperty, int index)
+        {
+            int originalSize = localesProperty.arraySize;
+            localesProperty.DeleteArrayElementAtIndex(index);
+            if (localesProperty.arraySize == originalSize)
+                localesProperty.DeleteArrayElementAtIndex(index);
+        }
+
+        private static List<LocaleInfo> GetConfiguredLocales(SerializedProperty localesProperty)
+        {
+            var locales = new List<LocaleInfo>();
+            for (int i = 0; i < localesProperty.arraySize; i++)
+            {
+                SerializedProperty locale = localesProperty.GetArrayElementAtIndex(i);
+                string code = locale.FindPropertyRelative("code").stringValue;
+                if (!LocaleInfo.TryNormalize(code, out string normalized)
+                    || FindLocaleIndex(locales, normalized) >= 0)
+                {
+                    continue;
+                }
+
+                string displayName = locale.FindPropertyRelative("displayName").stringValue;
+                locales.Add(new LocaleInfo(normalized, displayName));
+            }
+
+            return locales;
         }
 
         private void DrawLocaleSelectionCard(

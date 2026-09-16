@@ -20,7 +20,7 @@ namespace FinkFramework.Runtime.Pool
         // 用于存储 数据结构类、逻辑类等非继承Mono的类的对象池（即泛型对象池）的字典容器
         private readonly Dictionary<string, BasePoolStorage> poolObjectDic = new();
         // 是否开启调试模式(开启后失活的对象会按照根物体进行布局管理 结构清晰 但频繁修改父子关系有性能损耗 发布时建议关闭)
-        public static bool debugMode = EnvironmentState.DebugMode;
+        public static readonly bool debugMode = EnvironmentState.DebugMode;
         // 全局对象池根对象
         private GameObject poolObj;
 
@@ -40,9 +40,10 @@ namespace FinkFramework.Runtime.Pool
             // 1.如果全局对象池中不存在该对象池
             if (!poolDic.TryGetValue(fullPath, out var value))
             {
-                // 动态创建对象
-                obj = Object.Instantiate(ResManager.Instance.Load<GameObject>(fullPath));
-                if (!obj)
+                // 一个对象池只持有一份预制体引用，后续实例化不再重复 Load。
+                GameObject prefab = ResManager.Instance.Load<GameObject>(fullPath);
+                obj = prefab ? Object.Instantiate(prefab) : null;
+                if (!prefab || !obj)
                 {
                     LogUtil.Error($"资源路径 {fullPath} 无法加载，请检查路径是否正确！");
                     return null;
@@ -50,7 +51,7 @@ namespace FinkFramework.Runtime.Pool
                 // 强制设置实例化对象名字为传入的对象池名字 方便返回对象池时直接使用对象名字查池（也避免实例化后unity自动添加的clone尾缀）
                 obj.name = fullPath; 
                 // 创建对象池(构造对象池的方法内部就实现了记录使用中对象的功能 即将实例化出来的这个对象存入使用中的池子内)
-                poolDic.Add(fullPath,new GameObjectPool(poolObj,fullPath,obj));
+                poolDic.Add(fullPath,new GameObjectPool(poolObj,fullPath,obj,prefab,fullPath));
             }
             // 2.有该对象池 且该对象池中存在没有使用的对象 
             else if (value.Count > 0)
@@ -67,8 +68,8 @@ namespace FinkFramework.Runtime.Pool
             // 4. 其他情况：有该对象池 但对象池内已没有缓存对象 但也未超出最大数量上限
             else
             { 
-                // 动态创建对象
-                obj = Object.Instantiate(ResManager.Instance.Load<GameObject>(fullPath));
+                // 复用对象池持有的预制体引用，避免每次 Spawn 都增加资源引用计数。
+                obj = value.Create();
                 if (!obj)
                 {
                     LogUtil.Error($"资源路径 {fullPath} 无法加载，请检查路径是否正确！");
@@ -92,9 +93,8 @@ namespace FinkFramework.Runtime.Pool
             // 1. 存在池子的时候
             if (poolObjectDic.TryGetValue(poolName, out var value))
             {
-                PoolStorage<T> pool = value as PoolStorage<T>;
                 // 若池子不为空
-                if (pool.poolObjs.Count > 0)
+                if (value is PoolStorage<T> pool && pool.poolObjs.Count > 0)
                 {
                     // 从队列中取出对象进行复用
                     T obj = pool.poolObjs.Dequeue();
@@ -148,7 +148,7 @@ namespace FinkFramework.Runtime.Pool
             // 在放回池子之前 先重置对象的数据（这里的重置方法为继承的对象池接口提供的）
             obj.ResetInfo();
             // 压入对象
-            pool.poolObjs.Enqueue(obj);
+            if (pool != null) pool.poolObjs.Enqueue(obj);
         }
         
         /// <summary>
@@ -198,22 +198,17 @@ namespace FinkFramework.Runtime.Pool
         /// </summary>
         public void CleanPool()
         {
-            // 如果有调试用根节点，直接销毁它（连同所有子对象）
+            foreach (var pool in poolDic.Values)
+            {
+                pool.DestroyAll();
+                if (!string.IsNullOrEmpty(pool.PrefabPath))
+                    ResManager.Instance.UnloadAsset<GameObject>(pool.PrefabPath, true);
+            }
+
             if (poolObj)
             {
                 Object.Destroy(poolObj);
                 poolObj = null;
-            }
-            else
-            {
-                // debugMode未开启时 手动销毁所有缓存对象
-                foreach (var pool in poolDic.Values)
-                {
-                    while (pool.Count > 0)
-                    {
-                        Object.Destroy(pool.pool.Pop());
-                    }
-                }
             }
             // 清空全局对象池注册
             poolObjectDic.Clear();

@@ -4,17 +4,14 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Localization;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json.Linq;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-#if ENABLE_TEXTMESHPRO
-using TMPro;
-#endif
 using UnityEngine.UI;
 
 namespace FinkFramework.Editor.Modules.Localization
@@ -750,11 +747,7 @@ namespace FinkFramework.Editor.Modules.Localization
                 case LocalizationAssetType.Font:
                     return asset is Font ? null : "需要 Font。";
                 case LocalizationAssetType.TMPFontAsset:
-#if ENABLE_TEXTMESHPRO
                     return asset is TMP_FontAsset ? null : "需要 TMP Font Asset。";
-#else
-                    return "当前项目未安装 TextMeshPro，无法使用 TMP Font Asset。";
-#endif
                 case LocalizationAssetType.Prefab:
                     if (!(asset is GameObject))
                         return "需要 Prefab 资源。";
@@ -1372,10 +1365,8 @@ namespace FinkFramework.Editor.Modules.Localization
 
             if (gameObject.GetComponent<Text>() != null)
                 return true;
-#if ENABLE_TEXTMESHPRO
-            if (EnvironmentState.AutoTMP && gameObject.GetComponent<TMP_Text>() != null)
+            if (gameObject.GetComponent<TMP_Text>() != null)
                 return true;
-#endif
             return false;
         }
 
@@ -1397,22 +1388,17 @@ namespace FinkFramework.Editor.Modules.Localization
                 AddStaticTextIssue(text, "UnityEngine.UI.Text", assetLabel, result, issues);
             }
 
-#if ENABLE_TEXTMESHPRO
-            if (EnvironmentState.AutoTMP)
+            TMP_Text[] tmpTexts = root.GetComponentsInChildren<TMP_Text>(true);
+            foreach (TMP_Text text in tmpTexts)
             {
-                TMP_Text[] tmpTexts = root.GetComponentsInChildren<TMP_Text>(true);
-                foreach (TMP_Text text in tmpTexts)
-                {
-                    if (text == null || string.IsNullOrWhiteSpace(text.text))
-                        continue;
+                if (text == null || string.IsNullOrWhiteSpace(text.text))
+                    continue;
 
-                    if (HasLocalizationBindingComponent(text.gameObject))
-                        continue;
+                if (HasLocalizationBindingComponent(text.gameObject))
+                    continue;
 
-                    AddStaticTextIssue(text, "TMPro.TMP_Text", assetLabel, result, issues);
-                }
+                AddStaticTextIssue(text, "TMPro.TMP_Text", assetLabel, result, issues);
             }
-#endif
         }
 
         /// <summary>
@@ -1445,10 +1431,8 @@ namespace FinkFramework.Editor.Modules.Localization
         {
             if (component is Text legacyText)
                 return legacyText.text;
-#if ENABLE_TEXTMESHPRO
             if (component is TMP_Text tmpText)
                 return tmpText.text;
-#endif
             return string.Empty;
         }
 

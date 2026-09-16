@@ -10,6 +10,7 @@ using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
 using UnityEngine;
+// ReSharper disable InvalidXmlDocComment
 
 namespace FinkFramework.Runtime.Data
 {
@@ -265,7 +266,7 @@ namespace FinkFramework.Runtime.Data
         private static byte[] AESEncrypt(byte[] data, string password)
         {
             using Aes aes = Aes.Create();
-                using var key = new Rfc2898DeriveBytes(password, Salt, 1000, HashAlgorithmName.SHA256);
+            using var key = new Rfc2898DeriveBytes(password, Salt, 1000, HashAlgorithmName.SHA256);
             aes.Key = key.GetBytes(32);
             aes.IV = key.GetBytes(16);
             aes.Padding = PaddingMode.PKCS7;

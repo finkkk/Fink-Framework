@@ -29,11 +29,10 @@ namespace FinkFramework.Runtime.Event
             isSticky = sticky;
         }
     }
-    
+
     /// <summary>
     /// 包装有参无返回值的委托（2个参数）
     /// </summary>
-    /// <typeparam name="T">委托需要传参的类型</typeparam>
     public class EventInfo<T1, T2> : BaseEventInfo
     {
         public UnityAction<T1, T2> actions;

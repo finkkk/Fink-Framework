@@ -302,7 +302,7 @@ namespace FinkFramework.Runtime.Audio
         /// <summary>
         /// 播放音效（异步加载，await 方式）
         /// </summary>
-        /// <param name="fullPath">音乐文件带前缀完整路径</param>
+        /// <param name="path">音乐文件带前缀完整路径</param>
         /// <param name="isLoop">是否循环播放</param>
         /// <param name="fatherObj">用于跟随的游戏对象父物体 若传空则默认挂载到全局音效游戏对象</param>
         public async UniTask<AudioSource> PlaySoundAsync(string path, bool isLoop = false, GameObject fatherObj = null)

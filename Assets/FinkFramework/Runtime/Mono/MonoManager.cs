@@ -1,10 +1,12 @@
+using System;
 using FinkFramework.Runtime.Singleton;
+using UnityEngine;
 using UnityEngine.Events;
 
 namespace FinkFramework.Runtime.Mono
 {
     /// <summary>
-    /// 公共MONO模块 给未继承Mono的脚本提供生命周期函数调用和协程的调用  也可以统一管理所有帧更新逻辑（无论是否继承Mono）
+    /// 公共生命周期桥接器，为纯 C# 业务提供协程、逐帧更新和 Gizmos 回调。
     /// </summary>
     public class MonoManager : SingletonAutoMono<MonoManager>
     {
@@ -16,97 +18,126 @@ namespace FinkFramework.Runtime.Mono
 
         #region 帧更新注册
         /// <summary>
-        /// 添加帧更新监听函数
+        /// 添加 Update 监听。传入 null 会被忽略。
         /// </summary>
-        /// <param name="unityAction"></param>
         public void AddUpdateListener(UnityAction unityAction)
         {
-            updateEvent += unityAction;
+            AddListener(ref updateEvent, unityAction);
         }
         /// <summary>
-        /// 移除帧更新监听函数
+        /// 移除 Update 监听。
         /// </summary>
-        /// <param name="unityAction"></param>
         public void RemoveUpdateListener(UnityAction unityAction)
         {
-            updateEvent -= unityAction;
+            RemoveListener(ref updateEvent, unityAction);
         }
         /// <summary>
-        /// 添加fixed帧更新监听函数
+        /// 添加 FixedUpdate 监听。
         /// </summary>
-        /// <param name="unityAction"></param>
         public void AddFixedUpdateListener(UnityAction unityAction)
         {
-            fixedUpdateEvent += unityAction;
+            AddListener(ref fixedUpdateEvent, unityAction);
         }
         /// <summary>
-        /// 移除fixed帧更新监听函数
+        /// 移除 FixedUpdate 监听。
         /// </summary>
-        /// <param name="unityAction"></param>
         public void RemoveFixedUpdateListener(UnityAction unityAction)
         {
-            fixedUpdateEvent -= unityAction;
-        } 
-        /// <summary>
-        /// 添加Late帧更新监听函数
-        /// </summary>
-        /// <param name="unityAction"></param>
-        public void AddLateUpdateListener(UnityAction unityAction)
-        {
-            lateUpdateEvent += unityAction;
+            RemoveListener(ref fixedUpdateEvent, unityAction);
         }
         /// <summary>
-        /// 移除Late帧更新监听函数
+        /// 添加 LateUpdate 监听。
         /// </summary>
-        /// <param name="unityAction"></param>
+        public void AddLateUpdateListener(UnityAction unityAction)
+        {
+            AddListener(ref lateUpdateEvent, unityAction);
+        }
+        /// <summary>
+        /// 移除 LateUpdate 监听。
+        /// </summary>
         public void RemoveLateUpdateListener(UnityAction unityAction)
         {
-            lateUpdateEvent -= unityAction;
+            RemoveListener(ref lateUpdateEvent, unityAction);
         }
         #endregion
         
         #region Gizmos 注册
         /// <summary>
-        /// 添加Gizmos监听函数
+        /// 添加 OnDrawGizmos 监听。
         /// </summary>
         /// <param name="unityAction"></param>
-        public void AddGizmosListener(UnityAction unityAction) => gizmosEvent += unityAction;
+        public void AddGizmosListener(UnityAction unityAction) => AddListener(ref gizmosEvent, unityAction);
         /// <summary>
-        /// 移除Gizmos监听函数
+        /// 移除 OnDrawGizmos 监听。
         /// </summary>
         /// <param name="unityAction"></param>
-        public void RemoveGizmosListener(UnityAction unityAction) => gizmosEvent -= unityAction;
+        public void RemoveGizmosListener(UnityAction unityAction) => RemoveListener(ref gizmosEvent, unityAction);
         /// <summary>
-        /// 添加GizmosSelected监听函数
+        /// 添加 OnDrawGizmosSelected 监听。
         /// </summary>
         /// <param name="unityAction"></param>
-        public void AddGizmosSelectedListener(UnityAction unityAction) => gizmosSelectedEvent += unityAction;
+        public void AddGizmosSelectedListener(UnityAction unityAction) =>
+            AddListener(ref gizmosSelectedEvent, unityAction);
         /// <summary>
-        /// 移除GizmosSelected监听函数
+        /// 移除 OnDrawGizmosSelected 监听。
         /// </summary>
         /// <param name="unityAction"></param>
-        public void RemoveGizmosSelectedListener(UnityAction unityAction) => gizmosSelectedEvent -= unityAction;
+        public void RemoveGizmosSelectedListener(UnityAction unityAction) =>
+            RemoveListener(ref gizmosSelectedEvent, unityAction);
         #endregion
         
         private void Update()
         {
-            updateEvent?.Invoke();
+            InvokeListeners(updateEvent);
         }
         private void FixedUpdate()
         {
-            fixedUpdateEvent?.Invoke();
+            InvokeListeners(fixedUpdateEvent);
         }
         private void LateUpdate()
         {
-            lateUpdateEvent?.Invoke();
+            InvokeListeners(lateUpdateEvent);
         }
         private void OnDrawGizmos()
         {
-            gizmosEvent?.Invoke();
+            InvokeListeners(gizmosEvent);
         }
         private void OnDrawGizmosSelected()
         {
-            gizmosSelectedEvent?.Invoke();
+            InvokeListeners(gizmosSelectedEvent);
+        }
+
+        private static void AddListener(ref UnityAction listeners, UnityAction listener)
+        {
+            if (listener != null)
+                listeners += listener;
+        }
+
+        private static void RemoveListener(ref UnityAction listeners, UnityAction listener)
+        {
+            if (listener != null)
+                listeners -= listener;
+        }
+
+        /// <summary>
+        /// 独立执行每个监听器，避免一个业务异常中断同一帧的其他系统更新。
+        /// </summary>
+        private static void InvokeListeners(UnityAction listeners)
+        {
+            if (listeners == null)
+                return;
+
+            foreach (Delegate callback in listeners.GetInvocationList())
+            {
+                try
+                {
+                    ((UnityAction)callback).Invoke();
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+            }
         }
     }
 }

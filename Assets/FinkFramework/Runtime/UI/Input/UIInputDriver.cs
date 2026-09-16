@@ -1,6 +1,5 @@
 using FinkFramework.Runtime.Input;
 using FinkFramework.Runtime.Settings.Loaders;
-using FinkFramework.Runtime.UI.Core;
 using UnityEngine;
 
 namespace FinkFramework.Runtime.UI.Input
@@ -11,27 +10,23 @@ namespace FinkFramework.Runtime.UI.Input
     {
         private UIInputRouter router;
         private DeviceDetectionManager deviceDetectionManager;
-        private UIRuntimeRoot runtimeRoot;
         private bool hasAppliedAutomaticNavigationPolicy;
         private bool lastAutomaticNavigationEnabled;
 
         public static UIInputDriver Create(
             UIInputRouter router,
-            DeviceDetectionManager deviceDetectionManager,
-            UIRuntimeRoot runtimeRoot)
+            DeviceDetectionManager deviceDetectionManager)
         {
             var gameObject = new GameObject("[FinkFramework] UI Input Router");
             DontDestroyOnLoad(gameObject);
             UIInputDriver driver = gameObject.AddComponent<UIInputDriver>();
             driver.router = router;
             driver.deviceDetectionManager = deviceDetectionManager;
-            driver.runtimeRoot = runtimeRoot;
             return driver;
         }
 
         private void Update()
         {
-            runtimeRoot?.Tick();
             ApplyAutomaticNavigationPolicy();
             router?.Tick();
         }

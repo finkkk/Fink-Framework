@@ -16,7 +16,8 @@ namespace FinkFramework.Runtime.ResLoad.Providers
     /// - Texture2D
     /// - AudioClip（wav/ogg/mp3）
     /// - AssetBundle
-    /// - Raw bytes
+    /// - byte[]（当前 IResProvider 的 UnityEngine.Object 泛型约束下不可直接调用，
+    ///   需要单独的字节读取 API）
     /// </summary>
     public sealed class WebProvider : IResProvider
     {
@@ -46,23 +47,31 @@ namespace FinkFramework.Runtime.ResLoad.Providers
                 LogUtil.Error("WebProvider",$"不支持的资源类型: {t.Name}");
                 return null;
             }
-            // 记录请求（用于进度条）
-            var op = req.SendWebRequest();
-            ops[url] = op;
-            await op.ToUniTask();
-            // 移除进度记录
-            ops.Remove(url);
-
-            if (req.result != UnityWebRequest.Result.Success)
+            try
             {
-                LogUtil.Error("WebProvider",$"网络加载失败: {url} => {req.error}");
-                req.Dispose();
+                // 记录请求（用于进度条）。
+                var op = req.SendWebRequest();
+                ops[url] = op;
+                await op.ToUniTask();
+
+                if (req.result != UnityWebRequest.Result.Success)
+                {
+                    LogUtil.Error("WebProvider",$"网络加载失败: {url} => {req.error}");
+                    return null;
+                }
+
+                return ParseResult<T>(req, url);
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("WebProvider", $"网络加载异常: {url} => {exception}");
                 return null;
             }
-            // 解析结果
-            T result = ParseResult<T>(req, url);
-            req.Dispose();
-            return result;
+            finally
+            {
+                ops.Remove(url);
+                req.Dispose();
+            }
         }
 
         /// <summary>
@@ -99,6 +108,8 @@ namespace FinkFramework.Runtime.ResLoad.Providers
             if (t == typeof(Texture2D))
             {
                 Texture2D tex = DownloadHandlerTexture.GetContent(req);
+                if (!tex)
+                    return null;
                 tex.name = url;
                 return tex as T;
             }
@@ -116,6 +127,8 @@ namespace FinkFramework.Runtime.ResLoad.Providers
                 handler.streamAudio = false;
 
                 var clip = DownloadHandlerAudioClip.GetContent(req);
+                if (!clip)
+                    return null;
                 clip.name = url;
                 return clip as T;
             }
@@ -172,7 +185,7 @@ namespace FinkFramework.Runtime.ResLoad.Providers
         /// </summary>
         private AudioType GetAudioTypeFromExtension(string url)
         {
-            string ext = System.IO.Path.GetExtension(url).ToLower();
+            string ext = System.IO.Path.GetExtension(url).ToLowerInvariant();
 
             return ext switch
             {

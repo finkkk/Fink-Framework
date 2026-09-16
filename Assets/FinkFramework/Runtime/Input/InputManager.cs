@@ -43,10 +43,10 @@ namespace FinkFramework.Runtime.Input
         /// <summary>
         /// 控制是否开启输入检测
         /// </summary>
-        /// <param name="toggle">是否开启</param>
-        public void ToggleInputCheck(bool toggle)
+        /// <param name="tog">是否开启</param>
+        public void ToggleInputCheck(bool tog)
         {
-            this.toggle = toggle;
+            this.toggle = tog;
         }
 
         private void InputUpdate()
@@ -189,8 +189,7 @@ namespace FinkFramework.Runtime.Input
         /// <param name="eventType">事件类型</param>
         public void RemoveInputInfo(Enum eventType)
         {
-            if (InputDic.ContainsKey(eventType))
-                InputDic.Remove(eventType);
+            InputDic.Remove(eventType);
         }
     
         /// <summary>

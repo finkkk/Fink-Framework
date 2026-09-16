@@ -69,6 +69,13 @@ namespace FinkFramework.Runtime.Localization
         public static LocalizationSettingsAsset Settings { get; private set; }
 
         /// <summary>
+        /// 本地化模块当前是否启用。首次访问时只会读取配置；模块关闭时不会加载语言表。
+        /// </summary>
+        public static bool IsEnabled => EnsureInitialized()
+                                        && Settings != null
+                                        && Settings.EnableLocalization;
+
+        /// <summary>
         /// 当前配置支持的语言列表。系统尚未初始化时返回空列表。
         /// </summary>
         public static IReadOnlyList<LocaleInfo> SupportedLocales

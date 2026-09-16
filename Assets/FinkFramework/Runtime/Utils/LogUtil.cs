@@ -62,15 +62,18 @@ namespace FinkFramework.Runtime.Utils
                 if (typeName.StartsWith("<") && typeName.Contains(">d__"))
                 {
                     string full = type.FullName;
-                    int plusIndex = full.IndexOf('+');
-                    if (plusIndex > 0)
+                    if (full != null)
                     {
-                        string outerClass = full[..plusIndex]
-                            .Split('.')
-                            .Last();
+                        int plusIndex = full.IndexOf('+');
+                        if (plusIndex > 0)
+                        {
+                            string outerClass = full[..plusIndex]
+                                .Split('.')
+                                .Last();
 
-                        _callerCache.TryAdd(hash, outerClass);
-                        return outerClass;
+                            _callerCache.TryAdd(hash, outerClass);
+                            return outerClass;
+                        }
                     }
                 }
 

@@ -83,7 +83,7 @@ namespace FinkFramework.Runtime.Timer
         /// 开启计时器的协程
         /// </summary>
         /// <returns></returns>
-        private IEnumerator StartTiming(bool isRealTime, Dictionary<int, TimerItem> timerDic)
+        private IEnumerator StartTiming(bool isRealTime, Dictionary<int, TimerItem> targetTimers)
         {
             while (true)
             {
@@ -97,7 +97,7 @@ namespace FinkFramework.Runtime.Timer
                     yield return waitForSeconds;
                 }
                
-                foreach (var item in timerDic.Values.ToList())
+                foreach (var item in targetTimers.Values.ToList())
                 {
                     if (!item.isRunning)
                     {
@@ -136,7 +136,7 @@ namespace FinkFramework.Runtime.Timer
                 foreach (var t in delList)
                 {
                     // 从字典中移除
-                    timerDic.Remove(t.keyID);
+                    targetTimers.Remove(t.keyID);
                     // 计时完毕 返回对象池内
                     PoolManager.Instance.Despawn(t);
                 }

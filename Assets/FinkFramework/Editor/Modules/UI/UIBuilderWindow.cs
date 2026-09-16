@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using FinkFramework.Editor.Common;
 using FinkFramework.Editor.Modules.Settings.Loaders;
-using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.UI.Base;
 using FinkFramework.Runtime.UI.Layout;
@@ -39,11 +38,7 @@ namespace FinkFramework.Editor.Modules.UI
         private string panelName = "NewPanel";
         private string scriptPath;
         private string prefabPath;
-        private static bool IsTMPAvailable => EnvironmentState.AutoTMP;
-
-        private bool useTMP = IsTMPAvailable;
-        // 用于区分“用户主动取消”与“因项目缺少 TMP 被强制取消”。
-        private bool tmpDisabledByUnavailablePackage;
+        private bool useTMP = true;
         private bool addExampleButton = false;
         private bool addExampleInput = false;
         private bool addExampleToggle = false;
@@ -61,7 +56,6 @@ namespace FinkFramework.Editor.Modules.UI
         /// </summary>
         private void OnEnable()
         {
-            SynchronizeTMPAvailability();
             if (!TrySyncConfiguredPaths(out _))
             {
                 scriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(
@@ -79,7 +73,6 @@ namespace FinkFramework.Editor.Modules.UI
 
         private void OnFocus()
         {
-            SynchronizeTMPAvailability();
             TrySyncConfiguredPaths(out _);
         }
 
@@ -188,23 +181,11 @@ namespace FinkFramework.Editor.Modules.UI
                 "基础能力",
                 "这些选项会直接添加到生成的面板根节点或内容节点上。");
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
-            using (new EditorGUI.DisabledScope(!IsTMPAvailable))
-            {
-                useTMP = EditorGUILayout.ToggleLeft(
-                    new GUIContent(
-                        "使用 TextMeshPro 文本组件",
-                        IsTMPAvailable
-                            ? "已检测到 TextMeshPro；取消勾选后改用 Unity 旧版文本控件。"
-                            : "当前项目未安装 TextMeshPro。"),
-                    useTMP);
-            }
-
-            if (!IsTMPAvailable)
-            {
-                EditorGUILayout.HelpBox(
-                    "当前项目未安装 TextMeshPro，生成器将自动使用 Unity 旧版文本控件。",
-                    MessageType.Info);
-            }
+            useTMP = EditorGUILayout.ToggleLeft(
+                new GUIContent(
+                    "使用 TextMeshPro 文本组件",
+                    "取消勾选后改用 Unity 旧版文本控件。"),
+                useTMP);
             addDefaultTransition = EditorGUILayout.ToggleLeft("添加默认进入和退出过渡", addDefaultTransition);
             addSafeArea = EditorGUILayout.ToggleLeft("内容适配屏幕安全区域", addSafeArea);
             GUILayout.EndVertical();
@@ -281,21 +262,6 @@ namespace FinkFramework.Editor.Modules.UI
 
             int lineBreak = value.IndexOf('\n');
             return lineBreak < 0 ? value : value.Substring(0, lineBreak);
-        }
-
-        private void SynchronizeTMPAvailability()
-        {
-            if (!IsTMPAvailable)
-            {
-                useTMP = false;
-                tmpDisabledByUnavailablePackage = true;
-                return;
-            }
-
-            if (tmpDisabledByUnavailablePackage)
-                useTMP = true;
-
-            tmpDisabledByUnavailablePackage = false;
         }
 
         /// <summary>
@@ -386,7 +352,6 @@ namespace FinkFramework.Editor.Modules.UI
         /// <summary>校验配置并启动面板生成流程。</summary>
         private void CreatePanel()
         {
-            SynchronizeTMPAvailability();
             if (!TrySyncConfiguredPaths(out string pathError))
             {
                 EditorUtility.DisplayDialog(
@@ -609,8 +574,7 @@ namespace FinkFramework.Editor.Modules.UI
             // 2. 读取其余配置
             string prefabPath = SessionState.GetString(PendingPrefabPathKey, string.Empty);
             string scriptPath = SessionState.GetString(PendingScriptPathKey, string.Empty);
-            bool useTMP = IsTMPAvailable
-                          && SessionState.GetBool(PendingUseTMPKey, true);
+            bool useTMP = SessionState.GetBool(PendingUseTMPKey, true);
             bool addButton = SessionState.GetBool(PendingAddButtonKey, false);
             bool addInput = SessionState.GetBool(PendingAddInputKey, false);
             bool addToggle = SessionState.GetBool(PendingAddToggleKey, false);
@@ -888,8 +852,9 @@ namespace FinkFramework.Editor.Modules.UI
             if (addBtn || addToggle || addSlider || (addInput && !usedTMP))
                 us.Add("using UnityEngine.UI;");
 
-            // TMP 版本控件必加
-            if (usedTMP && (addBtn || addInput || addToggle))
+            // 只有 TMP_InputField 会直接出现在生成脚本的类型签名中。
+            // TMP 按钮和 Toggle 的 TMP 文本保留在 Prefab 内，不应让脚本产生包依赖。
+            if (usedTMP && addInput)
                 us.Add("using TMPro;");
 
             // 整理输出

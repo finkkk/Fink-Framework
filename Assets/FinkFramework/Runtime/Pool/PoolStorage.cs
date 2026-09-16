@@ -12,6 +12,6 @@ namespace FinkFramework.Runtime.Pool
     /// <typeparam name="T">存储的类型</typeparam>
     public class PoolStorage<T> : BasePoolStorage where T : class
     {
-        public Queue<T> poolObjs = new();
+        public readonly Queue<T> poolObjs = new();
     }
 }

@@ -1,14 +1,12 @@
 using System;
 using System.Collections.Generic;
+using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Input;
 using FinkFramework.Runtime.UI.Base;
 using FinkFramework.Runtime.UI.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 namespace FinkFramework.Runtime.UI.Input
 {
@@ -213,57 +211,30 @@ namespace FinkFramework.Runtime.UI.Input
 
         private static Vector3 GetPointerPosition()
         {
-#if ENABLE_INPUT_SYSTEM
-            if (Touchscreen.current != null
-                && Touchscreen.current.primaryTouch.press.isPressed)
-            {
-                return Touchscreen.current.primaryTouch.position.ReadValue();
-            }
+            if (EnvironmentState.FinalUseNewInputSystem
+                && InputSystemHooks.GetPointerPosition != null)
+                return InputSystemHooks.GetPointerPosition();
 
-            return Mouse.current != null
-                ? (Vector3)Mouse.current.position.ReadValue()
-                : Vector3.zero;
-#else
             return UnityEngine.Input.mousePosition;
-#endif
         }
 
         private static bool IsPointerPressed()
         {
-#if ENABLE_INPUT_SYSTEM
-            bool mousePressed = Mouse.current != null
-                                && (Mouse.current.leftButton.wasPressedThisFrame
-                                    || Mouse.current.rightButton.wasPressedThisFrame
-                                    || Mouse.current.middleButton.wasPressedThisFrame);
-            bool touchPressed = Touchscreen.current != null
-                                && Touchscreen.current.primaryTouch.press.wasPressedThisFrame;
-            return mousePressed || touchPressed;
-#else
+            if (EnvironmentState.FinalUseNewInputSystem
+                && InputSystemHooks.IsPointerPressed != null)
+                return InputSystemHooks.IsPointerPressed();
+
             return UnityEngine.Input.GetMouseButtonDown(0)
                    || UnityEngine.Input.GetMouseButtonDown(1)
                    || UnityEngine.Input.GetMouseButtonDown(2);
-#endif
         }
 
         private static bool IsNavigationPressed()
         {
-#if ENABLE_INPUT_SYSTEM
-            bool gamepadPressed = Gamepad.current != null
-                                 && (Gamepad.current.dpad.ReadValue().sqrMagnitude > 0.01f
-                                     || Gamepad.current.leftStick.ReadValue().sqrMagnitude > 0.25f
-                                     || Gamepad.current.buttonSouth.wasPressedThisFrame);
+            if (EnvironmentState.FinalUseNewInputSystem
+                && InputSystemHooks.IsNavigationPressed != null)
+                return InputSystemHooks.IsNavigationPressed();
 
-            Keyboard keyboard = Keyboard.current;
-            bool keyboardPressed = keyboard != null
-                                   && (keyboard.upArrowKey.wasPressedThisFrame
-                                       || keyboard.downArrowKey.wasPressedThisFrame
-                                       || keyboard.leftArrowKey.wasPressedThisFrame
-                                       || keyboard.rightArrowKey.wasPressedThisFrame
-                                       || keyboard.tabKey.wasPressedThisFrame
-                                       || keyboard.enterKey.wasPressedThisFrame
-                                       || keyboard.spaceKey.wasPressedThisFrame);
-            return gamepadPressed || keyboardPressed;
-#else
             return UnityEngine.Input.GetKeyDown(KeyCode.UpArrow)
                    || UnityEngine.Input.GetKeyDown(KeyCode.DownArrow)
                    || UnityEngine.Input.GetKeyDown(KeyCode.LeftArrow)
@@ -273,10 +244,8 @@ namespace FinkFramework.Runtime.UI.Input
                    || UnityEngine.Input.GetKeyDown(KeyCode.Space)
                    || UnityEngine.Input.GetKeyDown(KeyCode.JoystickButton0)
                    || IsLegacyAxisNavigationPressed();
-#endif
         }
 
-#if !ENABLE_INPUT_SYSTEM
         private static bool IsLegacyAxisNavigationPressed()
         {
             if (!legacyAxesAvailable)
@@ -294,7 +263,6 @@ namespace FinkFramework.Runtime.UI.Input
                 return false;
             }
         }
-#endif
 
         private void RememberCurrentSelection(UIPanelRecord record)
         {
@@ -348,7 +316,16 @@ namespace FinkFramework.Runtime.UI.Input
                 eventSystem.SetSelectedGameObject(null);
         }
 
-        private EventSystem GetEventSystem() => eventSystemProvider();
+        private EventSystem GetEventSystem()
+        {
+            EventSystem current = eventSystemProvider();
+            if (current)
+                return current;
+
+            // 新场景的 EventSystem 销毁后，EventSystem.current 可能暂时为空；
+            // 回退到仍存活的常驻 EventSystem，避免 UI 切场景后失去焦点和导航。
+            return UnityEngine.Object.FindObjectOfType<EventSystem>();
+        }
 
         /// <summary>
         /// EventSystem 的 sendNavigationEvents 会同时控制移动与 Submit/Cancel；

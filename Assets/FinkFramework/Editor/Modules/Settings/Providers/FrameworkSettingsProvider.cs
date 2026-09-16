@@ -1,5 +1,7 @@
 ﻿using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Common;
+using FinkFramework.Editor.Modules.Localization;
+using FinkFramework.Runtime.Localization;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;
@@ -10,6 +12,8 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
     public class FrameworkSettingsProvider : SettingsProvider
     {
         private GlobalSettingsAsset asset;
+        private LocalizationSettingsAsset localizationAsset;
+        private SerializedObject localizationSerializedAsset;
         private string scriptRootDirectoryDraft;
 
         public FrameworkSettingsProvider(string path, SettingsScope scope)
@@ -28,6 +32,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
             asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            localizationAsset = LocalizationSettingsEditorLoader.LoadOrCreate();
+            localizationSerializedAsset = localizationAsset != null
+                ? new SerializedObject(localizationAsset)
+                : null;
             scriptRootDirectoryDraft = GlobalSettingsAsset.NormalizeScriptRootDirectory(
                 asset.ScriptRootDirectory);
         }
@@ -61,77 +69,16 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             DrawScriptRootDirectorySettings();
             GUILayout.Space(12);
 
-            // ===== 主区域 =====
-            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            DrawModuleSwitchSettings();
+            GUILayout.Space(12);
 
-            // 更新检查
-            EditorGUILayout.LabelField("框架更新 设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
+            DrawFrameworkUpdateSettings();
+            GUILayout.Space(12);
 
-            asset.EnableUpdateCheck =
-                EditorGUILayout.Toggle("启用版本更新检查", asset.EnableUpdateCheck);
-            EditorGUILayout.LabelField(
-                "启用后，编辑器会自动从 GitHub 检查框架新版本。若关闭则不再提示。",
-                FFEditorStyles.Description);
+            DrawOptionalDependencySettings();
+            GUILayout.Space(12);
 
-            asset.UpdateCheckIntervalDays =
-                EditorGUILayout.IntSlider("检查间隔（天）", asset.UpdateCheckIntervalDays, 1, 30);
-            EditorGUILayout.LabelField(
-                "设置编辑器多久执行一次更新检查。（默认 1 天）",
-                FFEditorStyles.Description);
-            GUILayout.Space(8);
-            
-            EditorGUILayout.LabelField("模块开关 设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
-            
-            asset.EnableAudioModule =
-                EditorGUILayout.Toggle("启用音频模块", asset.EnableAudioModule);
-            EditorGUILayout.LabelField(
-                "若关闭，则框架内的音效模块将完全禁用：不会初始化 AudioManager，不加载音频资源，也不会播放任何音乐或音效。",
-                FFEditorStyles.Description);
-            
-            GUILayout.Space(8);
-
-            // XR
-            EditorGUILayout.LabelField("XR 设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
-            asset.ForceDisableXR =
-                EditorGUILayout.Toggle("强制关闭 XR", asset.ForceDisableXR);
-            EditorGUILayout.LabelField(
-                "若启用，则即使项目安装了 XR 插件（XRI），框架也会按非 VR 模式运行，框架内一切针对VR相关的功能将失效。",
-                FFEditorStyles.Description);
-            GUILayout.Space(8);
-
-            // 新输入系统
-            EditorGUILayout.LabelField("输入系统 设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
-            asset.ForceDisableNewInputSystem =
-                EditorGUILayout.Toggle("强制关闭 新输入系统", asset.ForceDisableNewInputSystem);
-            EditorGUILayout.LabelField(
-                "启用后，即便项目安装了 InputSystem，也会强制使用框架内关于旧输入系统（Input Manager）的一切逻辑。",
-                FFEditorStyles.Description);
-            GUILayout.Space(8);
-
-            // URP
-            EditorGUILayout.LabelField("渲染管线 设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
-            asset.ForceDisableURP =
-                EditorGUILayout.Toggle("强制关闭 URP", asset.ForceDisableURP);
-            EditorGUILayout.LabelField(
-                "启用后，框架将按非 URP 环境运行，即便项目当前使用 URP 渲染管线。",
-                FFEditorStyles.Description);
-            GUILayout.Space(8);
-
-            // EditorURL 打包检测
-            EditorGUILayout.LabelField("构建 设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
-            asset.EnableEditorUrlCheck =
-                EditorGUILayout.Toggle("启用 编辑器加载 打包检测", asset.EnableEditorUrlCheck);
-            EditorGUILayout.LabelField(
-                "构建前自动扫描代码，如果发现 editor:// 路径引用，将阻止打包，避免运行时无法加载资源。",
-                FFEditorStyles.Description);
-
-            GUILayout.EndVertical();
+            DrawBuildSettings();
 
             GUILayout.Space(20);
 
@@ -185,6 +132,133 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 EditorGUILayout.HelpBox(error, MessageType.Error);
             }
 
+            GUILayout.EndVertical();
+        }
+
+        /// <summary>
+        /// 集中显示各模块的总开关。具体模块仍由自己的配置资产保存状态，
+        /// 这里只提供统一入口，避免用户在多个 Project Settings 页面中查找。
+        /// </summary>
+        private void DrawModuleSwitchSettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            FFEditorGUI.DrawSectionHeader(
+                "模块开关设置",
+                "控制各功能模块是否在运行时启用。关闭模块后，对应运行时服务不会初始化或加载关联资源。");
+            GUILayout.Space(6);
+
+            asset.EnableAudioModule = EditorGUILayout.Toggle(
+                new GUIContent(
+                    "启用音频模块",
+                    "关闭后不会初始化 AudioManager、加载音频资源或播放音乐和音效。"),
+                asset.EnableAudioModule);
+            EditorGUILayout.LabelField(
+                "关闭后，框架不会初始化 AudioManager，不加载音频资源，也不会播放任何音乐或音效。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(8);
+
+            if (localizationAsset == null || localizationSerializedAsset == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "LocalizationSettingsAsset 缺失，无法编辑本地化模块开关。",
+                    MessageType.Error);
+            }
+            else
+            {
+                localizationSerializedAsset.Update();
+                SerializedProperty enabledProperty =
+                    localizationSerializedAsset.FindProperty("enableLocalization");
+                EditorGUI.BeginChangeCheck();
+                bool enabled = EditorGUILayout.Toggle(
+                    new GUIContent(
+                        "启用本地化模块",
+                        "关闭后，本地化运行时不会初始化或加载语言文件。"),
+                    enabledProperty.boolValue);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    enabledProperty.boolValue = enabled;
+                    localizationSerializedAsset.ApplyModifiedProperties();
+                    EditorUtility.SetDirty(localizationAsset);
+                    AssetDatabase.SaveAssets();
+                }
+            }
+
+            EditorGUILayout.LabelField(
+                "关闭后，本地化运行时不会初始化或加载语言文件。",
+                FFEditorStyles.Description);
+            GUILayout.EndVertical();
+        }
+
+        /// <summary>绘制框架更新检查的配置。</summary>
+        private void DrawFrameworkUpdateSettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            FFEditorGUI.DrawSectionHeader(
+                "框架更新设置",
+                "控制编辑器是否检查 Fink Framework 的新版本。");
+            GUILayout.Space(6);
+
+            asset.EnableUpdateCheck =
+                EditorGUILayout.Toggle("启用版本更新检查", asset.EnableUpdateCheck);
+            EditorGUILayout.LabelField(
+                "启用后，编辑器会自动从 GitHub 检查框架新版本；关闭后不再提示。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(8);
+            asset.UpdateCheckIntervalDays =
+                EditorGUILayout.IntSlider("检查间隔（天）", asset.UpdateCheckIntervalDays, 1, 30);
+            EditorGUILayout.LabelField(
+                "设置编辑器多久执行一次更新检查。（默认 1 天）",
+                FFEditorStyles.Description);
+            GUILayout.EndVertical();
+        }
+
+        /// <summary>绘制项目已安装可选依赖的强制关闭开关。</summary>
+        private void DrawOptionalDependencySettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            FFEditorGUI.DrawSectionHeader(
+                "可选依赖设置",
+                "即使项目已安装对应包，也可以让框架忽略 XR、Input System 或 URP。");
+            GUILayout.Space(6);
+
+            asset.ForceDisableXR =
+                EditorGUILayout.Toggle("强制关闭 XR", asset.ForceDisableXR);
+            EditorGUILayout.LabelField(
+                "启用后，即使项目安装了 XR 插件（XRI），框架也会按非 VR 模式运行，所有 VR 相关功能失效。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(8);
+            asset.ForceDisableNewInputSystem =
+                EditorGUILayout.Toggle("强制关闭新输入系统", asset.ForceDisableNewInputSystem);
+            EditorGUILayout.LabelField(
+                "启用后，即使项目安装了 Input System，也会强制使用框架内关于旧输入系统（Input Manager）的逻辑。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(8);
+            asset.ForceDisableURP =
+                EditorGUILayout.Toggle("强制关闭 URP", asset.ForceDisableURP);
+            EditorGUILayout.LabelField(
+                "启用后，框架将按非 URP 环境运行，即使项目当前使用 URP 渲染管线。",
+                FFEditorStyles.Description);
+            GUILayout.EndVertical();
+        }
+
+        /// <summary>绘制 Player 构建前的安全检查配置。</summary>
+        private void DrawBuildSettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            FFEditorGUI.DrawSectionHeader(
+                "构建设置",
+                "控制构建 Player 前执行的框架安全检查。");
+            GUILayout.Space(6);
+
+            asset.EnableEditorUrlCheck =
+                EditorGUILayout.Toggle("启用编辑器加载打包检测", asset.EnableEditorUrlCheck);
+            EditorGUILayout.LabelField(
+                "构建前自动扫描代码；发现 editor:// 路径引用时阻止打包，避免运行时无法加载资源。",
+                FFEditorStyles.Description);
             GUILayout.EndVertical();
         }
     }

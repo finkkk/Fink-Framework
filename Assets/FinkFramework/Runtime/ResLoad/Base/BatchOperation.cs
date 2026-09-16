@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine.Events;
+using UnityEngine;
 
 // ReSharper disable CollectionNeverQueried.Global
 // ReSharper disable UnusedAutoPropertyAccessor.Global
@@ -37,7 +38,7 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// </summary>
         internal void SetProgress(float p)
         {
-            Progress = p;
+            Progress = Mathf.Clamp01(p);
         }
 
         /// <summary>
@@ -45,9 +46,19 @@ namespace FinkFramework.Runtime.ResLoad.Base
         /// </summary>
         internal void Finish()
         {
+            if (IsDone)
+                return;
+
             IsDone = true;
             Progress = 1f;
-            Completed?.Invoke(this);
+            try
+            {
+                Completed?.Invoke(this);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogException(exception);
+            }
         }
 
         internal void AddResult(object obj)

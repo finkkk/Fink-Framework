@@ -1,8 +1,8 @@
-#if ENABLE_INPUT_SYSTEM
+using FinkFramework.Runtime.Input;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace FinkFramework.Runtime.Input
+namespace FinkFramework.Runtime.InputSystem
 {
     /// <summary>Input System Package 的输入活动适配器。</summary>
     internal sealed class NewInputDeviceActivitySource : IInputDeviceActivitySource
@@ -50,7 +50,8 @@ namespace FinkFramework.Runtime.Input
             var touch = Touchscreen.current.primaryTouch;
             return touch.press.wasPressedThisFrame
                    || (touch.press.isPressed
-                       && touch.delta.ReadValue().sqrMagnitude > TouchMoveThreshold);
+                       && touch.delta.ReadValue().sqrMagnitude
+                       >= TouchMoveThreshold * TouchMoveThreshold);
         }
 
         private static bool HasPointerActivity(DeviceDetectionSettings settings)
@@ -101,4 +102,3 @@ namespace FinkFramework.Runtime.Input
         }
     }
 }
-#endif

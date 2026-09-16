@@ -1,0 +1,25 @@
+{
+    "name": "FinkFramework.Runtime.URP",
+    "rootNamespace": "",
+    "references": [
+        "FinkFramework.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "ENABLE_URP"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "",
+            "define": "ENABLE_URP"
+        }
+    ],
+    "noEngineReferences": false
+}

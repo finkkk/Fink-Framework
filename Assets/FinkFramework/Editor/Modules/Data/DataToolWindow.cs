@@ -94,20 +94,18 @@ namespace FinkFramework.Editor.Modules.Data
             DrawSection("执行日志", () =>
             {
                 // log style 初始化
-                if (logStyle == null)
+                logStyle ??= new GUIStyle(EditorStyles.textArea)
                 {
-                    logStyle = new GUIStyle(EditorStyles.textArea)
+                    wordWrap = true,
+                    richText = true,
+                    fontSize = 12,
+                    normal =
                     {
-                        wordWrap = true,
-                        richText = true,
-                        fontSize = 12,
-                        normal = {
-                            textColor = new Color(0.85f, 0.85f, 0.85f),
-                            background = MakeTex(1,1,new Color(0.13f,0.13f,0.13f))
-                        },
-                        padding = new RectOffset(6,6,6,6)
-                    };
-                }
+                        textColor = new Color(0.85f, 0.85f, 0.85f),
+                        background = MakeTex(1, 1, new Color(0.13f, 0.13f, 0.13f))
+                    },
+                    padding = new RectOffset(6, 6, 6, 6)
+                };
 
                 scroll = EditorGUILayout.BeginScrollView(scroll, GUILayout.Height(160));
                 GUILayout.TextArea(logOutput, logStyle);
@@ -133,10 +131,10 @@ namespace FinkFramework.Editor.Modules.Data
         }
 
         // ===== Section 区块封装（统一盒子） =====
-        private void DrawSection(string title, System.Action content)
+        private void DrawSection(string t, System.Action content)
         {
             EditorGUILayout.BeginVertical(FFEditorStyles.SectionBox);
-            GUILayout.Label(title, FFEditorStyles.SubTitle);
+            GUILayout.Label(t, FFEditorStyles.SubTitle);
             GUILayout.Space(4);
             content?.Invoke();
             EditorGUILayout.EndVertical();

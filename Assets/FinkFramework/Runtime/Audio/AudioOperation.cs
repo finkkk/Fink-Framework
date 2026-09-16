@@ -1,6 +1,7 @@
 ﻿using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
+// ReSharper disable UnusedAutoPropertyAccessor.Global
 
 namespace FinkFramework.Runtime.Audio
 {

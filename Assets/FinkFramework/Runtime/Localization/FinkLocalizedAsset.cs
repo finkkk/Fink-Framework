@@ -25,6 +25,7 @@ namespace FinkFramework.Runtime.Localization
         [Tooltip("资源本地化表中的完整 Key，例如 ui.main_menu.logo。")]
         private string key;
         private bool missingKeyWarningLogged;
+        private bool subscribedToLocaleChanges;
 
         /// <summary>
         /// 绑定的资源本地化 Key。
@@ -37,7 +38,7 @@ namespace FinkFramework.Runtime.Localization
                 key = value;
                 if (!string.IsNullOrWhiteSpace(key))
                     missingKeyWarningLogged = false;
-                if (isActiveAndEnabled)
+                if (isActiveAndEnabled && LocalizationManager.IsEnabled)
                     Refresh();
             }
         }
@@ -47,7 +48,11 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         protected virtual void OnEnable()
         {
+            if (!LocalizationManager.IsEnabled)
+                return;
+
             LocalizationManager.OnLocaleChanged += HandleLocaleChanged;
+            subscribedToLocaleChanges = true;
             Refresh();
         }
 
@@ -56,7 +61,11 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         protected virtual void OnDisable()
         {
+            if (!subscribedToLocaleChanges)
+                return;
+
             LocalizationManager.OnLocaleChanged -= HandleLocaleChanged;
+            subscribedToLocaleChanges = false;
         }
 
         /// <summary>
@@ -64,6 +73,10 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public override bool Refresh()
         {
+            // 模块关闭时保留场景或预制体原有资源，不应清空目标组件。
+            if (!LocalizationManager.IsEnabled)
+                return false;
+
             if (string.IsNullOrWhiteSpace(key))
             {
                 WarnMissingKeyOnce();
@@ -107,7 +120,7 @@ namespace FinkFramework.Runtime.Localization
 
         /// <summary>
         /// 将已解析的资源应用到具体 Unity 组件。
-        /// 当 Key 为空、模块未启用或资源缺失时会传入 null，派生类应同步清空目标引用。
+        /// 当 Key 为空或资源缺失时会传入 null，派生类应同步清空目标引用。
         /// </summary>
         protected abstract void ApplyAsset(T asset);
     }

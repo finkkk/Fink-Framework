@@ -48,12 +48,13 @@ namespace FinkFramework.Runtime.Event
                 }
             }
         }
-        
+
         /// <summary>
         /// 向事件添加无参无返回值的监听函数
         /// </summary>
         /// <param name="eventName">事件名字</param>
         /// <param name="func">事件委托:需要添加的监听函数</param>
+        /// <param name="sticky">粘性事件</param>
         public void AddEventListener(Enum eventName, UnityAction func, bool sticky = false)
         {
 #if UNITY_EDITOR
@@ -135,12 +136,13 @@ namespace FinkFramework.Runtime.Event
                 }
             }
         }
-        
+
         /// <summary>
         /// 向事件添加有参无返回值的监听函数（1个参数）
         /// </summary>
         /// <param name="eventName">事件名字</param>
         /// <param name="func">事件委托:需要添加的监听函数</param>
+        /// <param name="sticky">粘性事件</param>
         /// <typeparam name="T">委托需要传参的类型（有参数的委托）</typeparam>
         public void AddEventListener<T>(Enum eventName, UnityAction<T> func, bool sticky = false)
         {
@@ -195,12 +197,14 @@ namespace FinkFramework.Runtime.Event
         #endregion
         
         #region 有参无返回类型的委托（2个参数）
+
         /// <summary>
         /// 触发有参无返回的监听事件的函数（2个参数）
         /// 若事件未注册(无监听函数)，则不会执行任何操作，不抛出异常
         /// </summary>
         /// <param name="eventName">事件名字</param>
-        /// <param name="info">具体监听函数的传参</param>
+        /// <param name="a">具体监听函数的传参</param>
+        /// <param name="b">具体监听函数的传参</param>
         /// <typeparam name="T1">委托需要传参的类型1（有参数的委托）</typeparam>
         /// <typeparam name="T2">委托需要传参的类型2（有参数的委托）</typeparam>
         public void EventTrigger<T1, T2>(Enum eventName,T1 a, T2 b)
@@ -224,12 +228,13 @@ namespace FinkFramework.Runtime.Event
                 }
             }
         }
-        
+
         /// <summary>
         /// 向事件添加有参无返回值的监听函数（2个参数）
         /// </summary>
         /// <param name="eventName">事件名字</param>
         /// <param name="func">事件委托:需要添加的监听函数</param>
+        /// <param name="sticky">粘性事件</param>
         /// <typeparam name="T1">委托需要传参的类型1（有参数的委托）</typeparam>
         /// <typeparam name="T2">委托需要传参的类型2（有参数的委托）</typeparam>
         public void AddEventListener<T1, T2>(Enum eventName, UnityAction<T1, T2> func, bool sticky = false)

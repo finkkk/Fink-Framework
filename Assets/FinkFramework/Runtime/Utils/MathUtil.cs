@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Visualization;
 using UnityEngine;
@@ -184,10 +185,12 @@ namespace FinkFramework.Runtime.Utils
         #endregion
 
         #region 位置判断相关
+
         /// <summary>
         /// 判断世界坐标系下的某一个点 是否在屏幕可见范围外
         /// </summary>
         /// <param name="pos">世界坐标系下的一个点的位置</param>
+        /// <param name="cam"></param>
         /// <returns>如果在可见范围外返回true，否则返回false</returns>
         public static bool IsWorldPosOutScreen(Vector3 pos,Camera cam = null)
         {
@@ -195,6 +198,9 @@ namespace FinkFramework.Runtime.Utils
             {
                 cam = Camera.main;
             }
+            // 没有可用相机时无法完成投影，按屏幕外处理，避免空引用异常。
+            if (cam == null) return true;
+
             //将世界坐标转为屏幕坐标
             Vector3 screenPos = cam.WorldToScreenPoint(pos);
             if (screenPos.z <= 0) return true; // 在相机背面
@@ -328,25 +334,43 @@ namespace FinkFramework.Runtime.Utils
         /// <param name="gizmosToggle">是否需要自动执行可视化 默认为true(可视化需要保证全局配置中的调试模式开启)</param>
         public static void RayCastAll<T>(Ray ray, UnityAction<T> callBack, float maxDistance, int layerMask = ~0, bool gizmosToggle = true) where T : class
         {
-            RaycastHit[] hitInfos = Physics.RaycastAll(ray, maxDistance, layerMask);
-
-            if (gizmosToggle && EnvironmentState.DebugMode)
+            RaycastHit[] hitInfos = ArrayPool<RaycastHit>.Shared.Rent(16);
+            try
             {
+                int hitCount;
+                do
+                {
+                    hitCount = Physics.RaycastNonAlloc(ray, hitInfos, maxDistance, layerMask);
+                    if (hitCount < hitInfos.Length) break;
+
+                    RaycastHit[] largerBuffer = ArrayPool<RaycastHit>.Shared.Rent(hitInfos.Length * 2);
+                    ArrayPool<RaycastHit>.Shared.Return(hitInfos, true);
+                    hitInfos = largerBuffer;
+                } while (true);
+
+                if (gizmosToggle && EnvironmentState.DebugMode)
+                {
 #if UNITY_EDITOR
-                GizmosAdapter.DrawRayAction?.Invoke(ray.origin, ray.direction, maxDistance, hitInfos.Length > 0);
+                    GizmosAdapter.DrawRayAction?.Invoke(ray.origin, ray.direction, maxDistance, hitCount > 0);
 #endif
-            }
+                }
 
-            foreach (var hitInfo in hitInfos)
+                for (int i = 0; i < hitCount; i++)
+                {
+                    RaycastHit hitInfo = hitInfos[i];
+                    if (typeof(T) == typeof(RaycastHit))
+                        callBack((T)(object)hitInfo);
+                    else if (typeof(T) == typeof(GameObject))
+                        callBack(hitInfo.collider.gameObject as T);
+                    else if (typeof(T) == typeof(Collider))
+                        callBack(hitInfo.collider as T);
+                    else
+                        callBack(hitInfo.collider.gameObject.GetComponent<T>());
+                }
+            }
+            finally
             {
-                if (typeof(T) == typeof(RaycastHit))
-                    callBack((T)(object)hitInfo);
-                else if (typeof(T) == typeof(GameObject))
-                    callBack(hitInfo.collider.gameObject as T);
-                else if (typeof(T) == typeof(Collider))
-                    callBack(hitInfo.collider as T);
-                else
-                    callBack(hitInfo.collider.gameObject.GetComponent<T>());
+                ArrayPool<RaycastHit>.Shared.Return(hitInfos, true);
             }
         }
         #endregion
@@ -366,21 +390,47 @@ namespace FinkFramework.Runtime.Utils
         public static void OverlapBox<T>(Vector3 center, Quaternion rotation, Vector3 halfExtents, UnityAction<T> callBack, int layerMask = ~0, bool gizmosToggle = true) where T : class
         {
             Type type = typeof(T);
-            Collider[] colliders = Physics.OverlapBox(center, halfExtents, rotation, layerMask, QueryTriggerInteraction.Collide);
-            if (gizmosToggle && EnvironmentState.DebugMode)
+            Collider[] colliders = ArrayPool<Collider>.Shared.Rent(16);
+            try
             {
+                int colliderCount;
+                do
+                {
+                    colliderCount = Physics.OverlapBoxNonAlloc(
+                        center,
+                        halfExtents,
+                        colliders,
+                        rotation,
+                        layerMask,
+                        QueryTriggerInteraction.Collide);
+                    if (colliderCount < colliders.Length) break;
+
+                    Collider[] largerBuffer = ArrayPool<Collider>.Shared.Rent(colliders.Length * 2);
+                    ArrayPool<Collider>.Shared.Return(colliders, true);
+                    colliders = largerBuffer;
+                } while (true);
+
+                if (gizmosToggle && EnvironmentState.DebugMode)
+                {
 #if UNITY_EDITOR
-                GizmosAdapter.DrawBoxAction?.Invoke(center, rotation, halfExtents, colliders.Length > 0);
+                    GizmosAdapter.DrawBoxAction?.Invoke(center, rotation, halfExtents, colliderCount > 0);
 #endif
+                }
+
+                for (int i = 0; i < colliderCount; i++)
+                {
+                    Collider collider = colliders[i];
+                    if (type == typeof(Collider))
+                        callBack.Invoke(collider as T);
+                    else if (type == typeof(GameObject))
+                        callBack.Invoke(collider.gameObject as T);
+                    else
+                        callBack.Invoke(collider.gameObject.GetComponent<T>());
+                }
             }
-            foreach (var t in colliders)
+            finally
             {
-                if (type == typeof(Collider))
-                    callBack.Invoke(t as T);
-                else if (type == typeof(GameObject))
-                    callBack.Invoke(t.gameObject as T);
-                else
-                    callBack.Invoke(t.gameObject.GetComponent<T>());
+                ArrayPool<Collider>.Shared.Return(colliders, true);
             }
         }
 
@@ -396,21 +446,46 @@ namespace FinkFramework.Runtime.Utils
         public static void OverlapSphere<T>(Vector3 center, float radius, UnityAction<T> callBack, int layerMask = ~0, bool gizmosToggle = true) where T:class
         {
             Type type = typeof(T);
-            Collider[] colliders = Physics.OverlapSphere(center, radius, layerMask, QueryTriggerInteraction.Collide);
-            if (gizmosToggle && EnvironmentState.DebugMode)
+            Collider[] colliders = ArrayPool<Collider>.Shared.Rent(16);
+            try
             {
+                int colliderCount;
+                do
+                {
+                    colliderCount = Physics.OverlapSphereNonAlloc(
+                        center,
+                        radius,
+                        colliders,
+                        layerMask,
+                        QueryTriggerInteraction.Collide);
+                    if (colliderCount < colliders.Length) break;
+
+                    Collider[] largerBuffer = ArrayPool<Collider>.Shared.Rent(colliders.Length * 2);
+                    ArrayPool<Collider>.Shared.Return(colliders, true);
+                    colliders = largerBuffer;
+                } while (true);
+
+                if (gizmosToggle && EnvironmentState.DebugMode)
+                {
 #if UNITY_EDITOR
-                GizmosAdapter.DrawSphereAction?.Invoke(center, radius, colliders.Length > 0);
+                    GizmosAdapter.DrawSphereAction?.Invoke(center, radius, colliderCount > 0);
 #endif
+                }
+
+                for (int i = 0; i < colliderCount; i++)
+                {
+                    Collider collider = colliders[i];
+                    if (type == typeof(Collider))
+                        callBack.Invoke(collider as T);
+                    else if (type == typeof(GameObject))
+                        callBack.Invoke(collider.gameObject as T);
+                    else
+                        callBack.Invoke(collider.gameObject.GetComponent<T>());
+                }
             }
-            foreach (var t in colliders)
+            finally
             {
-                if (type == typeof(Collider))
-                    callBack.Invoke(t as T);
-                else if (type == typeof(GameObject))
-                    callBack.Invoke(t.gameObject as T);
-                else
-                    callBack.Invoke(t.gameObject.GetComponent<T>());
+                ArrayPool<Collider>.Shared.Return(colliders, true);
             }
         }
         #endregion

@@ -3,6 +3,7 @@ using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.Singleton;
 using UnityEngine;
+// ReSharper disable UnusedAutoPropertyAccessor.Global
 
 namespace FinkFramework.Runtime.Input
 {
@@ -64,11 +65,8 @@ namespace FinkFramework.Runtime.Input
 
         private static IInputDeviceActivitySource CreateActivitySource()
         {
-#if ENABLE_INPUT_SYSTEM
-            if (EnvironmentState.FinalUseNewInputSystem)
-                return new NewInputDeviceActivitySource();
-#endif
-            return new LegacyInputDeviceActivitySource();
+            return InputSystemHooks.CreateActivitySource?.Invoke()
+                   ?? new LegacyInputDeviceActivitySource();
         }
 
         private static DeviceDetectionSettings ReadSettings()
@@ -87,6 +85,18 @@ namespace FinkFramework.Runtime.Input
     internal interface IInputDeviceActivitySource
     {
         bool TryGetActiveDevice(DeviceDetectionSettings settings, out InputDeviceType device);
+    }
+
+    /// <summary>
+    /// Input System 程序集向核心输入模块注册的可选适配器入口。
+    /// 核心程序集不直接引用 UnityEngine.InputSystem。
+    /// </summary>
+    internal static class InputSystemHooks
+    {
+        internal static Func<IInputDeviceActivitySource> CreateActivitySource { get; set; }
+        internal static Func<Vector3> GetPointerPosition { get; set; }
+        internal static Func<bool> IsPointerPressed { get; set; }
+        internal static Func<bool> IsNavigationPressed { get; set; }
     }
 
     /// <summary>检测器每帧读取的配置快照，避免适配器依赖具体配置资产。</summary>

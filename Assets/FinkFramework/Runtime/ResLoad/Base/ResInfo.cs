@@ -5,37 +5,57 @@ using UnityEngine;
 namespace FinkFramework.Runtime.ResLoad.Base
 {
     /// <summary>
-    /// 泛型资源信息对象 主要用于存储资源信息 异步加载委托信息 异步加载协程信息
+    /// 泛型资源缓存记录，保存资源对象和正在进行中的加载任务。
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public class ResInfo<T> : BaseResInfo where T : Object
     {
-        // 已加载的资源
+        /// <summary>已加载的资源。</summary>
         public T asset;
-        
-        // 当前资源是否正在异步加载 → 保存 UniTask 任务
-        public UniTask<T>? task;
-        
-        // 获取当前资源实例（用于 ResManager 的统一资源管理）
-        public override Object GetAsset() => asset;
-        
-        // 设置资源实例（用于同步/异步加载结束）
-        public override void SetAsset(Object obj) => asset = obj as T;
-        
-        // 引用计数 +1（表示有一个新地使用方需要该资源）
-        public void AddRefCount() => ++refCount;
-        
+
         /// <summary>
-        /// 引用计数 -1（不再使用该资源）
-        /// 若引用计数降为负数，说明使用方的加载/卸载不配对，是严重的逻辑错误。
+        /// 当前异步加载任务。任务使用 Preserve 后保存，因此允许多个调用方等待同一任务。
         /// </summary>
-        public void SubRefCount()
+        public UniTask<T>? task;
+
+        public override bool IsLoading => task.HasValue;
+
+        public override Object GetAsset() => asset;
+
+        public override void SetAsset(Object obj) => asset = obj as T;
+
+        public override async UniTask WaitForLoadAsync()
         {
-            --refCount;
-            if (refCount < 0)
+            if (!task.HasValue)
+                return;
+
+            try
             {
-                LogUtil.Error("引用计数变为负数，请检查使用与卸载是否配对执行");
+                await task.Value;
             }
+            catch
+            {
+                // 清理流程只需要等待任务结束，具体错误已由 ResManager 记录。
+            }
+        }
+
+        /// <summary>增加一个资源使用方。</summary>
+        public void AddRefCount() => ++refCount;
+
+        /// <summary>
+        /// 移除一个资源使用方。
+        /// 重复卸载只记录错误，不让计数继续变成负数，避免错误调用破坏后续释放判断。
+        /// </summary>
+        public bool TrySubRefCount()
+        {
+            if (refCount <= 0)
+            {
+                LogUtil.Error("ResManager", "资源引用计数已经为 0，可能存在重复卸载：" + fullPath);
+                return false;
+            }
+
+            --refCount;
+            return true;
         }
     }
 }

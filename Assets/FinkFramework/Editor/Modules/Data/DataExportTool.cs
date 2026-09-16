@@ -209,7 +209,7 @@ namespace FinkFramework.Editor.Modules.Data
                         return false;
                 }
                 
-                return !hasError;
+                return true;
             }
             catch (Exception ex)
             {
