@@ -10,6 +10,11 @@ namespace FinkFramework.Runtime.Singleton
     /// </summary>
     public abstract class SingletonAutoMono<T> : MonoBehaviour where T : MonoBehaviour
     {
+        static SingletonAutoMono()
+        {
+            SingletonRuntimeReset.Register(ResetStatics);
+        }
+
         // ReSharper disable once StaticMemberInGenericType
         private static T _instance;
         // ReSharper disable once StaticMemberInGenericType
@@ -74,7 +79,6 @@ namespace FinkFramework.Runtime.Singleton
                 _instance = null;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
             _instance = null;

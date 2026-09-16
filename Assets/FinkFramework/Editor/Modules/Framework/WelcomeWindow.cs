@@ -140,10 +140,17 @@ namespace FinkFramework.Editor.Modules.Framework
                 
                 GUILayout.Space(10);
 
-                if (GUILayout.Button("立即检查更新（Check Update）", FFEditorStyles.BigButton))
-                {
+                GUILayout.BeginHorizontal();
+
+                if (GUILayout.Button("立即检查更新", FFEditorStyles.BigButton, GUILayout.ExpandWidth(true)))
                     UpdateCheckUtil.CheckUpdateManual();
-                }
+
+                GUILayout.Space(8);
+
+                if (GUILayout.Button("强制重装最新版", FFEditorStyles.BigButton, GUILayout.ExpandWidth(true)))
+                    UpdateCheckUtil.ForceUpdateLatest();
+
+                GUILayout.EndHorizontal();
 
                 GUILayout.EndVertical();
             });

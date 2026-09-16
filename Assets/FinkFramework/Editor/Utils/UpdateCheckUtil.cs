@@ -26,6 +26,7 @@ namespace FinkFramework.Editor.Utils
         private static bool _checking;
         // 编辑器启动后的自动检查尚未结束时，保留用户主动点击的意图，不能静默丢弃。
         private static bool _manualCheckQueued;
+        private static bool _forceUpdateQueued;
 
         private static HttpClient CreateHttpClient()
         {
@@ -41,7 +42,7 @@ namespace FinkFramework.Editor.Utils
 
         // 自动检查（InitializeOnLoad）
         [InitializeOnLoadMethod]
-        private static void CheckUpdateOnLoad() => _ = CheckUpdateAsync(false);
+        private static void CheckUpdateOnLoad() => _ = CheckUpdateAsync(false, false);
         
         /// <summary>
         /// 手动触发更新检查：忽略自动检查间隔，也不会改写自动检查时间。
@@ -57,10 +58,37 @@ namespace FinkFramework.Editor.Utils
             }
 
             ShowManualCheckNotification("正在检查 Fink Framework 更新…");
-            _ = CheckUpdateAsync(true);
+            _ = CheckUpdateAsync(true, false);
         }
         
-        private static async Task CheckUpdateAsync(bool isManual)
+        /// <summary>
+        /// 获取 GitHub 最新正式版并强制重新安装，不比较本地版本号。
+        /// 即使当前版本已经是最新版本，也会继续下载并覆盖导入。
+        /// </summary>
+        public static void ForceUpdateLatest()
+        {
+            if (_checking)
+            {
+                _forceUpdateQueued = true;
+                ShowManualCheckNotification("已有更新检查正在进行，完成后将执行强制重装。");
+                return;
+            }
+
+            bool confirmed = EditorUtility.DisplayDialog(
+                "Fink Framework 强制重装",
+                "此操作会从 GitHub 获取最新正式版，并覆盖 Assets/FinkFramework 内的框架源码、Editor 工具、内置资源和插件文件。\n\n" +
+                "即使当前版本已经是最新版本，也会重新下载并导入。对这些文件的本地修改将会丢失；框架配置、数据文件和项目生成文件不会被修改。\n\n" +
+                "更新前会自动创建备份，更新失败将尝试恢复。",
+                "继续获取最新版",
+                "取消");
+            if (!confirmed)
+                return;
+
+            ShowManualCheckNotification("正在获取 GitHub 最新正式版…");
+            _ = CheckUpdateAsync(true, true);
+        }
+        
+        private static async Task CheckUpdateAsync(bool isManual, bool forceUpdate)
         {
             if (_checking) return;
             _checking = true;
@@ -92,7 +120,9 @@ namespace FinkFramework.Editor.Utils
                 
                 if (isManual)
                 {
-                    LogUtil.Info("版本检查", "开始检查 Fink Framework 更新...");
+                    LogUtil.Info("版本检查", forceUpdate
+                        ? "开始获取 GitHub 最新正式版…"
+                        : "开始检查 Fink Framework 更新...");
                 }
                 
                 // GitHub 返回 Release 元数据，版本号位于 tag_name，例如 v0.3.9。
@@ -103,39 +133,61 @@ namespace FinkFramework.Editor.Utils
                 string releaseUrl = data["html_url"]?.ToString() ?? ReleasesUrl;
                 string currentVersion = NormalizeVersion(EnvironmentState.FrameworkVersion);
 
-                if (!TryParseVersion(currentVersion, out var current) ||
-                    !TryParseVersion(latestVersion, out var latest))
+                if (!TryParseVersion(latestVersion, out var latest))
                 {
                     if (isManual)
-                        LogUtil.Error("版本检查", $"版本号格式无法解析：本地 {currentVersion}，GitHub {latestVersion}");
+                        LogUtil.Error("版本检查", $"GitHub 版本号格式无法解析：{latestVersion}");
                     return;
                 }
 
-                int comparison = latest.CompareTo(current);
-                if (comparison <= 0)
+                if (!TryParseVersion(currentVersion, out var current))
                 {
                     if (isManual)
-                    {
-                        string message = comparison == 0
-                            ? $"当前版本已是最新版本：{currentVersion}"
-                            : $"当前版本高于 GitHub 最新正式版，可能是本地开发版本：本地 {currentVersion}，GitHub {latestVersion}";
-                        LogUtil.Success("版本检查", message);
-                    }
-
+                        LogUtil.Error("版本检查", $"本地版本号格式无法解析：{currentVersion}");
                     return;
+                }
+
+                // 本地版本高于 GitHub 版本时，通常代表本地开发版，禁止强制覆盖。
+                if (forceUpdate && current.CompareTo(latest) > 0)
+                {
+                    string message =
+                        $"检测到本地版本高于 GitHub 最新正式版：本地 {currentVersion}，GitHub {latestVersion}。\n\n" +
+                        "当前版本可能是本地开发版，已取消强制重装，以免覆盖本地开发代码。";
+                    LogUtil.Warn("框架强制重装", message);
+                    EditorApplication.delayCall += () => EditorUtility.DisplayDialog(
+                        "强制重装已取消", message, "确定");
+                    return;
+                }
+
+                if (!forceUpdate)
+                {
+                    int comparison = latest.CompareTo(current);
+                    if (comparison <= 0)
+                    {
+                        if (isManual)
+                        {
+                            string message = comparison == 0
+                                ? $"当前版本已是最新版本：{currentVersion}"
+                                : $"当前版本高于 GitHub 最新正式版，可能是本地开发版本：本地 {currentVersion}，GitHub {latestVersion}";
+                            LogUtil.Success("版本检查", message);
+                        }
+
+                        return;
+                    }
                 }
 
                 string packageUrl = FindPackageUrl(data, latestVersion);
                 if (string.IsNullOrEmpty(packageUrl))
                 {
-                    LogUtil.Warn("版本更新检查",
+                    LogUtil.Warn(forceUpdate ? "框架强制重装" : "版本更新检查",
                         $"发现新版本 {latestVersion}，但该 Release 未找到可下载的 unitypackage。\n更新地址：{releaseUrl}");
                     return;
                 }
 
                 if (isManual)
                 {
-                    EditorApplication.delayCall += () => ShowUpdateDialog(currentVersion, latestVersion, packageUrl);
+                    EditorApplication.delayCall += () => ShowUpdateDialog(
+                        currentVersion, latestVersion, packageUrl, forceUpdate);
                 }
                 else
                 {
@@ -161,6 +213,12 @@ namespace FinkFramework.Editor.Utils
             finally
             {
                 _checking = false;
+
+                if (_forceUpdateQueued)
+                {
+                    _forceUpdateQueued = false;
+                    EditorApplication.delayCall += ForceUpdateLatest;
+                }
 
                 if (_manualCheckQueued)
                 {
@@ -207,34 +265,28 @@ namespace FinkFramework.Editor.Utils
             return null;
         }
 
-        private static void ShowUpdateDialog(string currentVersion, string latestVersion, string packageUrl)
+        private static void ShowUpdateDialog(
+            string currentVersion, string latestVersion, string packageUrl, bool forceUpdate)
         {
+            if (forceUpdate)
+            {
+                // 强制重装已经在 ForceUpdateLatest 中完成风险确认，这里直接进入下载。
+                DownloadAndUpdate(latestVersion, packageUrl);
+                return;
+            }
+
             bool confirmed = EditorUtility.DisplayDialog("Fink Framework 版本更新",
                 $"发现新版本：{currentVersion} → {latestVersion}\n\n" +
                 "更新会覆盖 Assets/FinkFramework 内的框架源码、Editor 工具、内置资源和插件文件。对这些文件的本地修改将会丢失；框架配置、数据文件和项目生成文件不会被修改。\n\n" +
                 "更新前会自动创建备份，更新失败将尝试恢复。",
                 "立即更新", "暂不更新");
-            if (confirmed) _ = DownloadAndUpdateAsync(packageUrl);
+            if (confirmed) DownloadAndUpdate(latestVersion, packageUrl);
         }
 
-        private static async Task DownloadAndUpdateAsync(string packageUrl)
+        private static void DownloadAndUpdate(string latestVersion, string packageUrl)
         {
             const string packagePath = "Library/FinkFrameworkUpdate.unitypackage";
-            try
-            {
-                LogUtil.Info("框架更新", "正在下载更新包...");
-                using var downloadClient = CreateHttpClient();
-                downloadClient.Timeout = TimeSpan.FromMinutes(10);
-                byte[] package = await downloadClient.GetByteArrayAsync(packageUrl);
-                if (package == null || package.Length == 0) throw new InvalidOperationException("下载的更新包为空。");
-                await System.IO.File.WriteAllBytesAsync(packagePath, package);
-                EditorApplication.delayCall += () => FrameworkPackageUpdater.Start(packagePath);
-            }
-            catch (Exception ex)
-            {
-                FrameworkPackageUpdater.DeleteDownloadedPackage(packagePath);
-                LogUtil.Error("框架更新", "下载更新包失败：" + ex.Message);
-            }
+            DownloadProgressWindow.Start(packageUrl, packagePath, latestVersion);
         }
 
         private static string NormalizeVersion(string value)

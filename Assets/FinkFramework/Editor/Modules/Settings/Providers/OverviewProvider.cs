@@ -96,8 +96,15 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUILayout.Space(6);
             
+            GUILayout.BeginHorizontal();
+
             if (GUILayout.Button("立即检查更新", FFEditorStyles.SmallButton, GUILayout.Width(120)))
                 UpdateCheckUtil.CheckUpdateManual();
+
+            if (GUILayout.Button("强制重装最新版", FFEditorStyles.SmallButton, GUILayout.Width(120)))
+                UpdateCheckUtil.ForceUpdateLatest();
+
+            GUILayout.EndHorizontal();
             
             GUILayout.Space(14);
 

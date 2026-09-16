@@ -11,6 +11,11 @@ namespace FinkFramework.Runtime.Singleton
     // ReSharper disable once ClassWithVirtualMembersNeverInherited.Global
     public abstract class SingletonMono<T> : MonoBehaviour where T : MonoBehaviour
     {
+        static SingletonMono()
+        {
+            SingletonRuntimeReset.Register(ResetStatics);
+        }
+
         // ReSharper disable once StaticMemberInGenericType
         private static T _instance;
         
@@ -75,7 +80,6 @@ namespace FinkFramework.Runtime.Singleton
         /// <summary>
         /// 支持关闭 Domain Reload 的编辑器播放模式，避免退出 Play 后保留旧静态引用。
         /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
             _instance = null;

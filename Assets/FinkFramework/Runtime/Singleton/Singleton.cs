@@ -5,11 +5,40 @@ using UnityEngine;
 namespace FinkFramework.Runtime.Singleton
 {
     /// <summary>
+    /// 泛型单例的统一运行时重置入口。
+    /// Unity 不允许 RuntimeInitializeOnLoadMethod 位于泛型类中，
+    /// 因此由非泛型类统一触发已初始化泛型单例的重置逻辑。
+    /// </summary>
+    internal static class SingletonRuntimeReset
+    {
+        private static event Action resetActions;
+
+        internal static void Register(Action resetAction)
+        {
+            if (resetAction != null)
+            {
+                resetActions += resetAction;
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetAll()
+        {
+            resetActions?.Invoke();
+        }
+    }
+
+    /// <summary>
     /// 不继承Mono的单例模式基类 继承该基类的类可实现单例模式 但要求有私有的无参构造函数
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public abstract class Singleton<T> where T : class
     {
+        static Singleton()
+        {
+            SingletonRuntimeReset.Register(ResetStatics);
+        }
+
         // ReSharper disable once StaticMemberInGenericType
         private static T instance;
         // ReSharper disable once StaticMemberInGenericType
@@ -65,7 +94,6 @@ namespace FinkFramework.Runtime.Singleton
         /// <summary>
         /// 支持关闭 Domain Reload 的编辑器播放模式，避免跨次 Play 保留旧的静态实例。
         /// </summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
             instance = null;
