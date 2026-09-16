@@ -23,7 +23,8 @@ namespace FinkFramework.Runtime.Audio
 
         private AudioManager()
         {
-            audioEnabled = GlobalSettingsRuntimeLoader.Current.EnableAudioModule;
+            audioEnabled = GlobalSettingsRuntimeLoader.TryGet(out var settings)
+                           && settings.EnableAudioModule;
 
             if (!audioEnabled)
             {
@@ -77,10 +78,12 @@ namespace FinkFramework.Runtime.Audio
         // 记录所有正在播放的音效播放源容器
         private readonly List<AudioSource> soundList = new();
         private readonly HashSet<AudioSource> soundSet = new();
+        private readonly Dictionary<AudioSource, string> soundPaths = new();
         // 音效是否在播放
         private bool soundIsPlay = true;
         // 全局音效组件合集
         private GameObject soundPlayers;
+        private string musicPath;
         
         /// <summary>
         /// 播放音乐（同步加载）
@@ -112,6 +115,14 @@ namespace FinkFramework.Runtime.Audio
             }
             
             AudioClip clip = ResManager.Instance.Load<AudioClip>(fullPath);
+            if (!clip)
+            {
+                LogUtil.Error("AudioManager", $"无法加载音乐资源：{fullPath}");
+                return;
+            }
+
+            ReleaseLoadedClip(musicPath);
+            musicPath = fullPath;
             musicPlayer.clip = clip;
             musicPlayer.loop = true;
             musicPlayer.volume = 1;
@@ -134,7 +145,7 @@ namespace FinkFramework.Runtime.Audio
             }
             var op = PlayAudioHandle(fullPath, true, true, null);
             await op.WaitUntilDone();
-            return op.Source;
+            return op.IsFailed ? null : op.Source;
         }
         
         /// <summary>
@@ -190,6 +201,9 @@ namespace FinkFramework.Runtime.Audio
                 return;
             }
             musicPlayer.Stop();
+            musicPlayer.clip = null;
+            ReleaseLoadedClip(musicPath);
+            musicPath = null;
         }
         
         /// <summary>
@@ -247,6 +261,7 @@ namespace FinkFramework.Runtime.Audio
                 {
                     s.clip = null;
                     PoolManager.Instance.Despawn(s.gameObject);
+                    ReleaseSoundClip(s);
 
                     soundSet.Remove(s);
                     soundList.RemoveAt(i);
@@ -270,29 +285,21 @@ namespace FinkFramework.Runtime.Audio
             {
                 LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
             }
-            AudioSource source = PoolManager.Instance.Spawn("res://FinkFramework/Audio/Base/SoundPlayer").GetComponent<AudioSource>();
-            source.outputAudioMixerGroup = sfxGroup;
-            // 若缓存池达到上限可能会取出之前正在播放的音效 所以可以先执行一次停止播放
-            source.Stop();
-            // 若不传入依附的父对象 则默认用全局音效播放器播放
-            if (!fatherObj)
+            AudioSource source = CreateAudioSource(false, fatherObj);
+            if (!source)
             {
-                if (!PoolManager.debugMode)
-                {
-                    if (!soundPlayers)
-                    {
-                        soundPlayers = new GameObject("SoundPlayers");
-                    }
-                    source.transform.parent = soundPlayers.transform;
-                }
-            }
-            else
-            {
-                source.transform.parent = fatherObj.transform;
+                callback?.Invoke(null);
+                return null;
             }
             // 同步加载资源
             AudioClip clip = ResManager.Instance.Load<AudioClip>(fullPath);
-            PlayAudioClip(source, clip, isLoop);
+            if (!clip)
+            {
+                PoolManager.Instance.Despawn(source.gameObject);
+                callback?.Invoke(null);
+                return null;
+            }
+            PlaySoundClip(source, clip, isLoop, fullPath);
             // 执行完毕逻辑后 执行回调
             callback?.Invoke(source);
 
@@ -316,7 +323,7 @@ namespace FinkFramework.Runtime.Audio
             }
             var op = PlayAudioHandle(path, isLoop, false, fatherObj);
             await op.WaitUntilDone();
-            return op.Source;
+            return op.IsFailed ? null : op.Source;
         }
         
         /// <summary>
@@ -382,6 +389,7 @@ namespace FinkFramework.Runtime.Audio
             // 回收
             source.Stop();
             source.clip = null;
+            ReleaseSoundClip(source);
             PoolManager.Instance.Despawn(source.gameObject);
         }
 
@@ -444,17 +452,20 @@ namespace FinkFramework.Runtime.Audio
                 t.Stop();
                 t.clip = null;
                 PoolManager.Instance.Despawn(t.gameObject);
+                ReleaseSoundClip(t);
             }
             soundSet.Clear();
             soundList.Clear();
+            soundPaths.Clear();
         }
         
         /// <summary>
         /// 播放音效内部逻辑
         /// </summary>
-        private void PlaySoundClip(AudioSource source, AudioClip clip, bool isLoop)
+        private void PlaySoundClip(AudioSource source, AudioClip clip, bool isLoop, string fullPath)
         {
             PlayAudioClip(source,clip,isLoop);
+            soundPaths[source] = fullPath;
             // 若缓存池达到上限可能会取出之前正在播放的音效 所以需要避免重复添加
             if (soundSet.Add(source)) // 若不存在则添加并返回 true
             {
@@ -495,28 +506,58 @@ namespace FinkFramework.Runtime.Audio
         /// </summary>
         private async UniTask PlayAudioAsyncWrapper(string fullPath, bool isLoop, bool isMusic, GameObject fatherObj, AudioOperation op)
         {
-            // 1. 创建 AudioSource
-            AudioSource source = CreateAudioSource(isMusic, fatherObj);
-            op.Source = source;
-            op.SetProgress(0);
-            // 2. 使用 ResManager 的句柄进行加载
-            var resOp = ResManager.Instance.LoadAsyncHandle<AudioClip>(fullPath);
-            // 3. 实时同步加载进度
-            while (!resOp.IsDone)
+            AudioSource source = null;
+            try
             {
-                op.SetProgress(resOp.Progress);
-                await UniTask.Yield();
+                // 1. 创建 AudioSource
+                source = CreateAudioSource(isMusic, fatherObj);
+                op.Source = source;
+                op.SetProgress(0);
+                if (!source)
+                {
+                    op.SetFailed();
+                    return;
+                }
+
+                // 2. 使用 ResManager 的句柄进行加载
+                var resOp = ResManager.Instance.LoadAsyncHandle<AudioClip>(fullPath);
+                // 3. 实时同步加载进度
+                while (!resOp.IsDone)
+                {
+                    op.SetProgress(resOp.Progress);
+                    await UniTask.Yield();
+                }
+
+                if (!resOp.Result)
+                {
+                    if (!isMusic)
+                        PoolManager.Instance.Despawn(source.gameObject);
+                    op.SetFailed();
+                    return;
+                }
+
+                AudioClip clip = resOp.Result;
+                if (isMusic)
+                {
+                    ReleaseLoadedClip(musicPath);
+                    musicPath = fullPath;
+                    PlayAudioClip(source, clip, isLoop);
+                }
+                else
+                {
+                    PlaySoundClip(source, clip, isLoop, fullPath);
+                }
+
+                op.SetResult(clip);
             }
-            // 4. 加载失败
-            if (!resOp.Result)
+            catch (System.Exception exception)
             {
+                if (source && !isMusic && !soundSet.Contains(source))
+                    PoolManager.Instance.Despawn(source.gameObject);
+
+                LogUtil.Error("AudioManager", $"异步播放音频失败：{fullPath} => {exception}");
                 op.SetFailed();
-                return;
             }
-            // 5. 加载成功 → 播放
-            AudioClip clip = resOp.Result;
-            PlayAudioClip(source, clip, isLoop);
-            op.SetResult(clip);
         }
 
         /// <summary>
@@ -544,18 +585,29 @@ namespace FinkFramework.Runtime.Audio
             }
 
             // --- 音效 ---
-            AudioSource source = PoolManager.Instance.Spawn("res://FinkFramework/Audio/Base/SoundPlayer").GetComponent<AudioSource>();
+            GameObject soundObject = PoolManager.Instance.Spawn("res://FinkFramework/Audio/Base/SoundPlayer");
+            AudioSource source = soundObject ? soundObject.GetComponent<AudioSource>() : null;
+            if (!source)
+            {
+                LogUtil.Error("AudioManager", "无法创建 SoundPlayer AudioSource。");
+                return null;
+            }
             source.outputAudioMixerGroup = sfxGroup;
+            // 对象池达到上限时可能复用仍在播放的旧音效，先清理旧的记录与资源引用。
+            soundSet.Remove(source);
+            soundList.Remove(source);
+            ReleaseSoundClip(source);
             // 若缓存池达到上限可能会取出之前正在播放的音效 所以可以先执行一次停止播放
             source.Stop();
             // 父节点绑定逻辑
             if (!fatherObj)
             {
-                if (!soundPlayers)
+                if (!PoolManager.debugMode)
                 {
-                    soundPlayers = new GameObject("SoundPlayers");
+                    if (!soundPlayers)
+                        soundPlayers = new GameObject("SoundPlayers");
+                    source.transform.parent = soundPlayers.transform;
                 }
-                source.transform.parent = soundPlayers.transform;
             }
             else
             {
@@ -563,6 +615,20 @@ namespace FinkFramework.Runtime.Audio
             }
 
             return source;
+        }
+
+        private void ReleaseSoundClip(AudioSource source)
+        {
+            if (!source || !soundPaths.Remove(source, out string path))
+                return;
+
+            ReleaseLoadedClip(path);
+        }
+
+        private static void ReleaseLoadedClip(string path)
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+                ResManager.TryGetInstance()?.UnloadAsset<AudioClip>(path, true);
         }
 
         #endregion

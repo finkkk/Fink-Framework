@@ -51,6 +51,9 @@ namespace FinkFramework.Runtime.Pool
         /// <param name="prefabPath"></param>
         public GameObjectPool(GameObject root,string name,GameObject usedObj,GameObject prefab,string prefabPath)
         {
+            if (!usedObj)
+                throw new System.ArgumentNullException(nameof(usedObj));
+
             Prefab = prefab;
             PrefabPath = prefabPath;
             // 只有当开启调试模式的时候 才会启用布局功能(即根据父子关系布局)
@@ -69,7 +72,9 @@ namespace FinkFramework.Runtime.Pool
                 throw new System.Exception($"对象 {usedObj.name} 缺失 PoolObject 组件，禁止创建对象池！");
             }
             // 从PoolObject获取上限数量值
-            maxNum = poolObject.maxNum;
+            maxNum = Mathf.Max(1, poolObject.maxNum);
+            if (poolObject.maxNum <= 0)
+                LogUtil.Warn($"对象池 {name} 的最大数量必须大于 0，已按 1 处理。");
         }
 
         /// <summary>使用池持有的预制体创建实例，不重复向资源系统申请引用。</summary>
@@ -104,26 +109,31 @@ namespace FinkFramework.Runtime.Pool
         /// <returns>取到的对象</returns>
         public GameObject Get()
         {
-            GameObject obj;
-            // 如果对象池中还有未被使用的缓存对象
-            if (pool.Count > 0)
-            {
-                // 弹出栈顶的对象 直接返回给外部调用(因为对象池不需要顺序 所以直接从栈顶出栈)
+            GameObject obj = null;
+            // 忽略业务代码误删后残留在缓存栈中的对象。
+            while (pool.Count > 0 && !obj)
                 obj = pool.Pop();
+
+            if (obj)
+            {
                 // 取出对象后需要标记为正在使用
                 AddUsedList(obj);
             }
-            // 若对象池中无缓存对象了 且需要获取对象 则复用 使用中对象池最早创建在使用的对象
-            else if (usedList.Count > 0)
+            // 若池中无缓存对象，则复用最早进入使用列表的有效对象。
+            while (!obj && usedList.Count > 0)
             {
-                // 强制复用最久的对象(序号0即为最早创建的对象)
+                if (!usedList[0])
+                {
+                    RemoveUsedList(0);
+                    continue;
+                }
+
                 obj = usedList[0];
-                // 将最早创建的对象 移出使用中对象池
                 RemoveUsedList(0);
-                // 将这个复用的新对象重新添加进使用中对象池 变为最新地使用中对象
                 AddUsedList(obj);
             }
-            else
+
+            if (!obj)
             {
                 LogUtil.Warn("对象池为空，且无可复用对象，请确认是否初始化或限制合理。");
                 return null;
@@ -151,6 +161,18 @@ namespace FinkFramework.Runtime.Pool
             {
                 return;
             }
+
+            if (pool.Contains(obj))
+            {
+                LogUtil.Warn($"对象 {obj.name} 已经在对象池中，忽略重复回收。");
+                return;
+            }
+
+            if (!usedList.Contains(obj))
+            {
+                LogUtil.Warn($"对象 {obj.name} 不属于当前对象池，忽略回收。");
+                return;
+            }
         
             // 隐藏对象 使对象失活 进入对象池待命(来代替销毁)
             obj.SetActive(false);
@@ -172,7 +194,14 @@ namespace FinkFramework.Runtime.Pool
         /// <param name="gameObject">使用中的对象</param>
         public void AddUsedList(GameObject gameObject)
         {
-            usedList.Add(gameObject);
+            if (gameObject && !usedList.Contains(gameObject))
+                usedList.Add(gameObject);
+        }
+
+        /// <summary>判断实例是否由当前池持有，供管理器处理改名和重复回收。</summary>
+        public bool Contains(GameObject gameObject)
+        {
+            return gameObject && (usedList.Contains(gameObject) || pool.Contains(gameObject));
         }
         
         /// <summary>

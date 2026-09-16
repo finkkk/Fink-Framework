@@ -17,6 +17,8 @@ namespace FinkFramework.Runtime.Pool
         private PoolManager(){}
         // 全局对象池 字典统一管理 键值对中键表示不同对象池的名字(子池) 值表示存储的对象池(仅用于GameObject)
         private readonly Dictionary<string, GameObjectPool> poolDic = new();
+        // 按实例反查所属池，避免业务改名后 Despawn 依赖 obj.name 失败。
+        private readonly Dictionary<GameObject, GameObjectPool> instancePools = new();
         // 用于存储 数据结构类、逻辑类等非继承Mono的类的对象池（即泛型对象池）的字典容器
         private readonly Dictionary<string, BasePoolStorage> poolObjectDic = new();
         // 是否开启调试模式(开启后失活的对象会按照根物体进行布局管理 结构清晰 但频繁修改父子关系有性能损耗 发布时建议关闭)
@@ -31,6 +33,13 @@ namespace FinkFramework.Runtime.Pool
         /// <returns></returns>
         public GameObject Spawn(string fullPath)
         {
+            string poolKey = PathUtil.NormalizePath(fullPath);
+            if (string.IsNullOrEmpty(poolKey))
+            {
+                LogUtil.Error("对象池资源路径不能为空。");
+                return null;
+            }
+
             // 若全局对象池根物体为空 则创建一个空游戏对象作为根物体（前提是开启调试模式）
             if (!poolObj && debugMode)
             {
@@ -38,20 +47,22 @@ namespace FinkFramework.Runtime.Pool
             }
             GameObject obj;
             // 1.如果全局对象池中不存在该对象池
-            if (!poolDic.TryGetValue(fullPath, out var value))
+            if (!poolDic.TryGetValue(poolKey, out var value))
             {
                 // 一个对象池只持有一份预制体引用，后续实例化不再重复 Load。
-                GameObject prefab = ResManager.Instance.Load<GameObject>(fullPath);
+                GameObject prefab = ResManager.Instance.Load<GameObject>(poolKey);
                 obj = prefab ? Object.Instantiate(prefab) : null;
                 if (!prefab || !obj)
                 {
-                    LogUtil.Error($"资源路径 {fullPath} 无法加载，请检查路径是否正确！");
+                    LogUtil.Error($"资源路径 {poolKey} 无法加载，请检查路径是否正确！");
                     return null;
                 }
                 // 强制设置实例化对象名字为传入的对象池名字 方便返回对象池时直接使用对象名字查池（也避免实例化后unity自动添加的clone尾缀）
-                obj.name = fullPath; 
+                obj.name = poolKey;
                 // 创建对象池(构造对象池的方法内部就实现了记录使用中对象的功能 即将实例化出来的这个对象存入使用中的池子内)
-                poolDic.Add(fullPath,new GameObjectPool(poolObj,fullPath,obj,prefab,fullPath));
+                value = new GameObjectPool(poolObj, poolKey, obj, prefab, poolKey);
+                poolDic.Add(poolKey, value);
+                instancePools[obj] = value;
             }
             // 2.有该对象池 且该对象池中存在没有使用的对象 
             else if (value.Count > 0)
@@ -72,14 +83,17 @@ namespace FinkFramework.Runtime.Pool
                 obj = value.Create();
                 if (!obj)
                 {
-                    LogUtil.Error($"资源路径 {fullPath} 无法加载，请检查路径是否正确！");
+                    LogUtil.Error($"资源路径 {poolKey} 无法加载，请检查路径是否正确！");
                     return null;
                 }
                 // 强制设置实例化对象名字为传入的对象池名字 方便返回对象池时直接使用对象名字查池（也避免实例化后unity自动添加的clone尾缀）
-                obj.name = fullPath; 
+                obj.name = poolKey;
                 // 实例化出来的对象需要记录到使用中对象池内
                 value.AddUsedList(obj);
+                instancePools[obj] = value;
             }
+            if (obj)
+                instancePools[obj] = value;
             return obj;
         }
         /// <summary>
@@ -119,8 +133,25 @@ namespace FinkFramework.Runtime.Pool
         /// <param name="obj">要存入的对象实例</param>
         public void Despawn(GameObject obj)
         {
-            // 存入对象
-            poolDic[obj.name].Return(obj);
+            if (!obj)
+                return;
+
+            if (instancePools.TryGetValue(obj, out GameObjectPool pool))
+            {
+                pool.Return(obj);
+                return;
+            }
+
+            // 兼容旧对象：只有名称恰好等于池 key 时才允许回收，找不到时安全忽略。
+            string poolKey = PathUtil.NormalizePath(obj.name);
+            if (poolDic.TryGetValue(poolKey, out pool) && pool.Contains(obj))
+            {
+                instancePools[obj] = pool;
+                pool.Return(obj);
+                return;
+            }
+
+            LogUtil.Warn($"对象 {obj.name} 不属于任何已注册对象池，忽略回收。");
         }
         
         /// <summary>
@@ -159,38 +190,46 @@ namespace FinkFramework.Runtime.Pool
         /// <param name="count">需要预加载的个数</param>
         public void Preload(string name, int count)
         {
+            if (count <= 0)
+                return;
+
+            string poolKey = PathUtil.NormalizePath(name);
             // 用于暂存已生成的对象，避免立即 Despawn 后被 Spawn 重复复用
-            List<GameObject> objs = new();
+            List<GameObject> objs = new(count);
             // 若对象池尚未存在，调用 Spawn 自动创建一个对象池并注册
-            if (!poolDic.TryGetValue(name,out var pool))
+            if (!poolDic.TryGetValue(poolKey,out var pool))
             {
                 // 创建首个对象（自动创建对象池）
-                var first = Spawn(name);
+                var first = Spawn(poolKey);
+                if (!first || !poolDic.TryGetValue(poolKey, out pool))
+                    return;
                 // 加入暂存列表
                 objs.Add(first);
-                // 获取新创建的对象池引用
-                pool = poolDic[name];
             }
-            // 从当前已有数量开始继续预载，直到达到目标 count 或超出最大上限
-            for (int i = objs.Count; i < count; i++) 
+
+            // 只创建缺少的实例，不调用 Spawn 取出已有缓存，避免池满时重复回收同一个对象。
+            while (pool.Count + pool.UsedCount < count)
             {
-                // 未超限才进行预载 否则停止预载报警告
                 if (pool.canCreate)
                 {
-                    var obj = Spawn(name);
+                    var obj = pool.Create();
+                    if (!obj)
+                        break;
+
+                    obj.name = poolKey;
+                    pool.AddUsedList(obj);
+                    instancePools[obj] = pool;
                     objs.Add(obj);
                 }
                 else
                 {
-                    LogUtil.Warn($"对象池 {name} 最大上限: {pool.maxNum} 本次仅成功预载 {objs.Count} 个对象");
+                    LogUtil.Warn($"对象池 {poolKey} 最大上限: {pool.maxNum} 本次仅成功预载 {pool.Count + pool.UsedCount} 个对象");
                     break;
                 }
             }
             // 全部对象预载完成后统一回收到对象池中
             foreach (var obj in objs)
-            {
                 Despawn(obj);
-            }
         }
         
         /// <summary>
@@ -213,6 +252,7 @@ namespace FinkFramework.Runtime.Pool
             // 清空全局对象池注册
             poolObjectDic.Clear();
             poolDic.Clear();
+            instancePools.Clear();
         }
     }
 }

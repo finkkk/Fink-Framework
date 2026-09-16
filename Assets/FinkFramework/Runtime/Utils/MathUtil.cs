@@ -315,13 +315,6 @@ namespace FinkFramework.Runtime.Utils
                 else
                     callBack(hitInfo.collider.gameObject.GetComponent<T>());
             }
-            else if (gizmosToggle && EnvironmentState.DebugMode)
-            {
-#if UNITY_EDITOR
-                GizmosAdapter.DrawRayAction?.Invoke(ray.origin, ray.direction, maxDistance, false);
-#endif
-            }
-
         }
 
         /// <summary>

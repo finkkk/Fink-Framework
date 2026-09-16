@@ -18,22 +18,40 @@ namespace FinkFramework.Runtime.Audio
 
         internal void SetProgress(float p)
         {
-            Progress = p;
+            Progress = Mathf.Clamp01(p);
         }
 
         internal void SetResult(AudioClip clip)
         {
+            if (IsDone)
+                return;
+
             Clip = clip;
             IsDone = true;
             Progress = 1f;
-            Completed?.Invoke(this);
+            InvokeCompletedSafely();
         }
 
         internal void SetFailed()
         {
+            if (IsDone)
+                return;
+
             IsFailed = true;
             IsDone = true;
-            Completed?.Invoke(this);
+            InvokeCompletedSafely();
+        }
+
+        private void InvokeCompletedSafely()
+        {
+            try
+            {
+                Completed?.Invoke(this);
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogException(exception);
+            }
         }
 
         public async UniTask WaitUntilDone()

@@ -19,7 +19,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 keywords = new[] 
                 { 
                     "Fink", "Framework", "Overview", "Settings",
-                    "Pipeline", "Data", "UI", "Encryption"
+                    "Pipeline", "Data", "UI", "AES", "Encryption"
                 }
             };
         }
@@ -81,8 +81,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             EditorGUILayout.LabelField(
                 "• Environment（环境配置）\n" +
                 "• UI Settings（UI 配置）\n" +
-                "• Data Pipeline（数据配置）\n" +
-                "• Encryption（加密配置）",
+                "• Data Pipeline（数据配置，包含二进制加密）",
                 FFEditorStyles.Description);
 
             GUILayout.Space(14);

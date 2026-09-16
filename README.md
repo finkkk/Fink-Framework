@@ -1,138 +1,92 @@
 <p align="center">
-  <img src="https://finkkk.cn/upload/f_logo.webp" width="120" alt="logo">
+  <img src="https://finkkk.cn/upload/f_logo.webp" width="120" alt="Fink Framework logo">
 </p>
 
-<h1 align="center">Fink-Framework</h1>
-<p align="center">Fink Framework unity游戏框架</p>
+<h1 align="center">Fink Framework</h1>
+
+<p align="center">面向 Unity 中小型游戏项目的模块化开发框架</p>
 
 <p align="center">
-  <!-- 文档 -->
-  <a href="https://finkkk.cn/docs/fink-framework">
-    <img src="https://img.shields.io/badge/Docs-📘-blue?style=flat-square">
-  </a>
-
-  <!-- Stars -->
-  <a href="https://github.com/finkkk/Fink-Framework/stargazers">
-    <img src="https://img.shields.io/github/stars/finkkk/Fink-Framework?style=flat-square">
-  </a>
-
-  <!-- Release 版本 -->
-  <a href="https://github.com/finkkk/Fink-Framework/releases">
-    <img src="https://img.shields.io/github/v/release/finkkk/Fink-Framework?label=Release&style=flat-square">
-  </a>
-
-  <!-- License -->
-  <img src="https://img.shields.io/github/license/finkkk/Fink-Framework?style=flat-square&cacheSeconds=0">
-
-
-
+  <a href="https://www.finkkk.cn/fink-framework"><img src="https://img.shields.io/badge/Docs-阅读文档-2E86DE?style=flat-square" alt="Documentation"></a>
+  <a href="https://github.com/finkkk/Fink-Framework/releases"><img src="https://img.shields.io/github/v/release/finkkk/Fink-Framework?label=Release&style=flat-square" alt="Release"></a>
+  <a href="https://github.com/finkkk/Fink-Framework/stargazers"><img src="https://img.shields.io/github/stars/finkkk/Fink-Framework?style=flat-square" alt="Stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/finkkk/Fink-Framework?style=flat-square&cacheSeconds=0" alt="MIT License"></a>
 </p>
 
 ---
 
-# Fink Framework
+## 简介
 
-**Fink Framework** 是一套面向 Unity 中小型游戏项目的 **模块化开发框架**。  
-框架来源于长期的项目实践积累，涵盖 **数据驱动管线、UI 系统、资源加载、对象池、运行时工具链、调试可视化** 等核心能力，旨在为 Unity 项目提供 **稳定、高效、可维护** 的基础设施。
+Fink Framework 是一套面向 Unity 游戏项目的开发基础框架，围绕 **UI 系统、数据管线、资源加载、本地化系统与运行时基础服务** 提供完整支撑。框架同时覆盖场景、事件、对象池、计时器、输入、音频与调试工具等常用能力，并以清晰的模块边界减少重复建设，让团队更专注于玩法与内容。
 
-框架完全开源，可直接集成至任意 Unity 项目中。
+当前正式版本为 **v1.0.0**。框架主体约 3.8 万行 C# 源码，采用 Runtime / Editor 程序集拆分，支持按项目需求选择和组合模块。
 
----
+## 核心能力
 
-# 文档地址（Documentation）
+| 模块 | 能力概览 |
+| --- | --- |
+| UI 系统 | 重构后的 UI 架构，支持异步加载、面板生命周期、参数注入、转场、导航、模态遮罩、多 Surface 与多 Canvas 场景。 |
+| 本地化系统 | 提供语言设置、运行时清单、文本与资源表、格式化、语言回退，以及导入、导出、质量检查等编辑器工具链。 |
+| 数据管线 | 覆盖 Excel → C# → JSON → Binary 的处理流程，包含代码生成、字段校验、数据 QA、清单生成与路径管理。Binary 模式支持 AES 加密。 |
+| 资源加载 | 统一同步、异步与句柄式接口；通过 Provider 机制支持 Resources、Editor、File、Web、AssetBundle 与 Addressables。 |
+| 项目设置 | 在 Project Settings 中集中管理框架、数据管线、资源后端、输入、本地化与 UI 等配置；加密策略已归入 Data Pipeline。 |
+| 运行时基础服务 | 内置单例、事件、计时器、对象池、场景切换、输入、音频、日志、数学与 Gizmos 可视化工具。 |
+| 编辑器工具 | 提供数据处理、本地化管理、UI 构建、项目统计、框架欢迎页与设置面板，形成从配置到导出的工作流。 |
 
-框架详细使用教程请查阅文档：
-<p align="center">
-  <a href="https://finkkk.cn/docs/fink-framework" target="_blank">
-    📘查看完整文档
-  </a>
-</p>
+## 适用场景
 
----
+- 希望快速建立统一工程规范的 Unity 单人或小团队项目。
+- 需要数据驱动配置、异步 UI、资源后端切换或多语言支持的项目。
+- 希望将通用基础能力从业务层抽离，并保留后续扩展空间的项目。
 
-## 1. 核心特性
+## 快速开始
 
-### • 数据管线系统
-支持 Excel → 自动生成 C# 数据类 → JSON → 加密二进制的完整流程。  
-包含类型校验、字段 QA 检查、模板自动生成、灵活的解析逻辑与自定义 Converter 扩展机制。
+1. 从 [Releases](https://github.com/finkkk/Fink-Framework/releases) 下载最新 `unitypackage`，或直接克隆本仓库。
+2. 导入后打开 Unity 的 **Project Settings → Fink Framework**，按项目需求完成 Data Pipeline、Resource Backend、Localization、UI 等配置。
+3. 在业务代码中按模块接入 UI、资源、本地化、事件与对象池能力；完整使用方式请查阅下方文档。
 
-### • UI 管理与多画布体系
-内置多层级 Main UI、WorldSpace UI、VR HUD。  
-支持异步加载、生命周期钩子、逻辑与表现分离、自动事件绑定等。
+> 建议使用 Unity 2022 LTS 或更高版本。当前项目基于 Unity 2022.3.62f2 验证。
 
-### • 资源加载系统
-提供统一的同步/异步接口、内存缓存策略。  
-采用provider插件前缀形式加载，支持 Resources、Editor、file、ab包、http(s)、和addressables等方式。
+## 项目结构
 
-### • 可配置对象池系统
-自动注册、预加载、复用上限、自动清理，并带有调试可视化布局。
+```text
+Assets/FinkFramework/
+├── Runtime/                 # 运行时模块
+│   ├── UI/                  # UI、导航、转场、模态与安全区域
+│   ├── Localization/        # 本地化运行时系统
+│   ├── Data/                # 数据读取、序列化与管线路径
+│   ├── ResLoad/             # Provider 化资源加载
+│   ├── Audio/ Pool/ Timer/  # 常用运行时服务
+│   └── ...
+├── Editor/                  # 数据、本地化、UI、设置与统计工具
+└── Plugins/                 # 随框架分发的第三方依赖
+```
 
-### • 轻量事件系统
-无任何额外依赖，适合中小规模系统的事件分发与监听。
+## 文档与下载
 
-### • 全局计时器管理
-支持多计时器、间隔回调、受/不受 timeScale、对象池复用、唯一 ID 管理等。
+- [使用文档](https://www.finkkk.cn/fink-framework)
+- [GitHub 仓库](https://github.com/finkkk/Fink-Framework)
+- [GitHub Releases](https://github.com/finkkk/Fink-Framework/releases)
+- [百度网盘镜像（提取码：2333）](https://pan.baidu.com/s/1obZYHwBI4ZVnavCiCPE8BA?pwd=2333)
 
-### • 运行时工具链
-包含输入管理、日志系统、数学工具、字符串处理、JSON 纠错与清洗、Gizmos 可视化调试等。
+## 依赖与致谢
 
-### • 场景管理与模块化工具链
-提供场景切换器、Gizmos 调试器、自动单例（普通 + Mono）、编辑器扩展工具等。
+框架感谢以下开源项目与社区贡献者提供的支持与启发：
 
-整体框架结构清晰、模块解耦，可在项目初期作为稳定基础设施使用，也可在中后期根据需求灵活裁剪。
+- [Odin Serializer](https://github.com/TeamSirenix/odin-serializer)
+- [UniTask](https://github.com/Cysharp/UniTask)
+- [ExcelDataReader](https://github.com/ExcelDataReader/ExcelDataReader)
+- [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json)
+- [Json.NET Converters（Wanzyee Studio）](https://assetstore.unity.com/packages/tools/input-management/json-net-converters-simple-compatible-solution-58621)
+- 所有分享 Unity 技术与开源成果的开发者
 
----
+## 开源协议与联系
 
-## 2. 下载与开源地址
+本项目采用 [MIT License](LICENSE) 开源。
 
-**GitHub 源代码（主下载渠道）：**  
-https://github.com/finkkk/Fink-Framework
+- 博客：[finkkk.cn](https://finkkk.cn)
+- GitHub：[finkkk](https://github.com/finkkk)
+- QQ：2217183968
+- 微信：FLX2217183968
 
-其他下载镜像（可选）：
-
-- **百度网盘（提取码 2333）：**  
- [点击下载](https://pan.baidu.com/s/1obZYHwBI4ZVnavCiCPE8BA?pwd=2333)
-
-你可以在 GitHub Releases 中获取最新的 `unitypackage`，或通过上述镜像直接下载。
-
----
-
-## 3. 联系方式
-
-如需交流、反馈或合作，欢迎联系：
-
-- **QQ：** 2217183968  
-- **微信：** FLX2217183968  
-- **博客：** https://finkkk.cn  
-- **GitHub：** https://github.com/finkkk  
-
-你也可以在仓库 Issue 区或文章底部留言。
-
----
-
-## 4. 框架信息
-
-截止v0.3.0版本，本框架的代码量已经达到约15万行，功能丰富按需启用。
-
-但目前仍不支持Unity 2021以前的版本，后续会持续向最新版兼容，但暂不考虑兼容旧版。
-
----
-
-## 5. 致谢（Acknowledgements）
-
-感谢以下项目与作者在本框架开发中提供的支持与启发：
-
-* [**唐老狮 Unity 程序基础小框架课程**](https://www.yxtown.com/goods/show/32`)
-  为整体架构设计、模块划分等核心思路提供了重要启发。
-* [**Json.NET Converters（Wanzyee Studio）**](https://assetstore.unity.com/packages/tools/input-management/json-net-converters-simple-compatible-solution-58621)
-  在 JSON 转换器体系和扩展思路方面给予了参考。
-* [**Odin Serializer（MIT）**](https://github.com/TeamSirenix/odin-serializer)
-  作为框架内置的开源序列化系统，为数据处理提供了强大支持。
-* [**Cysharp/UniTask（MIT）**](https://github.com/Cysharp/UniTask)
-  作为框架异步的重要基础，优化了资源加载、任务调度以及 Unity 中的异步管理等流程。
-* [**ExcelDataReader（MIT）**](https://github.com/ExcelDataReader/ExcelDataReader)
-  为框架的数据管线提供了可靠的 Excel 解析能力，使自动化配表流程得以顺畅实施。
-* [**Newtonsoft.Json（MIT）**](https://github.com/JamesNK/Newtonsoft.Json)
-  为框架中的 JSON 处理、配置导入、调试输出与数据透视提供了核心支持。
-* **所有在社区中分享 Unity 技术与开源库的开发者们**
-  你们的知识分享让本框架得以在更扎实的基础上构建与成长。
+欢迎通过 GitHub Issues 提交问题、建议与功能讨论。

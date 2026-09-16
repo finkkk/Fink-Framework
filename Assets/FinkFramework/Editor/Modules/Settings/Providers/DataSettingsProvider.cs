@@ -40,7 +40,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         {
             return new DataSettingsProvider("Project/Fink Framework/Data Pipeline", SettingsScope.Project)
             {
-                keywords = new[] { "Fink", "Data", "Pipeline", "Excel", "Json", "Binary" }
+                keywords = new[] { "Fink", "Data", "Pipeline", "Excel", "Json", "Binary", "Encryption", "AES", "Password" }
             };
         }
 
@@ -73,7 +73,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUILayout.Space(8);
             EditorGUILayout.LabelField(
-                "控制 Excel → C# → JSON → 二进制数据 的数据处理流程所使用的输出路径和管线模式。",
+                "控制 Excel → C# → JSON → 二进制数据 的导出模式、加密策略与代码生成路径。",
                 FFEditorStyles.Description);
             GUILayout.Space(12);
 
@@ -105,6 +105,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             }
 
             GUILayout.Space(12);
+
+            DrawEncryptionSettings();
+
+            GUILayout.Space(16);
 
             DrawCSharpPathSettings();
           
@@ -155,6 +159,37 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             DrawPathDisplay(
                 useCustomPath ? "当前生效路径（自定义）" : "当前生效路径（默认）",
                 DataPipelinePath.CSharpRoot);
+        }
+
+        /// <summary>
+        /// 绘制二进制数据的加密配置。
+        /// 配置仍保存在全局配置资产中，合并页面不会改变运行时读写逻辑。
+        /// </summary>
+        private void DrawEncryptionSettings()
+        {
+            EditorGUILayout.LabelField("二进制数据加密", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+
+            asset.EnableEncryption = EditorGUILayout.Toggle("启用 AES 加密", asset.EnableEncryption);
+            EditorGUILayout.LabelField(
+                asset.EnableEncryption
+                    ? "二进制模式下导出的数据将使用 AES 加密；DataUtil 的二进制存储也会使用同一配置。"
+                    : "二进制模式下导出的数据将以明文保存，便于开发与调试。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(10);
+
+            asset.Password = EditorGUILayout.PasswordField("AES 密钥", asset.Password);
+            EditorGUILayout.LabelField(
+                "用于二进制数据加密与解密。正式发布前请替换默认密钥，并配合混淆或密钥外置策略。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(10);
+
+            asset.EncryptedExtension = EditorGUILayout.TextField("二进制文件后缀", asset.EncryptedExtension);
+            EditorGUILayout.LabelField(
+                "Binary 模式导出的数据文件使用此后缀，例如 .fink、.dat、.bytes。JSON 模式不使用此设置。",
+                FFEditorStyles.Description);
         }
 
         /// <summary>

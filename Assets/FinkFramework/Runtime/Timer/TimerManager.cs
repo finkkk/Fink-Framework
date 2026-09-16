@@ -4,6 +4,7 @@ using System.Linq;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Pool;
 using FinkFramework.Runtime.Singleton;
+using FinkFramework.Runtime.Utils;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -75,8 +76,21 @@ namespace FinkFramework.Runtime.Timer
         /// </summary>
         public void Stop()
         {
-            MonoManager.Instance.StopCoroutine(timer);
-            MonoManager.Instance.StopCoroutine(realTimer);
+            if (!isRunningTimer)
+                return;
+
+            MonoManager monoManager = MonoManager.TryGetInstance();
+            if (monoManager)
+            {
+                if (timer != null)
+                    monoManager.StopCoroutine(timer);
+                if (realTimer != null)
+                    monoManager.StopCoroutine(realTimer);
+            }
+
+            timer = null;
+            realTimer = null;
+            isRunningTimer = false;
         }
 
         /// <summary>
@@ -105,7 +119,7 @@ namespace FinkFramework.Runtime.Timer
                     }
                     // -------------------------------
                     // 处理间隔回调
-                    if (item.onInterval != null)
+                    if (item.onInterval != null && item.maxIntervalTime > 0)
                     {
                         // 若有间隔需求 则每次计时最小分度值的时候记录一次（乘以1000是秒转换为毫秒）
                         item.intervalTime -= (int)(countInterval * 1000);
@@ -113,7 +127,14 @@ namespace FinkFramework.Runtime.Timer
                         while (item.intervalTime <= 0)
                         {
                             // 执行间隔时间的回调
-                            item.onInterval?.Invoke();
+                            try
+                            {
+                                item.onInterval?.Invoke();
+                            }
+                            catch (System.Exception exception)
+                            {
+                                LogUtil.Error("Timer", $"计时器 {item.keyID} 的间隔回调异常：{exception}");
+                            }
                             // 重置间隔时间
                             item.intervalTime += item.maxIntervalTime;
                         }
@@ -126,7 +147,14 @@ namespace FinkFramework.Runtime.Timer
                         // 计时时间到 需要执行计时完毕的回调
                         if (item.allTime <= 0)
                         {
-                            item.onOver?.Invoke();
+                            try
+                            {
+                                item.onOver?.Invoke();
+                            }
+                            catch (System.Exception exception)
+                            {
+                                LogUtil.Error("Timer", $"计时器 {item.keyID} 的完成回调异常：{exception}");
+                            }
                             delList.Add(item);
                         }
                     }  
@@ -136,9 +164,13 @@ namespace FinkFramework.Runtime.Timer
                 foreach (var t in delList)
                 {
                     // 从字典中移除
-                    targetTimers.Remove(t.keyID);
-                    // 计时完毕 返回对象池内
-                    PoolManager.Instance.Despawn(t);
+                    // 回调可能主动调用 RemoveTimer；只有仍由当前字典持有时才回收到对象池。
+                    if (targetTimers.TryGetValue(t.keyID, out TimerItem current)
+                        && ReferenceEquals(current, t))
+                    {
+                        targetTimers.Remove(t.keyID);
+                        PoolManager.Instance.Despawn(t);
+                    }
                 }
                 // 清除完毕 清空待移除列表
                 delList.Clear();
@@ -278,15 +310,12 @@ namespace FinkFramework.Runtime.Timer
             }
 
             // 创建计时器，计时结束后执行 callback 并自动移除 Timer
-            int id = 0;
-            id = CreateTimer(
+            var id = CreateTimer(
                 isRealTimer,
                 delay,
                 () =>
                 {
                     callback?.Invoke();
-                    // ReSharper disable once AccessToModifiedClosure
-                    RemoveTimer(id);
                 }
             );
 

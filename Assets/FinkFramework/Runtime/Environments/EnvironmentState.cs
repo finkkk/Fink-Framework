@@ -130,17 +130,17 @@ namespace FinkFramework.Runtime.Environments
         /// <summary>
         /// 最终 VR 模式 = 自动检测 XR 是否存在 且 未被强制关闭
         /// </summary>
-        public static bool FinalIsVR => AutoXR && !GS.ForceDisableXR;
+        public static bool FinalIsVR => AutoXR && GS && !GS.ForceDisableXR;
         
         /// <summary>
         /// 最终输入系统 = 自动检测结果 且 未被强制关闭
         /// </summary>
-        public static bool FinalUseNewInputSystem => AutoNewInputSystem && !GS.ForceDisableNewInputSystem;
+        public static bool FinalUseNewInputSystem => AutoNewInputSystem && GS && !GS.ForceDisableNewInputSystem;
         
         /// <summary>
         /// 最终 URP 判定（优先级：ForceDisableURP > AutoURP）
         /// </summary>
-        public static bool FinalUseURP => AutoURP && !GS.ForceDisableURP;
+        public static bool FinalUseURP => AutoURP && GS && !GS.ForceDisableURP;
 
         #endregion
     }

@@ -61,8 +61,17 @@ namespace FinkFramework.Runtime.Timer
             keyID = keyId;
             maxAllTime = allTime = totalTime;
             onOver = onComplete;
-            maxIntervalTime = intervalTime = intervalMs;
-            onInterval = onIntervalCallback;
+            // 间隔必须为正数；否则管理器中的“补齐间隔”循环无法前进。
+            if (intervalMs > 0 && onIntervalCallback != null)
+            {
+                maxIntervalTime = intervalTime = intervalMs;
+                onInterval = onIntervalCallback;
+            }
+            else
+            {
+                maxIntervalTime = intervalTime = 0;
+                onInterval = null;
+            }
             isRunning = startImmediately;
         }
 
@@ -82,6 +91,12 @@ namespace FinkFramework.Runtime.Timer
         /// </summary>
         public void ResetInfo()
         {
+            keyID = 0;
+            allTime = 0;
+            maxAllTime = 0;
+            intervalTime = 0;
+            maxIntervalTime = 0;
+            isRunning = false;
             onOver = null;
             onInterval = null;
         }

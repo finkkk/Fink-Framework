@@ -126,7 +126,7 @@ namespace FinkFramework.Editor.Modules.Framework
                 GUILayout.BeginVertical(GUILayout.Width(ww * 0.70f));
 
                 if (GUILayout.Button("查看使用文档（Documentation）", FFEditorStyles.BigButton))
-                    Application.OpenURL("https://finkkk.cn/docs/fink-framework");
+                    Application.OpenURL("https://www.finkkk.cn/fink-framework");
 
                 GUILayout.Space(10);
 
