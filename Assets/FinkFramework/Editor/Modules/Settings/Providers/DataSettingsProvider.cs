@@ -32,14 +32,15 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         public static void Open()
         {
             GlobalSettingsEditorLoader.LoadOrCreate();
-            SettingsService.OpenProjectSettings("Project/Fink Framework/Data Pipeline");
+            SettingsService.OpenProjectSettings("Project/Fink Framework/10 Data Pipeline");
         }
 
         [SettingsProvider]
         public static SettingsProvider CreateProvider()
         {
-            return new DataSettingsProvider("Project/Fink Framework/Data Pipeline", SettingsScope.Project)
+            return new DataSettingsProvider("Project/Fink Framework/10 Data Pipeline", SettingsScope.Project)
             {
+                label = "Data Pipeline",
                 keywords = new[] { "Fink", "Data", "Pipeline", "Excel", "Json", "Binary", "Encryption", "AES", "Password" }
             };
         }

@@ -1,11 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Runtime.Serialization;
 using FinkFramework.Odin.OdinSerializer;
 using FinkFramework.Runtime.Data.JsonConverter;
+using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Save;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
 using Newtonsoft.Json;
@@ -22,6 +27,154 @@ namespace FinkFramework.Runtime.Data
     {
         // JSON 配置只读复用，避免每次读写数据时重复创建转换器。
         private static readonly JsonSerializerSettings CachedJsonSettings = CreateJsonSettings();
+        private static readonly JsonSerializerSettings SaveJsonSettings =
+            SaveSchema.CreateJsonSettings(CreateUnityConverters());
+        private static readonly ISerializationPolicy SaveSerializationPolicy =
+            new CustomSerializationPolicy(
+                "FinkFramework.SaveData",
+                true,
+                member => member switch
+                {
+                    FieldInfo field => field.IsPublic && !field.IsStatic &&
+                                       !field.IsDefined(typeof(NonSerializedAttribute), true) &&
+                                       !field.IsDefined(typeof(JsonIgnoreAttribute), true),
+                    PropertyInfo property => property.GetIndexParameters().Length == 0 &&
+                                             property.GetMethod?.IsPublic == true &&
+                                             property.SetMethod?.IsPublic == true &&
+                                             !property.IsDefined(typeof(JsonIgnoreAttribute), true),
+                    _ => false
+                });
+
+        /// <summary>
+        /// 将存档对象编码为 JSON UTF-8 或 Odin Binary 字节，并可选择 AES 加密。
+        /// 本方法不执行文件 IO、校验或备份；完整存档流程通常应调用 <see cref="SaveManager"/>。
+        /// </summary>
+        /// <typeparam name="T">存档根类型。</typeparam>
+        /// <param name="data">要编码的非空数据。</param>
+        /// <param name="format">JSON 或 Binary 编码格式。</param>
+        /// <param name="encrypt">是否使用全局数据管线密码进行 AES 加密。</param>
+        /// <returns>编码后的独立字节数组。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="data"/> 为空。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="format"/> 不是受支持格式。</exception>
+        public static byte[] SerializeSaveValue<T>(
+            T data,
+            EnvironmentState.DataLoadMode format,
+            bool encrypt)
+        {
+            return SerializeSaveValue(data, format, encrypt, false);
+        }
+
+        /// <summary>
+        /// 将存档对象编码为字节。处理顺序固定为“序列化 → GZip 压缩 → AES 加密”，
+        /// 解码时必须传入完全一致的格式、加密和压缩参数。
+        /// </summary>
+        /// <typeparam name="T">存档根类型；仅公共字段和公共可读写属性参与存档序列化。</typeparam>
+        /// <param name="data">要编码的非空数据。</param>
+        /// <param name="format">JSON 或 Binary 编码格式。</param>
+        /// <param name="encrypt">是否使用全局数据管线密码进行 AES 加密。</param>
+        /// <param name="compress">是否在加密前使用 GZip 压缩。</param>
+        /// <returns>编码、压缩和加密后的独立字节数组。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="data"/> 为空。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="format"/> 不是受支持格式。</exception>
+        /// <exception cref="InvalidOperationException">请求加密但全局密码不可用。</exception>
+        public static byte[] SerializeSaveValue<T>(
+            T data,
+            EnvironmentState.DataLoadMode format,
+            bool encrypt,
+            bool compress)
+        {
+            if (data is null)
+                throw new ArgumentNullException(nameof(data));
+            ValidateSaveFormat(format);
+
+            byte[] bytes;
+            if (format == EnvironmentState.DataLoadMode.Json)
+            {
+                string json = JsonConvert.SerializeObject(data, SaveJsonSettings);
+                bytes = new UTF8Encoding(false).GetBytes(json);
+            }
+            else
+            {
+                var context = new SerializationContext();
+                context.Config.SerializationPolicy = SaveSerializationPolicy;
+                context.Config.DebugContext.ErrorHandlingPolicy = ErrorHandlingPolicy.ThrowOnWarningsAndErrors;
+                bytes = SerializationUtility.SerializeValue(data, DataFormat.Binary, context);
+            }
+
+            if (compress)
+                bytes = Compress(bytes);
+            if (encrypt)
+                bytes = AESEncrypt(bytes, GetEncryptionPassword());
+            return bytes;
+        }
+
+        /// <summary>
+        /// 将未压缩或已解密的存档字节还原为对象。Binary 模式会执行无参构造函数和字段初始化器，
+        /// 从而让旧档缺失字段保留当前版本默认值；JSON 模式还会应用 <see cref="FormerSaveNamesAttribute"/>。
+        /// </summary>
+        /// <typeparam name="T">目标存档根类型。</typeparam>
+        /// <param name="data">非空存档字节。</param>
+        /// <param name="format">写入时使用的格式。</param>
+        /// <param name="encrypted">字节是否经过 AES 加密。</param>
+        /// <returns>还原后的强类型实例。</returns>
+        /// <exception cref="InvalidDataException"><paramref name="data"/> 为空。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="format"/> 不是受支持格式。</exception>
+        public static T DeserializeSaveValue<T>(
+            byte[] data,
+            EnvironmentState.DataLoadMode format,
+            bool encrypted)
+        {
+            return DeserializeSaveValue<T>(data, format, encrypted, false);
+        }
+
+        /// <summary>
+        /// 将存档字节还原为对象。处理顺序固定为“AES 解密 → GZip 解压 → 反序列化”。
+        /// 参数必须与编码时一致，否则会返回格式、解密或解压异常。
+        /// </summary>
+        /// <typeparam name="T">目标存档根类型。</typeparam>
+        /// <param name="data">非空存档字节。</param>
+        /// <param name="format">写入时使用的格式。</param>
+        /// <param name="encrypted">字节是否经过 AES 加密。</param>
+        /// <param name="compressed">解密后的字节是否经过 GZip 压缩。</param>
+        /// <returns>还原后的强类型实例。</returns>
+        /// <exception cref="InvalidDataException"><paramref name="data"/> 为空或压缩内容无效。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="format"/> 不是受支持格式。</exception>
+        /// <exception cref="CryptographicException">密钥不匹配或密文损坏。</exception>
+        public static T DeserializeSaveValue<T>(
+            byte[] data,
+            EnvironmentState.DataLoadMode format,
+            bool encrypted,
+            bool compressed)
+        {
+            if (data == null || data.Length == 0)
+                throw new InvalidDataException("存档 Payload 为空。");
+            ValidateSaveFormat(format);
+
+            byte[] bytes = encrypted
+                ? AESDecrypt(data, GetEncryptionPassword())
+                : data;
+            if (compressed)
+                bytes = Decompress(bytes);
+
+            if (format == EnvironmentState.DataLoadMode.Json)
+            {
+                string json = Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
+                string normalized = SaveSchema.NormalizeFormerNames<T>(json);
+
+                if (typeof(T).IsValueType)
+                    return JsonConvert.DeserializeObject<T>(normalized, SaveJsonSettings);
+
+                T target = SaveSchema.CreateDefault<T>();
+                JsonConvert.PopulateObject(normalized, target, SaveJsonSettings);
+                return target;
+            }
+
+            var context = new DeserializationContext(
+                ConstructedObjectDeserialization.CreateStreamingContext());
+            context.Config.SerializationPolicy = SaveSerializationPolicy;
+            context.Config.DebugContext.ErrorHandlingPolicy = ErrorHandlingPolicy.ThrowOnWarningsAndErrors;
+            return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary, context);
+        }
 
         #region 数据存储
         
@@ -246,6 +399,7 @@ namespace FinkFramework.Runtime.Data
             settings.Converters.Add(new Vector4Converter());
             settings.Converters.Add(new QuaternionConverter());
             settings.Converters.Add(new ColorConverter());
+            settings.Converters.Add(new DecimalConverter());
             settings.Converters.Add(new Matrix4x4Converter());
             settings.Converters.Add(new BoundsConverter());
             settings.Converters.Add(new RectConverter());
@@ -254,9 +408,46 @@ namespace FinkFramework.Runtime.Data
             return settings;
         }
 
+        private static IEnumerable<Newtonsoft.Json.JsonConverter> CreateUnityConverters()
+        {
+            return new Newtonsoft.Json.JsonConverter[]
+            {
+                new Vector2Converter(),
+                new Vector3Converter(),
+                new Vector4Converter(),
+                new QuaternionConverter(),
+                new ColorConverter(),
+                new DecimalConverter(),
+                new Matrix4x4Converter(),
+                new BoundsConverter(),
+                new RectConverter(),
+                new RectOffsetConverter()
+            };
+        }
+
         #endregion
 
         #region AES加密解密
+
+        private static byte[] Compress(byte[] data)
+        {
+            using var output = new MemoryStream();
+            using (var gzip = new GZipStream(
+                       output,
+                       System.IO.Compression.CompressionLevel.Fastest,
+                       true))
+                gzip.Write(data, 0, data.Length);
+            return output.ToArray();
+        }
+
+        private static byte[] Decompress(byte[] data)
+        {
+            using var input = new MemoryStream(data, false);
+            using var gzip = new GZipStream(input, CompressionMode.Decompress);
+            using var output = new MemoryStream();
+            gzip.CopyTo(output);
+            return output.ToArray();
+        }
         
         // AES加密 盐值
         private static readonly byte[] Salt = Encoding.UTF8.GetBytes("Fink_AES_Salt");
@@ -292,6 +483,29 @@ namespace FinkFramework.Runtime.Data
             using (var cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Write))
                 cs.Write(data, 0, data.Length);
             return ms.ToArray();
+        }
+
+        private static string GetEncryptionPassword()
+        {
+            if (!GlobalSettingsRuntimeLoader.TryGet(out var settings) || settings == null)
+                throw new InvalidOperationException("GlobalSettingsAsset 未加载，无法取得存档加密配置。");
+
+            if (string.IsNullOrEmpty(settings.Password))
+                throw new InvalidOperationException("存档加密密码不能为空。");
+
+            return settings.Password;
+        }
+
+        private static void ValidateSaveFormat(EnvironmentState.DataLoadMode format)
+        {
+            if (format != EnvironmentState.DataLoadMode.Json &&
+                format != EnvironmentState.DataLoadMode.Binary)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(format),
+                    format,
+                    "存档格式只支持 Json 或 Binary。");
+            }
         }
         
         #endregion

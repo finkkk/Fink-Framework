@@ -697,6 +697,7 @@ namespace FinkFramework.Odin.OdinSerializer
                     catch (OverflowException)
                     {
                         value = default(sbyte);
+                        return false;
                     }
                 }
 
@@ -734,6 +735,7 @@ namespace FinkFramework.Odin.OdinSerializer
                     catch (OverflowException)
                     {
                         value = default(byte);
+                        return false;
                     }
                 }
 
@@ -771,6 +773,7 @@ namespace FinkFramework.Odin.OdinSerializer
                     catch (OverflowException)
                     {
                         value = default(short);
+                        return false;
                     }
                 }
 
@@ -808,6 +811,7 @@ namespace FinkFramework.Odin.OdinSerializer
                     catch (OverflowException)
                     {
                         value = default(ushort);
+                        return false;
                     }
                 }
 
@@ -845,6 +849,7 @@ namespace FinkFramework.Odin.OdinSerializer
                     catch (OverflowException)
                     {
                         value = default(int);
+                        return false;
                     }
                 }
 
@@ -882,6 +887,7 @@ namespace FinkFramework.Odin.OdinSerializer
                     catch (OverflowException)
                     {
                         value = default(uint);
+                        return false;
                     }
                 }
 
@@ -1306,7 +1312,11 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = default(float);
+                    return false;
                 }
+
+                if ((double)value != d)
+                    return false;
 
                 return true;
             }
@@ -1331,7 +1341,11 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = default(float);
+                    return false;
                 }
+
+                if ((decimal)value != d)
+                    return false;
 
                 return true;
             }
@@ -1354,7 +1368,11 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = default(float);
+                    return false;
                 }
+
+                if ((long)value != val)
+                    return false;
 
                 return true;
             }
@@ -1425,6 +1443,7 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = 0;
+                    return false;
                 }
 
                 return true;
@@ -1448,6 +1467,7 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = 0;
+                    return false;
                 }
 
                 return true;
@@ -1505,6 +1525,7 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = default(decimal);
+                    return false;
                 }
 
                 return true;
@@ -1530,6 +1551,7 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = default(decimal);
+                    return false;
                 }
 
                 return true;
@@ -1553,6 +1575,7 @@ namespace FinkFramework.Odin.OdinSerializer
                 catch (OverflowException)
                 {
                     value = default(decimal);
+                    return false;
                 }
 
                 return true;

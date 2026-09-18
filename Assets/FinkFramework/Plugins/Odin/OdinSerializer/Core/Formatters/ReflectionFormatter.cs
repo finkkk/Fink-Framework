@@ -69,7 +69,10 @@ namespace FinkFramework.Odin.OdinSerializer
 
                 if (members.TryGetValue(name, out member) == false)
                 {
-                    reader.Context.Config.DebugContext.LogWarning("Lost serialization data for entry \"" + name + "\" of type \"" + entryType + "\" in node \"" + reader.CurrentNodeName + "\" because a serialized member of that name could not be found in type " + typeof(T).GetNiceFullName() + ".");
+                    if (!ConstructedObjectDeserialization.IsEnabled(reader.Context))
+                    {
+                        reader.Context.Config.DebugContext.LogWarning("Lost serialization data for entry \"" + name + "\" of type \"" + entryType + "\" in node \"" + reader.CurrentNodeName + "\" because a serialized member of that name could not be found in type " + typeof(T).GetNiceFullName() + ".");
+                    }
                     reader.SkipEntry();
                     continue;
                 }
@@ -148,7 +151,10 @@ namespace FinkFramework.Odin.OdinSerializer
 
                 if (members.TryGetValue(name, out member) == false)
                 {
-                    reader.Context.Config.DebugContext.LogWarning("Lost serialization data for entry \"" + name + "\" of type \"" + entryType + "\" in node \"" + reader.CurrentNodeName + "\" because a serialized member of that name could not be found in type " + this.SerializedType.GetNiceFullName() + ".");
+                    if (!ConstructedObjectDeserialization.IsEnabled(reader.Context))
+                    {
+                        reader.Context.Config.DebugContext.LogWarning("Lost serialization data for entry \"" + name + "\" of type \"" + entryType + "\" in node \"" + reader.CurrentNodeName + "\" because a serialized member of that name could not be found in type " + this.SerializedType.GetNiceFullName() + ".");
+                    }
                     reader.SkipEntry();
                     continue;
                 }

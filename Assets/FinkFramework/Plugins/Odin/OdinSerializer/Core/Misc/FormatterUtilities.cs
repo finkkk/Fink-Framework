@@ -299,6 +299,26 @@ You probably need to assign the nullValue variable of the {0} script in the insp
                         map.Add(attr.oldName, member);
                     }
                 }
+
+                // Save framework aliases live in the runtime assembly, while Odin is a lower-level
+                // assembly and cannot reference it directly. Read the small public contract by name
+                // so both assemblies remain acyclic.
+                foreach (Attribute attribute in member.GetCustomAttributes(false).OfType<Attribute>())
+                {
+                    Type attributeType = attribute.GetType();
+                    if (attributeType.FullName != "FinkFramework.Runtime.Save.FormerSaveNamesAttribute")
+                        continue;
+
+                    PropertyInfo namesProperty = attributeType.GetProperty("Names", BindingFlags.Public | BindingFlags.Instance);
+                    if (!(namesProperty?.GetValue(attribute, null) is IEnumerable<string> formerNames))
+                        continue;
+
+                    foreach (string formerName in formerNames)
+                    {
+                        if (!string.IsNullOrWhiteSpace(formerName) && !map.ContainsKey(formerName))
+                            map.Add(formerName, member);
+                    }
+                }
             }
 
             return map;

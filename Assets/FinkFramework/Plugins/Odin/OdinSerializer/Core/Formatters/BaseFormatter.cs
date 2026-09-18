@@ -185,7 +185,16 @@ namespace FinkFramework.Odin.OdinSerializer
         public T Deserialize(IDataReader reader)
         {
             var context = reader.Context;
-            T value = this.GetUninitializedObject();
+            T value;
+            if (ConstructedObjectDeserialization.IsEnabled(reader.Context) &&
+                ConstructedObjectDeserialization.TryCreate(typeof(T), out object initialized))
+            {
+                value = (T)initialized;
+            }
+            else
+            {
+                value = this.GetUninitializedObject();
+            }
 
             // We allow the above method to return null (for reference types) because of special cases like arrays,
             //  where the size of the array cannot be known yet, and thus we cannot create an object instance at this time.
@@ -575,7 +584,16 @@ namespace FinkFramework.Odin.OdinSerializer
         public object Deserialize(IDataReader reader)
         {
             var context = reader.Context;
-            object value = this.GetUninitializedObject();
+            object value;
+            if (ConstructedObjectDeserialization.IsEnabled(reader.Context) &&
+                ConstructedObjectDeserialization.TryCreate(this.SerializedType, out object initialized))
+            {
+                value = initialized;
+            }
+            else
+            {
+                value = this.GetUninitializedObject();
+            }
 
             // We allow the above method to return null (for reference types) because of special cases like arrays,
             //  where the size of the array cannot be known yet, and thus we cannot create an object instance at this time.

@@ -17,7 +17,7 @@
 
 ## 简介
 
-Fink Framework 是一套面向 Unity 游戏项目的开发基础框架，围绕 **UI 系统、数据管线、资源加载、本地化系统与运行时基础服务** 提供完整支撑。框架同时覆盖场景、事件、对象池、计时器、输入、音频与调试工具等常用能力，并以清晰的模块边界减少重复建设，让团队更专注于玩法与内容。
+Fink Framework 是一套面向 Unity 游戏项目的开发基础框架，围绕 **UI 系统、数据管线、存档系统、资源加载、本地化系统与运行时基础服务** 提供完整支撑。框架同时覆盖场景、事件、对象池、计时器、输入、音频与调试工具等常用能力，并以清晰的模块边界减少重复建设，让团队更专注于玩法与内容。
 
 当前正式版本为 **v1.0.0**。框架主体约 3.8 万行 C# 源码，采用 Runtime / Editor 程序集拆分，支持按项目需求选择和组合模块。
 
@@ -28,8 +28,9 @@ Fink Framework 是一套面向 Unity 游戏项目的开发基础框架，围绕 
 | UI 系统 | 重构后的 UI 架构，支持异步加载、面板生命周期、参数注入、转场、导航、模态遮罩、多 Surface 与多 Canvas 场景。 |
 | 本地化系统 | 提供语言设置、运行时清单、文本与资源表、格式化、语言回退，以及导入、导出、质量检查等编辑器工具链。 |
 | 数据管线 | 覆盖 Excel → C# → JSON → Binary 的处理流程，包含代码生成、字段校验、数据 QA、清单生成与路径管理。Binary 模式支持 AES 加密。 |
+| 存档系统 | 提供强类型槽位/全局存档、UniTask 异步读写、自动存档、原子替换、即时与历史备份、损坏恢复及旧 Schema 成员重命名兼容；序列化、AES 与压缩能力复用 DataUtil。 |
 | 资源加载 | 统一同步、异步与句柄式接口；通过 Provider 机制支持 Resources、Editor、File、Web、AssetBundle 与 Addressables。 |
-| 项目设置 | 在 Project Settings 中集中管理框架、数据管线、资源后端、输入、本地化与 UI 等配置；加密策略已归入 Data Pipeline。 |
+| 项目设置 | 在 Project Settings 中集中管理框架、数据管线、存档系统、资源后端、输入、本地化与 UI 等配置；存档 AES 策略复用 Data Pipeline。 |
 | 运行时基础服务 | 内置单例、事件、计时器、对象池、场景切换、输入、音频、日志、数学与 Gizmos 可视化工具。 |
 | 编辑器工具 | 提供数据处理、本地化管理、UI 构建、项目统计、框架欢迎页与设置面板，形成从配置到导出的工作流。 |
 
@@ -42,10 +43,24 @@ Fink Framework 是一套面向 Unity 游戏项目的开发基础框架，围绕 
 ## 快速开始
 
 1. 从 [Releases](https://github.com/finkkk/Fink-Framework/releases) 下载最新 `unitypackage`，或直接克隆本仓库。
-2. 导入后打开 Unity 的 **Project Settings → Fink Framework**，按项目需求完成 Data Pipeline、Resource Backend、Localization、UI 等配置。
-3. 在业务代码中按模块接入 UI、资源、本地化、事件与对象池能力；完整使用方式请查阅下方文档。
+2. 导入后打开 Unity 的 **Project Settings → Fink Framework**，按项目需求完成 Data Pipeline、Save System、Resource Backend、Localization、UI 等配置。
+3. 在业务代码中按模块接入 UI、存档、资源、本地化、事件与对象池能力；完整使用方式请查阅下方文档。
 
 > 建议使用 Unity 2022 LTS 或更高版本。当前项目基于 Unity 2022.3.62f2 验证。
+
+### 存档系统快速示例
+
+```csharp
+using FinkFramework.Runtime.Save;
+
+SaveResult saved = await SaveManager.Instance.SaveAsync(playerSaveData);
+LoadResult<PlayerSaveData> loaded = await SaveManager.Instance.LoadAsync<PlayerSaveData>();
+
+if (loaded.Succeeded)
+    playerSaveData = loaded.Data;
+```
+
+默认使用单槽位 Binary 存档和 `.sav` 后缀。Binary 模式支持数据管线中的 AES 密钥与可选 GZip 压缩；JSON 模式输出可直接查看的 UTF-8 `.json` 文件。每次覆盖会保留即时备份，启用历史功能后还会生成 `_bak1`、`_bak2` 等编号备份；主档不可用时加载流程会自动尝试恢复。需要多槽位、全局存档、自动存档或手动回档时，可使用 `SaveManager` 对应的强类型 API。
 
 ## 项目结构
 
@@ -55,6 +70,7 @@ Assets/FinkFramework/
 │   ├── UI/                  # UI、导航、转场、模态与安全区域
 │   ├── Localization/        # 本地化运行时系统
 │   ├── Data/                # 数据读取、序列化与管线路径
+│   ├── Save/                # 槽位/全局存档、备份恢复与 Schema 兼容
 │   ├── ResLoad/             # Provider 化资源加载
 │   ├── Audio/ Pool/ Timer/  # 常用运行时服务
 │   └── ...
