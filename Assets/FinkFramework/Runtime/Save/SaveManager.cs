@@ -63,6 +63,15 @@ namespace FinkFramework.Runtime.Save
         public bool MultiSlotMode => GetSettings().MultiSlotMode;
 
         /// <summary>
+        /// 打开一个绑定到显式槽位编号的轻量存档封装。
+        /// 封装不会修改全局当前槽位，也不会创建文件；首次保存时才会创建槽位数据。
+        /// </summary>
+        public SaveSlot<T> OpenSlot<T>(int slotId)
+        {
+            return new SaveSlot<T>(this, slotId);
+        }
+
+        /// <summary>
         /// 创建当前版本的默认存档实例。构造函数和字段初始化器会正常执行，
         /// 因而可作为首次进入游戏或加载失败后的显式回退值。
         /// </summary>
@@ -170,31 +179,51 @@ namespace FinkFramework.Runtime.Save
         }
 
         /// <summary>
-        /// 加载当前槽位并直接返回数据。缺档、损坏、取消或其他失败都会返回当前版本
-        /// 默认实例；需要区分失败原因或恢复来源时应使用 <see cref="LoadAsync{T}(CancellationToken)"/>。
+        /// 兼容旧名称的便捷加载方法。只有缺档或成功恢复时返回数据；损坏、取消和其他
+        /// 失败会抛出 <see cref="SaveLoadException{T}"/>。新代码请使用
+        /// <see cref="LoadOrCreateAsync{T}(int, CancellationToken)"/> 或 OpenSlot。
         /// </summary>
         /// <typeparam name="T">存档根类型。</typeparam>
         /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>加载数据或新建的默认实例。</returns>
-        public async UniTask<T> LoadOrDefaultAsync<T>(CancellationToken cancellationToken = default)
+        [Obsolete("LoadOrDefaultAsync 不再对失败静默返回默认值，请使用 LoadOrCreateAsync 或 OpenSlot。")]
+        public UniTask<T> LoadOrDefaultAsync<T>(CancellationToken cancellationToken = default)
         {
-            LoadResult<T> result = await LoadAsync<T>(cancellationToken);
-            return result.Succeeded ? result.Data : CreateDefault<T>();
+            return LoadOrCreateAsync<T>(ResolveSlotId(null), cancellationToken);
         }
 
         /// <summary>
-        /// 加载指定槽位并直接返回数据。任何未获得可用数据的情况都会回退到当前版本默认实例。
+        /// 兼容旧名称的指定槽位便捷加载方法。只有缺档或成功恢复时返回数据；其他失败
+        /// 会抛出 <see cref="SaveLoadException{T}"/>。
         /// </summary>
         /// <typeparam name="T">存档根类型。</typeparam>
         /// <param name="slotId">目标槽位编号。</param>
         /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>加载数据或新建的默认实例。</returns>
-        public async UniTask<T> LoadOrDefaultAsync<T>(
+        [Obsolete("LoadOrDefaultAsync 不再对失败静默返回默认值，请使用 LoadOrCreateAsync 或 OpenSlot。")]
+        public UniTask<T> LoadOrDefaultAsync<T>(
+            int slotId,
+            CancellationToken cancellationToken = default)
+        {
+            return LoadOrCreateAsync<T>(slotId, cancellationToken);
+        }
+
+        /// <summary>
+        /// 加载指定槽位或在缺档时返回当前版本默认数据。
+        /// 损坏、解密失败、版本不兼容和取消不会静默转换为默认数据。
+        /// </summary>
+        public async UniTask<T> LoadOrCreateAsync<T>(
             int slotId,
             CancellationToken cancellationToken = default)
         {
             LoadResult<T> result = await LoadAsync<T>(slotId, cancellationToken);
-            return result.Succeeded ? result.Data : CreateDefault<T>();
+            if (result.HasUsableData)
+                return result.Data;
+
+            if (result.Status == SaveOperationStatus.Cancelled)
+                throw new OperationCanceledException(cancellationToken);
+
+            throw new SaveLoadException<T>(result);
         }
 
         /// <summary>
@@ -232,16 +261,32 @@ namespace FinkFramework.Runtime.Save
         }
 
         /// <summary>
-        /// 加载全局存档并直接返回数据；未获得可用数据时返回当前版本默认实例。
-        /// 需要诊断状态时应使用 <see cref="LoadGlobalAsync{T}"/>。
+        /// 兼容旧名称的全局便捷加载方法。只有缺档或成功恢复时返回数据；损坏、取消
+        /// 和其他失败会抛出 <see cref="SaveLoadException{T}"/>。
         /// </summary>
         /// <typeparam name="T">全局存档根类型。</typeparam>
         /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>加载数据或新建的默认实例。</returns>
-        public async UniTask<T> LoadGlobalOrDefaultAsync<T>(CancellationToken cancellationToken = default)
+        [Obsolete("LoadGlobalOrDefaultAsync 不再对失败静默返回默认值，请使用 LoadGlobalOrCreateAsync。")]
+        public UniTask<T> LoadGlobalOrDefaultAsync<T>(CancellationToken cancellationToken = default)
+        {
+            return LoadGlobalOrCreateAsync<T>(cancellationToken);
+        }
+
+        /// <summary>
+        /// 加载全局存档或在缺档时返回当前版本默认数据。
+        /// 损坏、解密失败、版本不兼容和取消不会静默转换为默认数据。
+        /// </summary>
+        public async UniTask<T> LoadGlobalOrCreateAsync<T>(CancellationToken cancellationToken = default)
         {
             LoadResult<T> result = await LoadGlobalAsync<T>(cancellationToken);
-            return result.Succeeded ? result.Data : CreateDefault<T>();
+            if (result.HasUsableData)
+                return result.Data;
+
+            if (result.Status == SaveOperationStatus.Cancelled)
+                throw new OperationCanceledException(cancellationToken);
+
+            throw new SaveLoadException<T>(result);
         }
 
         /// <summary>
@@ -259,11 +304,11 @@ namespace FinkFramework.Runtime.Save
         }
 
         /// <summary>
-        /// 准备一个多槽位存档位置。由于槽位以单个数据文件表示，本方法只确保共享槽位目录存在；
-        /// 主文件会在第一次调用 <see cref="SaveAsync{T}(T,int,CancellationToken)"/> 时创建。
+        /// 兼容旧 API 的目录准备方法。它不会创建真实存档，新代码应直接执行第一次保存。
         /// </summary>
         /// <param name="slotId">要准备的槽位编号，从 1 开始。</param>
         /// <returns>目录创建结果。</returns>
+        [Obsolete("CreateSlot 只创建目录，不创建存档；请直接保存默认数据。")]
         public SaveResult CreateSlot(int slotId)
         {
             if (!MultiSlotMode)

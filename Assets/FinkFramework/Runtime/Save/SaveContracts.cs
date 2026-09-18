@@ -86,6 +86,9 @@ namespace FinkFramework.Runtime.Save
         /// <summary>仅当 <see cref="Status"/> 为 <see cref="SaveOperationStatus.Success"/> 时为 true。</summary>
         public bool Succeeded => Status == SaveOperationStatus.Success;
 
+        /// <summary>是否需要项目向用户报告本次保存失败。</summary>
+        public bool NeedsUserAction => !Succeeded && Status != SaveOperationStatus.Cancelled;
+
         internal SaveResult(
             SaveOperationStatus status,
             string path,
@@ -143,12 +146,24 @@ namespace FinkFramework.Runtime.Save
             Status == SaveOperationStatus.Success ||
             Status == SaveOperationStatus.FileNotFound;
 
+        /// <summary>是否已经得到可以交给项目使用的数据。</summary>
+        public bool HasUsableData => Succeeded;
+
+        /// <summary>是否因为没有存档而使用了当前版本默认数据。</summary>
+        public bool IsNew => Status == SaveOperationStatus.FileNotFound;
+
+        /// <summary>是否需要项目向用户报告无法读取存档。</summary>
+        public bool NeedsUserAction => !Succeeded && Status != SaveOperationStatus.Cancelled;
+
         /// <summary>是否因文件不存在而返回了当前版本默认数据。</summary>
         public bool UsedDefault => Source == SaveDataSource.Default;
 
         /// <summary>是否绕过主档并从即时备份或历史备份读取成功。</summary>
         public bool Recovered =>
             Source == SaveDataSource.Backup || Source == SaveDataSource.History;
+
+        /// <summary>是否建议项目在完成迁移后重新提交一次主存档进行修复。</summary>
+        public bool NeedsRepair => Recovered;
 
         internal LoadResult(
             SaveOperationStatus status,
@@ -164,6 +179,22 @@ namespace FinkFramework.Runtime.Save
             Path = path;
             Message = message ?? string.Empty;
             Exception = exception;
+        }
+    }
+
+    /// <summary>
+    /// 读取存档的便捷 API 在无法获得有效数据时抛出的异常。
+    /// 需要完整错误结果的项目应继续使用 <see cref="SaveManager.LoadAsync{T}(int, System.Threading.CancellationToken)"/>。
+    /// </summary>
+    public sealed class SaveLoadException<T> : Exception
+    {
+        /// <summary>本次加载的完整结果。</summary>
+        public LoadResult<T> Result { get; }
+
+        internal SaveLoadException(LoadResult<T> result)
+            : base(result?.Message ?? "存档加载失败。", result?.Exception)
+        {
+            Result = result;
         }
     }
 

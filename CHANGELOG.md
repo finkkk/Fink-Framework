@@ -4,6 +4,21 @@
 
 ---
 
+### v1.0.1 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-09-18</span>
+
+存档系统易用性与数据安全性优化
+
+- 新增 `SaveSlot<T>` 显式槽位封装：项目只需绑定一次槽位编号，即可完成加载、保存、判断槽位存在及备份修复，减少重复传参与误用风险。
+- 新增 `LoadOrCreateAsync` 与 `LoadGlobalOrCreateAsync`：仅在存档不存在时使用默认数据，存档损坏、解密失败、版本不兼容或取消不会再静默回退并覆盖原有进度。
+- 兼容旧版 `LoadOrDefaultAsync`、`LoadGlobalOrDefaultAsync` API，同时标记为过时并切换为安全加载语义，降低升级现有项目时的破坏性影响。
+- 新增加载结果辅助状态：提供可用数据、新建存档、需要用户处理及需要修复等清晰判断，简化项目 UI 和错误提示逻辑。
+- 新增 `SaveLoadException<T>`：便捷加载接口失败时保留完整加载结果和原始异常，便于项目统一处理错误。
+- 新增备份恢复后的 `RepairAsync`：项目完成自身数据迁移后，可将已恢复的数据安全重新提交为主存档。
+- 弃用 `CreateSlot`：明确槽位会在第一次成功保存时自动创建，避免“只创建目录但没有实际存档”的使用误解。
+- 全局存档同步采用严格失败语义，避免槽位存档与全局存档在错误处理上的行为不一致。
+
+---
+
 ### v1.0.0 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-09-16</span>
 
 正式版发布：稳定性收敛与工程体验完善
