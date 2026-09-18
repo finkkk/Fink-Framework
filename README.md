@@ -46,22 +46,7 @@ Fink Framework 是一套面向 Unity 游戏项目的开发基础框架，围绕 
 2. 导入后打开 Unity 的 **Project Settings → Fink Framework**，按项目需求完成 Data Pipeline、Save System、Resource Backend、Localization、UI 等配置。
 3. 在业务代码中按模块接入 UI、存档、资源、本地化、事件与对象池能力；完整使用方式请查阅下方文档。
 
-> 建议使用 Unity 2022 LTS 或更高版本。当前项目基于 Unity 2022.3.62f2 验证。
-
-### 存档系统快速示例
-
-```csharp
-using FinkFramework.Runtime.Save;
-
-SaveResult saved = await SaveManager.Instance.SaveAsync(playerSaveData);
-LoadResult<PlayerSaveData> loaded = await SaveManager.Instance.LoadAsync<PlayerSaveData>();
-
-if (loaded.Succeeded)
-    playerSaveData = loaded.Data;
-```
-
-默认使用单槽位 Binary 存档和 `.sav` 后缀。Binary 模式支持数据管线中的 AES 密钥与可选 GZip 压缩；JSON 模式输出可直接查看的 UTF-8 `.json` 文件。每次覆盖会保留即时备份，启用历史功能后还会生成 `_bak1`、`_bak2` 等编号备份；主档不可用时加载流程会自动尝试恢复。需要多槽位、全局存档、自动存档或手动回档时，可使用 `SaveManager` 对应的强类型 API。
-
+> 建议使用 Unity 2022 LTS 或 Unity 6 LTS 及更高版本。当前项目基于 Unity 2022.3.62f2 验证。
 ## 项目结构
 
 ```text
