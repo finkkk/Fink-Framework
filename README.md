@@ -81,13 +81,19 @@ Assets/FinkFramework/
 - [Json.NET Converters（Wanzyee Studio）](https://assetstore.unity.com/packages/tools/input-management/json-net-converters-simple-compatible-solution-58621)
 - 所有分享 Unity 技术与开源成果的开发者
 
-## 开源协议与联系
+## 开源协议与联系方式
 
 本项目采用 [MIT License](LICENSE) 开源。
 
-- 博客：[finkkk.cn](https://finkkk.cn)
-- GitHub：[finkkk](https://github.com/finkkk)
-- QQ：2217183968
-- 微信：FLX2217183968
+如果你在使用过程中遇到问题，或希望讨论框架设计、模块扩展、贡献代码等内容，欢迎加入QQ群聊一起讨论：
 
-欢迎通过 GitHub Issues 提交问题、建议与功能讨论。
+- **QQ群：** 1125852721
+
+也可以欢迎各位开发者添加框架作者的个人联系方式进行交流：
+
+- **QQ：** 2217183968
+- **微信：** FLX2217183968
+- **博客：** https://finkkk.cn
+- **GitHub：** https://github.com/finkkk
+
+你也可以在 GitHub Issue 区提交问题或建议，也可在博客文档下留言进行讨论。
