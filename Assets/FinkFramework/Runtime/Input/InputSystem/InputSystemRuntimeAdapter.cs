@@ -11,7 +11,7 @@ namespace FinkFramework.Runtime.InputSystem
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Register()
         {
-            InputSystemHooks.CreateActivitySource = CreateActivitySource;
+            InputSystemHooks.CreateNewActivitySource = CreateActivitySource;
             InputSystemHooks.GetPointerPosition = GetPointerPosition;
             InputSystemHooks.IsPointerPressed = IsPointerPressed;
             InputSystemHooks.IsNavigationPressed = IsNavigationPressed;
@@ -33,7 +33,7 @@ namespace FinkFramework.Runtime.InputSystem
             }
 
             return Mouse.current != null
-                ? (Vector3)Mouse.current.position.ReadValue()
+                ? Mouse.current.position.ReadValue()
                 : Vector3.zero;
         }
 

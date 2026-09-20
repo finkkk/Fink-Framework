@@ -5,3 +5,4 @@
 [assembly: InternalsVisibleTo("FinkFramework.Save.EditorTests")]
 [assembly: InternalsVisibleTo("FinkFramework.Runtime.URP")]
 [assembly: InternalsVisibleTo("FinkFramework.Runtime.InputSystem")]
+[assembly: InternalsVisibleTo("FinkFramework.Runtime.LegacyInput")]

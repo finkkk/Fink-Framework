@@ -1,5 +1,6 @@
 ﻿using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Utils;
+using FinkFramework.Runtime.Input;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -133,6 +134,10 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         public float MouseMovementDetectionThreshold = DefaultMouseMovementDetectionThreshold;
 
         public const float DefaultMouseMovementDetectionThreshold = 2f;
+
+        [Header("绑定冲突处理模式")]
+        [Tooltip("Warning 允许冲突绑定并由设置界面标红提示；Strict 拒绝冲突绑定。")]
+        public InputConflictMode InputConflictMode = InputConflictMode.Warning;
 
         #endregion
         

@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+// ReSharper disable UnusedAutoPropertyAccessor.Global
 
 namespace FinkFramework.Runtime.Save
 {

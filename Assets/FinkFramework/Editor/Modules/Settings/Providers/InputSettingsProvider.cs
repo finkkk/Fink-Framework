@@ -1,5 +1,6 @@
 using FinkFramework.Editor.Common;
 using FinkFramework.Editor.Modules.Settings.Loaders;
+using FinkFramework.Runtime.Input;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;
@@ -18,9 +19,9 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         [SettingsProvider]
         public static SettingsProvider CreateProvider()
         {
-            return new InputSettingsProvider("Project/Fink Framework/Input", SettingsScope.Project)
+            return new InputSettingsProvider("Project/Fink Framework/Input System", SettingsScope.Project)
             {
-                keywords = new[] { "Fink", "Framework", "Input", "Device", "Gamepad", "Mouse" }
+                keywords = new[] { "Fink", "Framework", "Input", "Input System", "Device", "Gamepad", "Mouse" }
             };
         }
 
@@ -40,7 +41,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             }
 
             GUILayout.Space(10);
-            FFEditorGUI.Center(() => GUILayout.Label("输入配置", FFEditorStyles.Title));
+            FFEditorGUI.Center(() => GUILayout.Label("Input System 配置", FFEditorStyles.Title));
             GUILayout.Space(6);
             EditorGUILayout.LabelField(
                 "配置全局设备输入检测。当前主要设备表示最近一次有效操作的来源，而非设备是否已连接。",
@@ -82,6 +83,16 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                         : "鼠标按键仍会识别为键鼠；仅移动鼠标不会改变当前主要设备。",
                     FFEditorStyles.Description);
             }
+
+            GUILayout.Space(8);
+            asset.InputConflictMode = (InputConflictMode)EditorGUILayout.EnumPopup(
+                "绑定冲突处理模式",
+                asset.InputConflictMode);
+            EditorGUILayout.LabelField(
+                asset.InputConflictMode == InputConflictMode.Warning
+                    ? "允许重复绑定，但绑定信息会标记冲突，设置界面可以将其标红提示。"
+                    : "检测到重复绑定时拒绝本次绑定。",
+                FFEditorStyles.Description);
 
             GUILayout.EndVertical();
             GUILayout.Space(20);

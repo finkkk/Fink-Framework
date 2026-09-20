@@ -1,11 +1,9 @@
-// ReSharper disable RedundantUsingDirective
 using System;
+using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using FinkFramework.Runtime.Singleton;
 using UnityEngine;
-// ReSharper disable UnusedAutoPropertyAccessor.Global
-
 namespace FinkFramework.Runtime.Input
 {
     /// <summary>
@@ -14,22 +12,33 @@ namespace FinkFramework.Runtime.Input
     /// </summary>
     public sealed class DeviceDetectionManager : Singleton<DeviceDetectionManager>
     {
-        private readonly IInputDeviceActivitySource activitySource;
+        private IInputDeviceActivitySource activitySource;
         private readonly Func<DeviceDetectionSettings> settingsProvider;
+        private readonly bool usesInjectedSource;
+        private bool sourceBackendInitialized;
+        private bool sourceUsesNewInputSystem;
 
-        /// <summary>最近一次产生有效操作的设备类别。</summary>
+        /// <summary>
+        /// 最近一次产生有效操作的设备类别；它描述玩家当前主要操作来源，不代表设备连接状态。
+        /// </summary>
         public InputDeviceType CurrentDevice { get; private set; } = InputDeviceType.Unknown;
 
-        /// <summary>当前是否启用了全局设备输入检测。</summary>
+        /// <summary>
+        /// 获取全局设置中是否启用了设备检测。
+        /// 该值每次访问都会读取当前运行时设置，因此运行期间修改设置后无需重建管理器。
+        /// </summary>
         public bool IsDetectionEnabled => settingsProvider().IsEnabled;
 
-        /// <summary>最近主要输入设备改变时触发，参数依次为旧设备与新设备。</summary>
+        /// <summary>
+        /// 最近主要输入设备改变时触发，参数依次为旧设备与新设备。
+        /// 每个订阅者独立执行，一个订阅者抛异常不会阻止其他订阅者。
+        /// </summary>
         public event Action<InputDeviceType, InputDeviceType> DeviceChanged;
 
         private DeviceDetectionManager()
         {
-            activitySource = CreateActivitySource();
             settingsProvider = ReadSettings;
+            EnsureActivitySource();
             DeviceDetectionDriver.Create(this);
         }
 
@@ -39,10 +48,13 @@ namespace FinkFramework.Runtime.Input
         {
             this.activitySource = activitySource ?? throw new ArgumentNullException(nameof(activitySource));
             this.settingsProvider = settingsProvider ?? throw new ArgumentNullException(nameof(settingsProvider));
+            usesInjectedSource = true;
         }
 
         internal void Tick()
         {
+            EnsureActivitySource();
+
             DeviceDetectionSettings settings = settingsProvider();
             if (!settings.IsEnabled)
             {
@@ -61,13 +73,56 @@ namespace FinkFramework.Runtime.Input
 
             InputDeviceType previous = CurrentDevice;
             CurrentDevice = device;
-            DeviceChanged?.Invoke(previous, device);
+            InvokeDeviceChangedSafely(previous, device);
         }
 
-        private static IInputDeviceActivitySource CreateActivitySource()
+        /// <summary>
+        /// 保证活动源与当前最终输入后端一致。
+        /// GlobalSettings 可能晚于本管理器加载，适配器也可能在不同程序集稍后注册，
+        /// 因此不能只在构造函数中永久决定一次后端。
+        /// </summary>
+        private void EnsureActivitySource()
         {
-            return InputSystemHooks.CreateActivitySource?.Invoke()
-                   ?? new LegacyInputDeviceActivitySource();
+            if (usesInjectedSource)
+                return;
+
+            bool useNewInputSystem = EnvironmentState.FinalUseNewInputSystem;
+            if (sourceBackendInitialized
+                && sourceUsesNewInputSystem == useNewInputSystem
+                && activitySource != NullInputDeviceActivitySource.Instance)
+                return;
+
+            bool backendChanged = sourceBackendInitialized
+                                  && sourceUsesNewInputSystem != useNewInputSystem;
+            sourceBackendInitialized = true;
+            sourceUsesNewInputSystem = useNewInputSystem;
+
+            IInputDeviceActivitySource source = useNewInputSystem
+                ? InputSystemHooks.CreateNewActivitySource?.Invoke()
+                : InputSystemHooks.CreateLegacyActivitySource?.Invoke();
+
+            activitySource = source ?? NullInputDeviceActivitySource.Instance;
+            if (backendChanged)
+                SetCurrentDevice(InputDeviceType.Unknown);
+        }
+
+        private void InvokeDeviceChangedSafely(InputDeviceType previous, InputDeviceType current)
+        {
+            if (DeviceChanged == null)
+                return;
+
+            foreach (var @delegate in DeviceChanged.GetInvocationList())
+            {
+                var subscriber = (Action<InputDeviceType, InputDeviceType>)@delegate;
+                try
+                {
+                    subscriber(previous, current);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+            }
         }
 
         private static DeviceDetectionSettings ReadSettings()
@@ -94,10 +149,23 @@ namespace FinkFramework.Runtime.Input
     /// </summary>
     internal static class InputSystemHooks
     {
-        internal static Func<IInputDeviceActivitySource> CreateActivitySource { get; set; }
+        internal static Func<IInputDeviceActivitySource> CreateLegacyActivitySource { get; set; }
+        internal static Func<IInputDeviceActivitySource> CreateNewActivitySource { get; set; }
         internal static Func<Vector3> GetPointerPosition { get; set; }
         internal static Func<bool> IsPointerPressed { get; set; }
         internal static Func<bool> IsNavigationPressed { get; set; }
+    }
+
+    /// <summary>当对应输入后端未注册时，保持设备检测模块可用但不产生设备活动。</summary>
+    internal sealed class NullInputDeviceActivitySource : IInputDeviceActivitySource
+    {
+        internal static readonly NullInputDeviceActivitySource Instance = new();
+
+        public bool TryGetActiveDevice(DeviceDetectionSettings settings, out InputDeviceType device)
+        {
+            device = InputDeviceType.Unknown;
+            return false;
+        }
     }
 
     /// <summary>检测器每帧读取的配置快照，避免适配器依赖具体配置资产。</summary>
