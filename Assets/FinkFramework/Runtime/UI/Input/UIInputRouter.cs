@@ -324,7 +324,7 @@ namespace FinkFramework.Runtime.UI.Input
 
             // 新场景的 EventSystem 销毁后，EventSystem.current 可能暂时为空；
             // 回退到仍存活的常驻 EventSystem，避免 UI 切场景后失去焦点和导航。
-            return UnityEngine.Object.FindObjectOfType<EventSystem>();
+            return UnityEngine.Object.FindFirstObjectByType<EventSystem>();
         }
 
         /// <summary>

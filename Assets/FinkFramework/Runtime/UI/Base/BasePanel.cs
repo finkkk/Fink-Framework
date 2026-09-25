@@ -16,7 +16,7 @@ namespace FinkFramework.Runtime.UI.Base
     {
         private static readonly HashSet<string> TemplateControlNames = new(StringComparer.Ordinal)
         {
-            "Image", "Text (TMP)", "RawImage", "Background", "Checkmark", "Label",
+            "Image", "Text", "Text (TMP)", "RawImage", "Background", "Checkmark", "Label",
             "Text (Legacy)", "Arrow", "Placeholder", "Fill", "Handle", "Viewport",
             "Scrollbar Horizontal", "Scrollbar Vertical"
         };
