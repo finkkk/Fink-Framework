@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using FinkFramework.Runtime.Environments;
-using FinkFramework.Runtime.Input;
-using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.Settings.Loaders;
+using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -11,7 +10,7 @@ using UnityEngine.InputSystem.LowLevel;
 using RebindingOperation = UnityEngine.InputSystem.InputActionRebindingExtensions.RebindingOperation;
 using UnityObject = UnityEngine.Object;
 
-namespace FinkFramework.Runtime.InputSystem
+namespace FinkFramework.Runtime.Input.InputSystem
 {
     /// <summary>
     /// Unity Input System 的统一运行时入口。

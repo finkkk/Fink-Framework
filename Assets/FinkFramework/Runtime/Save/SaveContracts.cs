@@ -184,7 +184,7 @@ namespace FinkFramework.Runtime.Save
 
     /// <summary>
     /// 读取存档的便捷 API 在无法获得有效数据时抛出的异常。
-    /// 需要完整错误结果的项目应继续使用 <see cref="SaveManager.LoadAsync{T}(int, System.Threading.CancellationToken)"/>。
+    /// 需要完整错误结果的项目应继续使用 <see cref="SavesManager.LoadAsync{T}(int, System.Threading.CancellationToken)"/>。
     /// </summary>
     public sealed class SaveLoadException<T> : Exception
     {
@@ -199,7 +199,7 @@ namespace FinkFramework.Runtime.Save
     }
 
     /// <summary>
-    /// 可用于槽位选择界面的只读摘要。属性仅由 <see cref="SaveManager"/> 填充。
+    /// 可用于槽位选择界面的只读摘要。属性仅由 <see cref="SavesManager"/> 填充。
     /// </summary>
     public sealed class SaveSlotInfo
     {

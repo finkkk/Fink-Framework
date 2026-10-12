@@ -1,8 +1,7 @@
 using FinkFramework.Runtime.Environments;
-using FinkFramework.Runtime.Input;
 using UnityEngine;
 
-namespace FinkFramework.Runtime.LegacyInput
+namespace FinkFramework.Runtime.Input.LegacyInput
 {
     /// <summary>把旧版输入设备活动实现注册到 Device 模块。</summary>
     internal static class LegacyInputRuntimeAdapter

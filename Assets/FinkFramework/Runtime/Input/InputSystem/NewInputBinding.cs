@@ -1,9 +1,9 @@
 using System;
-using FinkFramework.Runtime.Input;
 using UnityEngine.InputSystem;
+
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 
-namespace FinkFramework.Runtime.InputSystem
+namespace FinkFramework.Runtime.Input.InputSystem
 {
     /// <summary>新版 Input System 管理与绑定 API 的统一执行结果。</summary>
     public enum NewInputBindingResult
@@ -41,7 +41,7 @@ namespace FinkFramework.Runtime.InputSystem
 
     /// <summary>
     /// 交互式改键选项。
-    /// <see cref="M:FinkFramework.Runtime.InputSystem.NewInputManager.StartRebind(System.String,System.Action{FinkFramework.Runtime.InputSystem.NewInputRebindResult},FinkFramework.Runtime.InputSystem.NewInputRebindOptions)"/>
+    /// <see cref="M:NewInputManager.StartRebind(string,System.Action{FinkFramework.Runtime.Input.InputSystem.NewInputRebindResult},FinkFramework.Runtime.Input.InputSystem.NewInputRebindOptions)"/>
     /// 开始时会复制配置快照，之后修改本对象不会影响进行中的会话。
     /// </summary>
     public sealed class NewInputRebindOptions

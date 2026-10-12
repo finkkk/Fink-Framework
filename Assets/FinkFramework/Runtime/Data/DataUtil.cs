@@ -47,7 +47,7 @@ namespace FinkFramework.Runtime.Data
 
         /// <summary>
         /// 将存档对象编码为 JSON UTF-8 或 Odin Binary 字节，并可选择 AES 加密。
-        /// 本方法不执行文件 IO、校验或备份；完整存档流程通常应调用 <see cref="SaveManager"/>。
+        /// 本方法不执行文件 IO、校验或备份；完整存档流程通常应调用 <see cref="SavesManager"/>。
         /// </summary>
         /// <typeparam name="T">存档根类型。</typeparam>
         /// <param name="data">要编码的非空数据。</param>

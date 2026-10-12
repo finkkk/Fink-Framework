@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityInput = UnityEngine.Input;
 
-namespace FinkFramework.Runtime.Input
+namespace FinkFramework.Runtime.Input.LegacyInput
 {
     /// <summary>
     /// Legacy Input Manager 的输入活动适配器。

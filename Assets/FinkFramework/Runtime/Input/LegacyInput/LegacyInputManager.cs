@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using FinkFramework.Runtime.Environments;
 using FinkFramework.Runtime.Event;
+using FinkFramework.Runtime.LegacyInput;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Singleton;
 using FinkFramework.Runtime.Utils;
 using UnityEngine;
 using UnityInput = UnityEngine.Input;
 
-namespace FinkFramework.Runtime.LegacyInput
+namespace FinkFramework.Runtime.Input.LegacyInput
 {
     /// <summary>
     /// 旧版输入系统管理器。

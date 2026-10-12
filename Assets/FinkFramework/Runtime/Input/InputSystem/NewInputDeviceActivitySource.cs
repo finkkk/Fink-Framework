@@ -1,8 +1,7 @@
-using FinkFramework.Runtime.Input;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace FinkFramework.Runtime.InputSystem
+namespace FinkFramework.Runtime.Input.InputSystem
 {
     /// <summary>Input System Package 的输入活动适配器。</summary>
     internal sealed class NewInputDeviceActivitySource : IInputDeviceActivitySource

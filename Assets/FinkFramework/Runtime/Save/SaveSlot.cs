@@ -12,9 +12,9 @@ namespace FinkFramework.Runtime.Save
     /// <typeparam name="T">槽位根数据类型。</typeparam>
     public sealed class SaveSlot<T>
     {
-        private readonly SaveManager storage;
+        private readonly SavesManager storage;
 
-        internal SaveSlot(SaveManager storage, int slotId)
+        internal SaveSlot(SavesManager storage, int slotId)
         {
             this.storage = storage ?? throw new ArgumentNullException(nameof(storage));
             SlotId = slotId;

@@ -19,11 +19,11 @@ using UnityEngine;
 namespace FinkFramework.Runtime.Save
 {
     /// <summary>
-    /// 强类型存档入口。DataUtil 负责数据编码；SaveManager 负责作用域、队列、
+    /// 强类型存档入口。DataUtil 负责数据编码；SavesManager 负责作用域、队列、
     /// 文件校验、原子替换、备份与恢复。存档格式和二进制后缀独立于数据管线，
     /// AES 开关与密钥仍复用全局数据管线配置。
     /// </summary>
-    public sealed class SaveManager : Singleton<SaveManager>
+    public sealed class SavesManager : Singleton<SavesManager>
     {
         private const int DefaultSlotId = 1;
         private const string RootFolderName = "FinkFramework_Save";
@@ -40,7 +40,7 @@ namespace FinkFramework.Runtime.Save
         private readonly string rootPath;
         private int currentSlotId = DefaultSlotId;
 
-        private SaveManager()
+        private SavesManager()
         {
             // 在主线程完成 Resources 配置加载，后台存档任务只读取缓存值。
             _ = GetSettings();

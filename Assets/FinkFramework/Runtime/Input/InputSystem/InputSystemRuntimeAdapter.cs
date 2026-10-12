@@ -1,9 +1,8 @@
 using FinkFramework.Runtime.Environments;
-using FinkFramework.Runtime.Input;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace FinkFramework.Runtime.InputSystem
+namespace FinkFramework.Runtime.Input.InputSystem
 {
     /// <summary>Input System 对框架核心输入模块的运行时适配器。</summary>
     internal static class InputSystemRuntimeAdapter
