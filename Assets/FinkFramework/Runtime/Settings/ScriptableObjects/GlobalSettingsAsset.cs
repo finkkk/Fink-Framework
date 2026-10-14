@@ -147,6 +147,54 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
         [Tooltip("只控制框架默认 Main Surface。场景中的世界空间 UI 请使用独立 Canvas + UISurfaceRoot。")]
         public EnvironmentState.UIMode CurrentUIMode = EnvironmentState.UIMode.Auto;
 
+        [Header("使用自定义 Main Canvas")]
+        [Tooltip("开启后使用指定预制体的缩放与排序等设置；渲染模式仍由 Main Surface 渲染模式决定。")]
+        public bool UseCustomMainCanvas = false;
+
+        [Tooltip("预制体根对象必须带有 Canvas；已有层节点会复用，缺失层节点由框架补齐。")]
+        public GameObject CustomMainCanvasPrefab;
+        
+        [Header("Main Canvas 屏幕缩放模式")]
+        public UnityEngine.UI.CanvasScaler.ScaleMode UICanvasScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+
+        [Tooltip("UI 的设计分辨率，仅在随屏幕尺寸缩放时生效。")]
+        public Vector2 UIReferenceResolution = new(1920f, 1080f);
+
+        public UnityEngine.UI.CanvasScaler.ScreenMatchMode UIScreenMatchMode = UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand;
+
+        [Range(0f, 1f)]
+        [Tooltip("0 匹配宽度，1 匹配高度；仅在 MatchWidthOrHeight 模式生效。")]
+        public float UIMatchWidthOrHeight = 0f;
+
+        [Min(0.01f)]
+        [Tooltip("仅在固定像素尺寸模式生效。")]
+        public float UIScaleFactor = 1f;
+
+        [Min(0.01f)]
+        public float UIReferencePixelsPerUnit = 100f;
+
+        public UnityEngine.UI.CanvasScaler.Unit UIPhysicalUnit =
+            UnityEngine.UI.CanvasScaler.Unit.Points;
+
+        [Min(1f)]
+        public float UIFallbackScreenDPI = 96f;
+
+        [Min(1f)]
+        public float UIDefaultSpriteDPI = 96f;
+
+        [Header("Main Canvas 渲染排序")]
+        [Tooltip("Sorting Layer 的 ID，只应用于框架默认 Main Canvas。")]
+        public int UICanvasSortingLayerId = 0;
+
+        public int UICanvasSortingOrder = 0;
+
+        [Min(0.01f)]
+        [Tooltip("仅在 Screen Space - Camera 模式生效，必须位于 UI 相机裁剪范围内。")]
+        public float UICanvasPlaneDistance = 100f;
+
+        [Tooltip("仅在屏幕空间模式生效。")]
+        public bool UICanvasPixelPerfect = false;
+
         [Header("按输入设备自动管理导航交互")]
         [Tooltip("开启后，设备输入检测管理器会在 PC 键鼠或触摸输入时关闭导航交互、在手柄输入时重新开启。"
                  + "此功能依赖设备输入检测已启用；关闭此项后不再自动切换，导航交互始终保持开启。")]

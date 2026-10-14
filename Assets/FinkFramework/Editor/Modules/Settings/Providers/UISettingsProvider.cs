@@ -69,20 +69,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             GUILayout.Space(10);
 
             // ===== 主区域 =====
-            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
-
-            EditorGUILayout.LabelField("Main Surface 渲染设置", FFEditorStyles.SectionTitle);
-            GUILayout.Space(6);
-            asset.CurrentUIMode = (Runtime.Environments.EnvironmentState.UIMode)EditorGUILayout.EnumPopup("Main Surface 渲染模式", asset.CurrentUIMode);
-            EditorGUILayout.LabelField(
-                "<b>ScreenSpace:</b> 普通 2D UI（适用于大多数项目）\n" +
-                "<b>WorldSpace:</b> 仅让框架默认 Main Surface 使用世界空间\n" +
-                "<b>Auto:</b> 自动判断当前项目是否为 VR 模式。\n" +
-                "若为 VR → Main 使用 WorldSpace；否则使用 ScreenSpace。\n" +
-                "普通世界面板请在场景 Canvas 上添加 UISurfaceRoot，不需要切换这里。",
-                FFEditorStyles.Description);
-
-            GUILayout.EndVertical();
+            DrawMainCanvasSettings();
 
             GUILayout.Space(12);
             DrawNavigationInteractionSettings();
@@ -103,6 +90,183 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             {
                 EditorUtility.SetDirty(asset);
                 AssetDatabase.SaveAssets();
+            }
+        }
+
+        private void DrawCustomCanvasSettings()
+        {
+            GameObject selected = (GameObject)EditorGUILayout.ObjectField(
+                "Main Canvas 预制体", asset.CustomMainCanvasPrefab, typeof(GameObject), false);
+            if (selected != asset.CustomMainCanvasPrefab)
+            {
+                if (!selected || PrefabUtility.IsPartOfPrefabAsset(selected)
+                    && selected.transform.parent == null && selected.GetComponent<Canvas>())
+                    asset.CustomMainCanvasPrefab = selected;
+                else
+                    Debug.LogError("请选择根对象带有 Canvas 的预制体资产。");
+            }
+
+            GameObject prefab = asset.CustomMainCanvasPrefab;
+            if (!prefab || !PrefabUtility.IsPartOfPrefabAsset(prefab)
+                || prefab.transform.parent != null || !prefab.GetComponent<Canvas>())
+                EditorGUILayout.HelpBox("必须指定根对象带有 Canvas 的预制体；无效配置会阻止 UI 初始化。", MessageType.Error);
+            else
+            {
+                Canvas prefabCanvas = prefab.GetComponent<Canvas>();
+                bool mayOverride = asset.CurrentUIMode == Runtime.Environments.EnvironmentState.UIMode.Auto
+                    || prefabCanvas.renderMode != (asset.CurrentUIMode == Runtime.Environments.EnvironmentState.UIMode.WorldSpace
+                        ? RenderMode.WorldSpace : RenderMode.ScreenSpaceCamera);
+                if (mayOverride)
+                    EditorGUILayout.HelpBox(
+                        $"预制体当前渲染模式为 {prefabCanvas.renderMode}；运行时以 Main Surface 渲染模式为准。"
+                        + "Auto 会根据 VR 环境选择 World Space 或 Screen Space - Camera。",
+                        MessageType.Info);
+                foreach (Runtime.UI.UILayer layer in System.Enum.GetValues(typeof(Runtime.UI.UILayer)))
+                {
+                    int count = 0;
+                    foreach (Transform child in prefab.transform)
+                    {
+                        if (child.name != layer.ToString())
+                            continue;
+                        count++;
+                        if (!(child is RectTransform))
+                            EditorGUILayout.HelpBox($"{layer} 层需要使用 RectTransform。", MessageType.Error);
+                    }
+                    if (count > 1)
+                        EditorGUILayout.HelpBox($"存在重复的直接子节点 {layer}，请修正预制体。", MessageType.Error);
+                }
+            }
+            EditorGUILayout.HelpBox(
+                "渲染模式始终遵循 Main Surface 配置；缩放、排序等其余设置使用预制体自身参数。"
+                + "保留所有子物体，复用或补齐 Bottom / Middle / Top / System，并按层顺序排列。"
+                + "Camera 模式绑定框架 UI 相机；World Space 未指定事件相机时尝试使用主相机。",
+                MessageType.Info);
+        }
+
+        private void DrawMainCanvasSettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            EditorGUILayout.LabelField("Main Canvas 基础设置", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+            EditorGUILayout.LabelField(
+                "在 UI 系统初始化时应用，仅影响框架默认 Main Canvas；修改后需重新运行。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(6);
+            asset.CurrentUIMode = (Runtime.Environments.EnvironmentState.UIMode)
+                EditorGUILayout.EnumPopup("Main Surface 渲染模式", asset.CurrentUIMode);
+            EditorGUILayout.LabelField(
+                "<b>ScreenSpace:</b> 普通 2D UI（适用于大多数项目）\n" +
+                "<b>WorldSpace:</b> 仅让框架默认 Main Surface 使用世界空间\n" +
+                "<b>Auto:</b> 自动判断当前项目是否为 VR 模式。\n" +
+                "若为 VR → Main 使用 WorldSpace；否则使用 ScreenSpace。\n" +
+                "普通世界面板请在场景 Canvas 上添加 UISurfaceRoot，不需要切换这里。",
+                FFEditorStyles.Description);
+            GUILayout.Space(6);
+
+            asset.UseCustomMainCanvas = EditorGUILayout.Toggle("使用自定义 Main Canvas", asset.UseCustomMainCanvas);
+            if (asset.UseCustomMainCanvas)
+            {
+                DrawCustomCanvasSettings();
+                DrawResetMainCanvasButton();
+                GUILayout.EndVertical();
+                return;
+            }
+
+            bool worldSpace = asset.CurrentUIMode == Runtime.Environments.EnvironmentState.UIMode.WorldSpace;
+            using (new EditorGUI.DisabledScope(worldSpace))
+            {
+                asset.UICanvasScaleMode = (UnityEngine.UI.CanvasScaler.ScaleMode)
+                    EditorGUILayout.EnumPopup("屏幕缩放模式", asset.UICanvasScaleMode);
+                switch (asset.UICanvasScaleMode)
+                {
+                    case UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize:
+                        Vector2 resolution = EditorGUILayout.Vector2Field("参考分辨率", asset.UIReferenceResolution);
+                        asset.UIReferenceResolution = new Vector2(
+                            Mathf.Max(1f, resolution.x), Mathf.Max(1f, resolution.y));
+                        asset.UIScreenMatchMode = (UnityEngine.UI.CanvasScaler.ScreenMatchMode)
+                            EditorGUILayout.EnumPopup("屏幕适配模式", asset.UIScreenMatchMode);
+                        if (asset.UIScreenMatchMode == UnityEngine.UI.CanvasScaler.ScreenMatchMode.MatchWidthOrHeight)
+                            asset.UIMatchWidthOrHeight = EditorGUILayout.Slider(
+                                "宽高匹配（0 宽 / 1 高）", asset.UIMatchWidthOrHeight, 0f, 1f);
+                        break;
+                    case UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize:
+                        asset.UIScaleFactor = Mathf.Max(0.01f,
+                            EditorGUILayout.FloatField("缩放倍率", asset.UIScaleFactor));
+                        break;
+                    case UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPhysicalSize:
+                        asset.UIPhysicalUnit = (UnityEngine.UI.CanvasScaler.Unit)
+                            EditorGUILayout.EnumPopup("物理尺寸单位", asset.UIPhysicalUnit);
+                        asset.UIFallbackScreenDPI = Mathf.Max(1f,
+                            EditorGUILayout.FloatField("备用屏幕 DPI", asset.UIFallbackScreenDPI));
+                        asset.UIDefaultSpriteDPI = Mathf.Max(1f,
+                            EditorGUILayout.FloatField("默认 Sprite DPI", asset.UIDefaultSpriteDPI));
+                        break;
+                }
+                asset.UIReferencePixelsPerUnit = Mathf.Max(0.01f,
+                    EditorGUILayout.FloatField("参考每单位像素数", asset.UIReferencePixelsPerUnit));
+                asset.UICanvasPixelPerfect = EditorGUILayout.Toggle("像素对齐", asset.UICanvasPixelPerfect);
+                asset.UICanvasPlaneDistance = Mathf.Max(0.01f,
+                    EditorGUILayout.FloatField("距 UI 相机距离", asset.UICanvasPlaneDistance));
+            }
+            if (worldSpace)
+                EditorGUILayout.HelpBox("世界空间模式不应用上述屏幕缩放参数。Auto 在 VR 下同样不应用。", MessageType.Info);
+
+            GUILayout.Space(6);
+            SortingLayer[] layers = SortingLayer.layers;
+            string[] layerNames = new string[layers.Length];
+            int selectedLayer = -1;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                layerNames[i] = layers[i].name;
+                if (layers[i].id == asset.UICanvasSortingLayerId)
+                    selectedLayer = i;
+            }
+            int newLayer = EditorGUILayout.Popup("排序层", selectedLayer, layerNames);
+            if (newLayer >= 0 && newLayer < layers.Length)
+                asset.UICanvasSortingLayerId = layers[newLayer].id;
+            if (selectedLayer < 0)
+                EditorGUILayout.HelpBox("配置的排序层已不存在，请重新选择。", MessageType.Warning);
+            asset.UICanvasSortingOrder = EditorGUILayout.IntField("层内排序", asset.UICanvasSortingOrder);
+            EditorGUILayout.LabelField(
+                "距 UI 相机距离应位于相机的 Near / Far 裁剪范围内。世界空间 Canvas 的布局保留预制体设置。",
+                FFEditorStyles.Description);
+            DrawResetMainCanvasButton();
+            GUILayout.EndVertical();
+        }
+
+        private void DrawResetMainCanvasButton()
+        {
+            GUILayout.Space(6);
+            if (!GUILayout.Button("恢复 Main Canvas 默认设置"))
+                return;
+
+            // 从字段初始化值读取默认值，仅复制本板块字段，不重置整个配置资产。
+            GlobalSettingsAsset defaults = ScriptableObject.CreateInstance<GlobalSettingsAsset>();
+            try
+            {
+                Undo.RecordObject(asset, "恢复 Main Canvas 默认设置");
+                asset.CurrentUIMode = defaults.CurrentUIMode;
+                asset.UseCustomMainCanvas = defaults.UseCustomMainCanvas;
+                asset.CustomMainCanvasPrefab = defaults.CustomMainCanvasPrefab;
+                asset.UICanvasScaleMode = defaults.UICanvasScaleMode;
+                asset.UIReferenceResolution = defaults.UIReferenceResolution;
+                asset.UIScreenMatchMode = defaults.UIScreenMatchMode;
+                asset.UIMatchWidthOrHeight = defaults.UIMatchWidthOrHeight;
+                asset.UIScaleFactor = defaults.UIScaleFactor;
+                asset.UIReferencePixelsPerUnit = defaults.UIReferencePixelsPerUnit;
+                asset.UIPhysicalUnit = defaults.UIPhysicalUnit;
+                asset.UIFallbackScreenDPI = defaults.UIFallbackScreenDPI;
+                asset.UIDefaultSpriteDPI = defaults.UIDefaultSpriteDPI;
+                asset.UICanvasSortingLayerId = defaults.UICanvasSortingLayerId;
+                asset.UICanvasSortingOrder = defaults.UICanvasSortingOrder;
+                asset.UICanvasPlaneDistance = defaults.UICanvasPlaneDistance;
+                asset.UICanvasPixelPerfect = defaults.UICanvasPixelPerfect;
+                GUI.changed = true;
+            }
+            finally
+            {
+                Object.DestroyImmediate(defaults);
             }
         }
 
