@@ -5,7 +5,9 @@
 ---
 
 ### v1.1.3 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-10-14</span>
+
 UI 配置完善与自定义 Canvas 支持
+
 - 新增 Main Canvas 基础配置，支持参考分辨率、缩放模式、屏幕适配、像素对齐及渲染排序等设置。
 - 新增自定义 Main Canvas 预制体选项，支持复用已有层节点并自动补齐缺失节点，保留其他子物体。
 - 统一 Main Surface 渲染模式判断与 UI Camera 绑定逻辑。
