@@ -200,6 +200,69 @@ namespace FinkFramework.Runtime.Settings.ScriptableObjects
                  + "此功能依赖设备输入检测已启用；关闭此项后不再自动切换，导航交互始终保持开启。")]
         public bool EnableAutoNavigationInteractionByInputDevice = true;
 
+        [Header("UI 面板加载")]
+        [Tooltip("Resources：使用原有面板目录；跟随资源后端：按面板类名加载；自定义：由运行时地址解析器提供路径。")]
+        public FinkFramework.Runtime.UI.UIPanelLoadSource UIPanelLoadSource =
+            FinkFramework.Runtime.UI.UIPanelLoadSource.Resources;
+
+        [Tooltip("跟随 AssetBundle 后端时使用的 UI 包名，路径为 ab://包名/面板类名。包名不能包含斜杠。")]
+        public string UIPanelAssetBundleName = "ui";
+
+        [Tooltip("Addressables 面板自动加入的资源组。组不存在时由生成器创建。")]
+        public string UIPanelAddressablesGroup = "UI Panels";
+
+        [Tooltip("非 Resources 面板的 Assets 下相对输出目录。切换来源不会移动已有资源。")]
+        public string UIPanelExternalPrefabOutputRelativePath = DefaultUIPanelExternalPrefabOutputRelativePath;
+
+        public const string DefaultUIPanelExternalPrefabOutputRelativePath = "GameAssets/UI/Panels";
+
+        public bool UIPanelUsesResources =>
+            UIPanelLoadSource == FinkFramework.Runtime.UI.UIPanelLoadSource.Resources
+            || UIPanelLoadSource == FinkFramework.Runtime.UI.UIPanelLoadSource.FollowResourceBackend
+                && ResourceBackend == EnvironmentState.ResourceBackendType.None;
+
+        /// <summary>校验当前来源使用的生成目录；Resources 的旧字段保持原有含义。</summary>
+        public bool TryGetUIPanelPrefabOutputPath(out string path, out string error)
+        {
+            path = string.Empty;
+            if (UIPanelUsesResources)
+            {
+                if (!TryNormalizeUIPanelPrefabOutputRelativePath(UIPanelPrefabOutputRelativePath,
+                        out string relative, out error))
+                    return false;
+                path = "Assets/" + relative;
+                return true;
+            }
+
+            if (!TryNormalizeUIPanelExternalPrefabOutputRelativePath(UIPanelExternalPrefabOutputRelativePath,
+                    out string external, out error))
+                return false;
+            path = "Assets/" + external;
+            return true;
+        }
+
+        public static bool TryNormalizeUIPanelExternalPrefabOutputRelativePath(
+            string value, out string normalized, out string error)
+        {
+            string raw = value?.Trim().Replace('\\', '/');
+            if (raw != null && raw.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring("Assets/".Length);
+            if (!TryNormalizeRelativeFolderPath(raw, DefaultUIPanelExternalPrefabOutputRelativePath,
+                    "非 Resources 预制体输出目录", out normalized, out error))
+                return false;
+            foreach (string segment in normalized.Split('/'))
+            {
+                if (string.Equals(segment, "Resources", System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(segment, "Editor", System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(segment, "StreamingAssets", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "非 Resources 面板目录不能位于 Resources、Editor 或 StreamingAssets 下。";
+                    return false;
+                }
+            }
+            return true;
+        }
+
         [Header("UI 面板脚本输出目录")]
         [Tooltip("全局脚本根目录后的相对目录，例如 UI/Panels。")]
         [FormerlySerializedAs("UIPanelScriptOutputPath")]

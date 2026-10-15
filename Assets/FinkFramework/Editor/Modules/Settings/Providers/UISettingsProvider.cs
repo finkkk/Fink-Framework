@@ -1,5 +1,6 @@
 ﻿using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Common;
+using FinkFramework.Editor.Modules.UI;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;
@@ -12,6 +13,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         private GlobalSettingsAsset asset;
         private string scriptOutputPathDraft;
         private string prefabOutputPathDraft;
+        private bool prefabDraftUsesResources;
 
         public UISettingsProvider(string path, SettingsScope scope)
             : base(path, scope) { }
@@ -31,7 +33,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         {
             return new UISettingsProvider("Project/Fink Framework/UI Settings", SettingsScope.Project)
             {
-                keywords = new[] { "Fink", "Framework", "UI", "Settings", "Canvas" }
+                keywords = new[] { "Fink", "Framework", "UI", "Settings", "Canvas", "Resources", "Addressables" }
             };
         }
 
@@ -73,6 +75,9 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUILayout.Space(12);
             DrawNavigationInteractionSettings();
+
+            GUILayout.Space(12);
+            DrawPanelLoadingSettings();
 
             GUILayout.Space(12);
             DrawPanelPathSettings();
@@ -278,13 +283,88 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             scriptOutputPathDraft = GlobalSettingsAsset.NormalizeUIPanelScriptOutputSuffix(
                 asset.UIPanelScriptOutputSuffix,
                 asset.ScriptRootDirectory);
-            prefabOutputPathDraft = GlobalSettingsAsset.NormalizeUIPanelPrefabOutputRelativePath(
-                asset.UIPanelPrefabOutputRelativePath);
+            prefabDraftUsesResources = asset.UIPanelUsesResources;
+            prefabOutputPathDraft = prefabDraftUsesResources
+                ? asset.UIPanelPrefabOutputRelativePath
+                : asset.UIPanelExternalPrefabOutputRelativePath;
+        }
+
+        private void DrawPanelLoadingSettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            EditorGUILayout.LabelField("面板资源加载", FFEditorStyles.SectionTitle);
+            GUILayout.Space(6);
+
+            EditorGUI.BeginChangeCheck();
+            int source = EditorGUILayout.Popup("加载来源", (int)asset.UIPanelLoadSource,
+                new[] { "Resources", "跟随资源后端", "自定义" });
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(asset, "修改 UI 面板加载来源");
+                asset.UIPanelLoadSource = (Runtime.UI.UIPanelLoadSource)source;
+            }
+
+            switch (asset.UIPanelLoadSource)
+            {
+                case Runtime.UI.UIPanelLoadSource.Resources:
+                    EditorGUILayout.HelpBox("从下方面板生成目录对应的 Resources 路径加载，保持原有行为。", MessageType.Info);
+                    break;
+                case Runtime.UI.UIPanelLoadSource.FollowResourceBackend:
+                    EditorGUILayout.LabelField("当前资源后端", asset.ResourceBackend.ToString());
+                    switch (asset.ResourceBackend)
+                    {
+                        case Runtime.Environments.EnvironmentState.ResourceBackendType.None:
+                            EditorGUILayout.HelpBox("未启用构建型资源后端，面板继续从 Resources 加载。", MessageType.Info);
+                            break;
+                        case Runtime.Environments.EnvironmentState.ResourceBackendType.Addressables:
+                            asset.UIPanelAddressablesGroup = EditorGUILayout.TextField("UI Addressables Group", asset.UIPanelAddressablesGroup);
+                            EditorGUILayout.HelpBox(
+                                "生成器会自动加入指定 Group（不存在时创建），Address 使用唯一面板类名（区分大小写）。"
+                                + "使用 OpenAsync<T>() 打开；同步 Open<T>() 需要先完成相同 Surface / InstanceId 的预加载。"
+                                + "默认使用 PreloadAsync<T>()；资源后端开启 Allow Sync Load 后也可使用同步 Preload<T>()。"
+                                + "已有面板不会自动迁移或修改 Address。", MessageType.Info);
+                            break;
+                        case Runtime.Environments.EnvironmentState.ResourceBackendType.AssetBundle:
+                            asset.UIPanelAssetBundleName = EditorGUILayout.TextField("UI AssetBundle 包名", asset.UIPanelAssetBundleName);
+                            string bundle = asset.UIPanelAssetBundleName?.Trim();
+                            if (string.IsNullOrWhiteSpace(bundle) || bundle.Contains("/") || bundle.Contains("\\"))
+                                EditorGUILayout.HelpBox("包名不能为空或包含斜杠。", MessageType.Error);
+                            EditorGUILayout.HelpBox("生成器会自动设置小写包名，使用 ab://包名/面板类名。资源包需另行构建。", MessageType.Info);
+                            break;
+                        case Runtime.Environments.EnvironmentState.ResourceBackendType.Custom:
+                            DrawCustomPanelLoadingHelp();
+                            break;
+                    }
+                    break;
+                case Runtime.UI.UIPanelLoadSource.Custom:
+                    DrawCustomPanelLoadingHelp();
+                    break;
+            }
+
+            try
+            {
+                UIPanelBuildRegistration.Capture(asset).Validate("", "");
+            }
+            catch (System.Exception exception)
+            {
+                EditorGUILayout.HelpBox(exception.Message, MessageType.Error);
+            }
+
+            GUILayout.EndVertical();
+        }
+
+        private static void DrawCustomPanelLoadingHelp()
+        {
+            EditorGUILayout.HelpBox(
+                "启动时设置 UIManager.Instance.CustomPanelAssetPathResolver，按面板类型返回完整资源地址；"
+                + "对应协议的 Provider 通过 ResManager.AddProvider 注册。生成器只创建脚本和预制体，资源注册由项目自行处理。"
+                + "业务仍使用 OpenAsync<T>()。", MessageType.Info);
         }
 
         private void DrawPanelPathSettings()
         {
-            if (scriptOutputPathDraft == null || prefabOutputPathDraft == null)
+            if (scriptOutputPathDraft == null || prefabOutputPathDraft == null
+                || prefabDraftUsesResources != asset.UIPanelUsesResources)
                 SyncPathDrafts();
 
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
@@ -319,20 +399,29 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUILayout.Space(4);
             DrawPathField(
-                "UI 预制体输出路径",
+                asset.UIPanelUsesResources ? "Resources 预制体目录" : "非 Resources 预制体目录",
                 "Assets/",
                 ref prefabOutputPathDraft);
-            if (GlobalSettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
-                    prefabOutputPathDraft,
-                    out string normalizedPrefabPath,
-                    out string prefabPathError))
+            string normalizedPrefabPath;
+            string prefabPathError;
+            bool validPrefabPath = asset.UIPanelUsesResources
+                ? GlobalSettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
+                    prefabOutputPathDraft, out normalizedPrefabPath, out prefabPathError)
+                : GlobalSettingsAsset.TryNormalizeUIPanelExternalPrefabOutputRelativePath(
+                    prefabOutputPathDraft, out normalizedPrefabPath, out prefabPathError);
+            if (validPrefabPath)
             {
+                string currentPath = asset.UIPanelUsesResources
+                    ? asset.UIPanelPrefabOutputRelativePath : asset.UIPanelExternalPrefabOutputRelativePath;
                 if (!string.Equals(
-                        asset.UIPanelPrefabOutputRelativePath,
+                        currentPath,
                         normalizedPrefabPath,
                         System.StringComparison.Ordinal))
                 {
-                    asset.UIPanelPrefabOutputRelativePath = normalizedPrefabPath;
+                    if (asset.UIPanelUsesResources)
+                        asset.UIPanelPrefabOutputRelativePath = normalizedPrefabPath;
+                    else
+                        asset.UIPanelExternalPrefabOutputRelativePath = normalizedPrefabPath;
                     GUI.changed = true;
                 }
             }
@@ -343,17 +432,22 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUILayout.Space(6);
             EditorGUILayout.LabelField(
-                "代码路径前缀跟随全局脚本根目录；预制体目录必须位于 Resources 下。"
-                + "UIManager 的公共打开与预加载接口会自动从该目录加载面板。"
+                "代码路径前缀跟随全局脚本根目录。Resources 与非 Resources 目录分别保存，切换来源不会移动已有面板。"
+                + (asset.UIPanelUsesResources ? "当前目录必须位于 Resources 下。" : "当前目录不能位于 Resources、Editor 或 StreamingAssets 下。")
                 + "预制体名称必须与对应面板脚本类名完全一致。",
                 FFEditorStyles.Description);
 
             if (GUILayout.Button("恢复默认路径"))
             {
                 scriptOutputPathDraft = GlobalSettingsAsset.DefaultUIPanelScriptOutputSuffix;
-                prefabOutputPathDraft = GlobalSettingsAsset.DefaultUIPanelPrefabOutputRelativePath;
+                prefabOutputPathDraft = asset.UIPanelUsesResources
+                    ? GlobalSettingsAsset.DefaultUIPanelPrefabOutputRelativePath
+                    : GlobalSettingsAsset.DefaultUIPanelExternalPrefabOutputRelativePath;
                 asset.UIPanelScriptOutputSuffix = scriptOutputPathDraft;
-                asset.UIPanelPrefabOutputRelativePath = prefabOutputPathDraft;
+                if (asset.UIPanelUsesResources)
+                    asset.UIPanelPrefabOutputRelativePath = prefabOutputPathDraft;
+                else
+                    asset.UIPanelExternalPrefabOutputRelativePath = prefabOutputPathDraft;
                 GUI.changed = true;
             }
 

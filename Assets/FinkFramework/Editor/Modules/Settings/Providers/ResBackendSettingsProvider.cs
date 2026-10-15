@@ -84,6 +84,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 EditorGUILayout.EnumPopup("资源后端类型", asset.ResourceBackend);
 
             DrawBackendDescription(asset.ResourceBackend);
+            DrawBackendAvailability(asset.ResourceBackend);
 
             GUILayout.Space(14);
             
@@ -152,6 +153,36 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             EditorGUILayout.LabelField(desc, FFEditorStyles.Description);
         }
         
+        private static void DrawBackendAvailability(EnvironmentState.ResourceBackendType backend)
+        {
+            if (backend != EnvironmentState.ResourceBackendType.Addressables)
+                return;
+
+            // 仅检查可选运行时后端，不引入 Addressables 包类型或 UI 生成器依赖。
+            // 未安装包时该程序集不会参与编译，仍可安全显示配置页。
+            const string providerTypeName =
+                "FinkFramework.Runtime.ResLoad.Providers.AddressablesProvider, FinkFramework.Addressables";
+            bool available;
+            try
+            {
+                System.Type providerType = System.Type.GetType(providerTypeName);
+                available = providerType != null
+                    && !providerType.IsAbstract
+                    && typeof(Runtime.ResLoad.Base.IResProvider).IsAssignableFrom(providerType);
+            }
+            catch (System.Exception)
+            {
+                // 缺少依赖程序集时同样显示安装/修复提示，避免配置页绘制失败。
+                available = false;
+            }
+
+            if (!available)
+                EditorGUILayout.HelpBox(
+                    "Addressables 资源后端不可用。请安装 com.unity.addressables，"
+                    + "并确认 FinkFramework.Addressables 程序集没有编译错误。",
+                    MessageType.Error);
+        }
+
         private ScriptableObject GetCurrentBackendSettings()
         {
             return asset.ResourceBackend switch

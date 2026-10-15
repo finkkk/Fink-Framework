@@ -61,6 +61,17 @@ namespace FinkFramework.Runtime.UI
         public UIInputMode InputMode => inputRouter.Mode;
 
         /// <summary>
+        /// 自定义来源（或跟随 Custom 后端）使用的面板地址解析器。
+        /// 输入唯一面板类型，返回 ResManager 可识别的完整地址，例如 custom://InventoryPanel。
+        /// 只影响之后创建的面板记录，已有实例继续使用加载时保存的地址释放资源。
+        /// </summary>
+        public Func<Type, string> CustomPanelAssetPathResolver
+        {
+            get => loader.CustomAssetPathResolver;
+            set => loader.CustomAssetPathResolver = value;
+        }
+
+        /// <summary>
         /// 设置与框架 UI Camera 组合的游戏主相机。
         /// 玩家相机创建或替换后传入新实例；销毁前传入 null 以解除旧 URP 相机栈关系。
         /// </summary>
@@ -78,7 +89,9 @@ namespace FinkFramework.Runtime.UI
         public T Preload<T>() where T : BasePanel => Preload<T>(UIOpenOptions.Default);
 
         /// <summary>
-        /// 同步预加载面板。资源必须支持同步加载；面板会保持隐藏，后续 Open 可直接使用。
+        /// 同步预加载面板。首次加载支持 Resources，以及开启 AllowSyncLoad 的 Addressables。
+        /// 其他情况请 await PreloadAsync。
+        /// 面板会保持隐藏，后续 Open 可直接使用。
         /// </summary>
         public T Preload<T>(UIOpenOptions options) where T : BasePanel
         {
@@ -105,7 +118,8 @@ namespace FinkFramework.Runtime.UI
                 RemoveBrokenRecord(existing);
             }
 
-            string assetPath = loader.GetAssetPath<T>();
+            if (!TryResolvePanelAssetPath<T>(out string assetPath))
+                return null;
             var record = new UIPanelRecord(
                 key,
                 assetPath,
@@ -116,7 +130,7 @@ namespace FinkFramework.Runtime.UI
 
             try
             {
-                T panel = loader.Load<T>(assetPath, surface.GetRoot(options.Layer));
+                T panel = loader.Load<T>(assetPath, surface.GetRoot(options.Layer), isPreload: true);
                 AttachLoadedPanel(record, panel);
                 return PreparePreloadedPanel<T>(record, surface, options);
             }
@@ -150,7 +164,8 @@ namespace FinkFramework.Runtime.UI
             UIPanelKey key = BuildKey<T>(options);
             if (!repository.TryGet(key, out var record))
             {
-                string assetPath = loader.GetAssetPath<T>();
+                if (!TryResolvePanelAssetPath<T>(out string assetPath))
+                    return null;
                 record = new UIPanelRecord(
                     key,
                     assetPath,
@@ -214,7 +229,7 @@ namespace FinkFramework.Runtime.UI
         /// <summary>同步打开默认 Surface 上的面板。</summary>
         public T Open<T>() where T : BasePanel => Open<T>(UIOpenOptions.Default);
 
-        /// <summary>同步打开面板。资源必须能被底层 Provider 同步加载。</summary>
+        /// <summary>同步打开面板。非 Resources 来源必须先完成预加载，使用相同的 Surface 和 InstanceId。</summary>
         public T Open<T>(UIOpenOptions options) where T : BasePanel =>
             OpenCore<T>(options.Normalize(), null);
 
@@ -285,7 +300,8 @@ namespace FinkFramework.Runtime.UI
                 RemoveBrokenRecord(existing);
             }
 
-            string assetPath = loader.GetAssetPath<T>();
+            if (!TryResolvePanelAssetPath<T>(out string assetPath))
+                return null;
             var record = new UIPanelRecord(
                 key,
                 assetPath,
@@ -296,7 +312,7 @@ namespace FinkFramework.Runtime.UI
 
             try
             {
-                T panel = loader.Load<T>(assetPath, surface.GetRoot(options.Layer));
+                T panel = loader.Load<T>(assetPath, surface.GetRoot(options.Layer), isPreload: false);
                 AttachLoadedPanel(record, panel);
                 return Present(record, surface, options, applyArgs);
             }
@@ -325,7 +341,8 @@ namespace FinkFramework.Runtime.UI
 
             if (!repository.TryGet(key, out var record))
             {
-                string assetPath = loader.GetAssetPath<T>();
+                if (!TryResolvePanelAssetPath<T>(out string assetPath))
+                    return null;
                 record = new UIPanelRecord(
                     key,
                     assetPath,
@@ -881,6 +898,21 @@ namespace FinkFramework.Runtime.UI
                 $"未注册 UI Surface：{surfaceId}。请在对应 Canvas 上添加 UISurfaceRoot，"
                 + "或先调用 UIManager.RegisterSurface。");
             return false;
+        }
+
+        private bool TryResolvePanelAssetPath<T>(out string assetPath) where T : BasePanel
+        {
+            try
+            {
+                assetPath = loader.GetAssetPath<T>();
+                return true;
+            }
+            catch (Exception exception)
+            {
+                assetPath = null;
+                LogUtil.Error("UI", $"解析面板 {typeof(T).FullName} 的资源地址失败：{exception.Message}");
+                return false;
+            }
         }
 
         private void AttachLoadedPanel(UIPanelRecord record, BasePanel panel)

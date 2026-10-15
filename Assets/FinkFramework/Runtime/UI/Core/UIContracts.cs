@@ -3,6 +3,14 @@ using System;
 
 namespace FinkFramework.Runtime.UI
 {
+    /// <summary>面板资源地址的解析方式。Resources 为兼容旧配置的默认值。</summary>
+    public enum UIPanelLoadSource
+    {
+        Resources = 0,
+        FollowResourceBackend = 1,
+        Custom = 2
+    }
+
     /// <summary>面板在一个 UI Surface 内的显示层级。</summary>
     public enum UILayer
     {

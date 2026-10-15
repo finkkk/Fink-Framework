@@ -4,6 +4,19 @@
 
 ---
 
+### v1.1.4 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-10-15</span>
+
+UI 多来源资源加载与面板生成流程完善
+
+- 新增 UI 面板加载来源配置，支持 Resources、跟随资源后端及自定义模式，默认保持 Resources。
+- 支持通过面板类名加载 Addressables 面板，保留 OpenAsync<T>() 等强类型调用方式。
+- 分别保存 Resources 与非 Resources 面板生成目录，支持自动注册 Addressables Group、设置 Address 及 AssetBundle 包名。
+- 完善同步预加载策略，支持读取 Addressables 的 Allow Sync Load 配置，并优化预加载与打开失败时的错误提示。
+- 新增 Addressables 后端不可用提示，保持未安装 Addressables 包时的编译兼容。
+- 新增 LogUtil.LogException 接口，支持记录原始异常及关联 Unity 对象。
+
+---
+
 ### v1.1.3 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-10-14</span>
 
 UI 配置完善与自定义 Canvas 支持

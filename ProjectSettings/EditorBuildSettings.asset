@@ -12,4 +12,4 @@ EditorBuildSettings:
     path: Assets/Scenes/UIValidationScene.unity
     guid: 2357e54da807cd2429480b99dfd20843
   m_configObjects:
-    com.unity.addressableassets: {fileID: 11400000, guid: 315ef46ba4619744e9de41996d7b3fdb, type: 2}
+    com.unity.addressableassets: {fileID: 11400000, guid: 9905343338df95a4f9e916ed3aeefdd3, type: 2}

@@ -187,5 +187,20 @@ namespace FinkFramework.Runtime.Utils
         }
         
         #endregion
+
+        #region Exception
+
+        /// <summary>
+        /// 记录原始异常，保留异常类型、调用堆栈和内部异常，不重新包装或抛出异常。
+        /// 与 Error 一样不受 DebugMode 限制。
+        /// </summary>
+        /// <param name="exception">需要记录的原始异常。</param>
+        /// <param name="context">可选的关联对象，便于在 Unity Console 中定位。</param>
+        public static void LogException(Exception exception, UnityEngine.Object context = null)
+        {
+            Debug.LogException(exception, context);
+        }
+
+        #endregion
     }
 }

@@ -34,6 +34,7 @@ namespace FinkFramework.Editor.Modules.UI
         private const string PendingAddSliderKey = "FinkFramework.UIBuilder.Pending.AddSlider";
         private const string PendingAddTransitionKey = "FinkFramework.UIBuilder.Pending.AddTransition";
         private const string PendingAddSafeAreaKey = "FinkFramework.UIBuilder.Pending.AddSafeArea";
+        private const string PendingRegistrationKey = "FinkFramework.UIBuilder.Pending.Registration";
 
         private string panelName = "NewPanel";
         private string scriptPath;
@@ -223,6 +224,17 @@ namespace FinkFramework.Editor.Modules.UI
                 string safeName = string.IsNullOrWhiteSpace(panelName) ? "面板名称" : panelName.Trim();
                 DrawReadOnlyPath("脚本文件", $"{scriptPath}/{safeName}.cs");
                 DrawReadOnlyPath("面板预制体", $"{prefabPath}/{safeName}.prefab");
+                var registration = UIPanelBuildRegistration.Capture(GlobalSettingsEditorLoader.LoadOrCreate());
+                DrawReadOnlyPath("资源来源", registration.Backend.ToString());
+                if (registration.Backend == Runtime.Environments.EnvironmentState.ResourceBackendType.Addressables)
+                {
+                    DrawReadOnlyPath("资源组", registration.Group);
+                    DrawReadOnlyPath("Address", safeName);
+                }
+                else if (registration.Backend == Runtime.Environments.EnvironmentState.ResourceBackendType.AssetBundle)
+                    DrawReadOnlyPath("资源包名", registration.Bundle);
+                else if (registration.Backend == Runtime.Environments.EnvironmentState.ResourceBackendType.Custom)
+                    EditorGUILayout.HelpBox("自定义来源仅生成面板文件，需由项目自行注册资源并提供地址解析器。", MessageType.Info);
             }
 
             GUILayout.Space(4f);
@@ -283,17 +295,23 @@ namespace FinkFramework.Editor.Modules.UI
                     out error))
                 return false;
 
-            if (!GlobalSettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
-                    settings.UIPanelPrefabOutputRelativePath,
-                    out string prefabOutputRelativePath,
-                    out error))
+            if (!settings.TryGetUIPanelPrefabOutputPath(out string configuredPrefabPath, out error))
                 return false;
+
+            try
+            {
+                UIPanelBuildRegistration.Capture(settings).Validate(panelName, $"{configuredPrefabPath}/{panelName}.prefab");
+            }
+            catch (Exception exception)
+            {
+                error = exception.Message;
+                return false;
+            }
 
             scriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(
                 settings.ScriptRootDirectory,
                 scriptOutputSuffix);
-            prefabPath = GlobalSettingsAsset.GetUIPanelPrefabOutputPath(
-                prefabOutputRelativePath);
+            prefabPath = configuredPrefabPath;
             error = string.Empty;
             return true;
         }
@@ -406,6 +424,8 @@ namespace FinkFramework.Editor.Modules.UI
             SessionState.SetString(PendingPanelNameKey, panelName);
             SessionState.SetString(PendingPrefabPathKey, prefabPath);
             SessionState.SetString(PendingScriptPathKey, scriptPath);
+            SessionState.SetString(PendingRegistrationKey,
+                JsonUtility.ToJson(UIPanelBuildRegistration.Capture(GlobalSettingsEditorLoader.LoadOrCreate())));
             
             // 保存示例控件选项
             SessionState.SetBool(PendingUseTMPKey, useTMP);
@@ -581,6 +601,7 @@ namespace FinkFramework.Editor.Modules.UI
             bool addSlider = SessionState.GetBool(PendingAddSliderKey, false);
             bool addTransition = SessionState.GetBool(PendingAddTransitionKey, true);
             bool addSafeArea = SessionState.GetBool(PendingAddSafeAreaKey, true);
+            string registrationJson = SessionState.GetString(PendingRegistrationKey, string.Empty);
 
             // 读取完成后立即消费状态，避免延迟回调或异常导致重复执行。
             ClearPendingOperation();
@@ -598,7 +619,8 @@ namespace FinkFramework.Editor.Modules.UI
                     addToggle,
                     addSlider,
                     addTransition,
-                    addSafeArea);
+                    addSafeArea,
+                    registrationJson);
             };
         }
         
@@ -614,6 +636,7 @@ namespace FinkFramework.Editor.Modules.UI
             SessionState.EraseBool(PendingAddSliderKey);
             SessionState.EraseBool(PendingAddTransitionKey);
             SessionState.EraseBool(PendingAddSafeAreaKey);
+            SessionState.EraseString(PendingRegistrationKey);
         }
 
         private static void CreatePrefabAfterCompile(
@@ -626,8 +649,27 @@ namespace FinkFramework.Editor.Modules.UI
             bool addToggle,
             bool addSlider,
             bool addTransition,
-            bool addSafeArea)
+            bool addSafeArea,
+            string registrationJson)
         {
+            UIPanelBuildRegistration registration;
+            try
+            {
+                // 旧版本挂起任务只可能使用 Resources；不得读取此刻可能已经改变的后端配置。
+                registration = string.IsNullOrEmpty(registrationJson)
+                    ? new UIPanelBuildRegistration()
+                    : JsonUtility.FromJson<UIPanelBuildRegistration>(registrationJson);
+                if (registration == null)
+                    throw new InvalidOperationException("面板生成任务的资源注册参数无效。");
+                registration.Validate(panelName, $"{prefabPath}/{panelName}.prefab");
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UIBuilderWindow", $"面板脚本已生成，但资源配置校验失败：{exception}");
+                EditorUtility.DisplayDialog("创建 UI 面板失败", exception.Message, "确认");
+                return;
+            }
+
             // 确保 Prefab 文件夹存在
             if (!Directory.Exists(prefabPath))
             {
@@ -743,10 +785,23 @@ namespace FinkFramework.Editor.Modules.UI
                 return;
             }
             
-            PrefabUtility.SaveAsPrefabAsset(root, fullPrefabPath);
-
-            // 销毁场景中的临时对象
-            GameObject.DestroyImmediate(root);
+            try
+            {
+                if (!PrefabUtility.SaveAsPrefabAsset(root, fullPrefabPath))
+                    throw new InvalidOperationException($"无法保存 UI 面板预制体：{fullPrefabPath}");
+                registration.Register(panelName, fullPrefabPath);
+            }
+            catch (Exception exception)
+            {
+                LogUtil.Error("UIBuilderWindow", $"UI 面板保存或资源注册失败：{exception}");
+                EditorUtility.DisplayDialog("UI 面板未完成创建",
+                    $"{exception.Message}\n\n脚本和已保存的预制体会保留，请修复配置并完成资源注册。", "确认");
+                return;
+            }
+            finally
+            {
+                GameObject.DestroyImmediate(root);
+            }
 
             EditorUtility.DisplayDialog("创建完成", $"UI 面板 {panelName} 已创建。", "确认");
             
