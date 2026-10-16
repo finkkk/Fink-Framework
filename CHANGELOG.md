@@ -4,6 +4,19 @@
 
 ---
 
+### v1.1.5 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-10-16</span>
+
+完善 UI 创建面板的输出配置与预览
+
+- 将输出设置与输出预览拆分为独立板块，集中展示可编辑配置与最终输出结果。
+- 输出目录默认读取 UI 配置，支持为本次创建单独修改。
+- 新增“跟随 UI 配置”按钮，开启后自动同步并锁定配置，关闭后保留当前值并恢复编辑。
+- 支持自定义 Addressables 资源组与 AssetBundle 包名，生成时使用本次设置完成资源注册。
+- 保留自定义输出目录及资源注册参数，避免窗口切换焦点或脚本重编译后被覆盖。
+- 新增 Resources 加载路径及 AssetBundle 包名与全局配置不一致时的提示。
+
+---
+
 ### v1.1.4 <span style="font-size:0.8em; color:gray; font-weight:normal;">— 2026-10-15</span>
 
 UI 多来源资源加载与面板生成流程完善
