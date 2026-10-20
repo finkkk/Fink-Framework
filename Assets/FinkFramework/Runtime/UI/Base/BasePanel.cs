@@ -14,15 +14,9 @@ namespace FinkFramework.Runtime.UI.Base
     /// </summary>
     public abstract class BasePanel : MonoBehaviour
     {
-        private static readonly HashSet<string> TemplateControlNames = new(StringComparer.Ordinal)
-        {
-            "Image", "Text", "Text (TMP)", "RawImage", "Background", "Checkmark", "Label",
-            "Text (Legacy)", "Arrow", "Placeholder", "Fill", "Handle", "Viewport",
-            "Scrollbar Horizontal", "Scrollbar Vertical"
-        };
-
-        // 按“组件类型 + 对象名”索引，避免同一对象上的 Button、Image 因重名互相覆盖。
-        private readonly Dictionary<Type, Dictionary<string, UIBehaviour>> controls = new();
+        // 保留同类型同名的全部控件，顺序与层级扫描一致；默认名称和内部组件同样参与注册。
+        private readonly Dictionary<Type, Dictionary<string, List<UIBehaviour>>> controls = new();
+        private readonly HashSet<(Type Type, string Name, Transform Parent)> warnedControlLookups = new();
         [Header("导航焦点")]
         [Tooltip("使用键盘或手柄进入面板时优先选中的控件。留空会自动选择第一个可交互控件。")]
         [SerializeField] private Selectable defaultSelectable;
@@ -74,20 +68,77 @@ namespace FinkFramework.Runtime.UI.Base
             return null;
         }
 
-        /// <summary>尝试获取指定名称和类型的控件，不输出错误日志。</summary>
+        /// <summary>尝试按名称获取控件；歧义时返回第一个存活对象，同一歧义只警告一次。</summary>
         public bool TryGetControl<T>(string controlName, out T control) where T : UIBehaviour
+            => TryGetControl(controlName, transform, out control);
+
+        /// <summary>在指定父节点及其全部后代中按名称获取控件；父节点必须位于当前面板内。</summary>
+        public T GetControl<T>(string controlName, Transform parent) where T : UIBehaviour
+        {
+            if (TryGetControl(controlName, parent, out T control))
+                return control;
+
+            LogUtil.Error("UI", $"{name} 的指定父节点范围内不存在名为 {controlName}、类型为 {typeof(T).Name} 的控件。");
+            return null;
+        }
+
+        /// <summary>限定父节点范围的名称查找；范围内仍有多个匹配时只警告一次并返回第一个。</summary>
+        public bool TryGetControl<T>(string controlName, Transform parent, out T control) where T : UIBehaviour
         {
             control = null;
-            if (string.IsNullOrWhiteSpace(controlName))
+            if (string.IsNullOrWhiteSpace(controlName) || !parent || !parent.IsChildOf(transform))
                 return false;
 
-            if (!controls.TryGetValue(typeof(T), out Dictionary<string, UIBehaviour> typedControls))
+            if (!controls.TryGetValue(typeof(T), out Dictionary<string, List<UIBehaviour>> typedControls))
                 return false;
 
-            if (!typedControls.TryGetValue(controlName, out UIBehaviour value))
+            if (!typedControls.TryGetValue(controlName, out List<UIBehaviour> matches))
                 return false;
 
-            control = value as T;
+            int matchCount = 0;
+            foreach (UIBehaviour candidate in matches)
+            {
+                if (!candidate || !candidate.transform.IsChildOf(parent))
+                    continue;
+
+                if (matchCount++ == 0)
+                    control = candidate as T;
+            }
+
+            if (matchCount > 1 && warnedControlLookups.Add((typeof(T), controlName, parent)))
+            {
+                LogUtil.Warn(
+                    "UI",
+                    $"{name} 中按名称查找 {typeof(T).Name} {controlName} 存在歧义："
+                    + $"在 {parent.name} 范围内找到 {matchCount} 个控件，将返回层级扫描中的第一个。"
+                    + "请使用 GetControlByPath 或指定更精确的父节点。");
+            }
+
+            return control;
+        }
+
+        /// <summary>按相对当前面板的层级路径获取控件，例如 Content/ConfirmButton。</summary>
+        public T GetControlByPath<T>(string controlPath) where T : UIBehaviour
+        {
+            if (TryGetControlByPath(controlPath, out T control))
+                return control;
+
+            LogUtil.Error("UI", $"{name} 中路径 {controlPath} 不存在类型为 {typeof(T).Name} 的控件。");
+            return null;
+        }
+
+        /// <summary>按 Transform.Find 的相对路径规则查找（支持未激活节点），不输出错误日志。</summary>
+        public bool TryGetControlByPath<T>(string controlPath, out T control) where T : UIBehaviour
+        {
+            control = null;
+            if (string.IsNullOrWhiteSpace(controlPath) || controlPath.StartsWith("/", StringComparison.Ordinal))
+                return false;
+
+            Transform target = transform.Find(controlPath);
+            if (!target || !target.IsChildOf(transform))
+                return false;
+
+            control = target.GetComponent<T>();
             return control;
         }
 
@@ -155,6 +206,7 @@ namespace FinkFramework.Runtime.UI.Base
         private void RebuildControlCache()
         {
             controls.Clear();
+            warnedControlLookups.Clear();
 
             RegisterControls<Button>();
             RegisterControls<Toggle>();
@@ -177,24 +229,19 @@ namespace FinkFramework.Runtime.UI.Base
 
         private void RegisterControls<T>() where T : UIBehaviour
         {
-            var typedControls = new Dictionary<string, UIBehaviour>(StringComparer.Ordinal);
+            var typedControls = new Dictionary<string, List<UIBehaviour>>(StringComparer.Ordinal);
             controls[typeof(T)] = typedControls;
 
             foreach (T control in GetComponentsInChildren<T>(true))
             {
                 string controlName = control.gameObject.name;
-                if (TemplateControlNames.Contains(controlName))
-                    continue;
-
-                if (!typedControls.TryAdd(controlName, control))
+                if (!typedControls.TryGetValue(controlName, out List<UIBehaviour> matches))
                 {
-                    LogUtil.Warn(
-                        "UI",
-                        $"{name} 中存在重复控件：{typeof(T).Name} {controlName}。"
-                        + "GetControl 将使用层级中最先找到的对象。");
-                    continue;
+                    matches = new List<UIBehaviour>();
+                    typedControls.Add(controlName, matches);
                 }
 
+                matches.Add(control);
                 BindBuiltInEvent(control, controlName);
             }
         }
