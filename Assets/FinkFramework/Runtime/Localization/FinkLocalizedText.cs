@@ -1,6 +1,7 @@
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.Utils;
+using FinkFramework.Runtime.Settings.Loaders;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -48,6 +49,7 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private void Awake()
         {
+            if (!LocalizationSettingsRuntimeLoader.IsEnabled) return;
             CacheTargetComponents();
         }
 

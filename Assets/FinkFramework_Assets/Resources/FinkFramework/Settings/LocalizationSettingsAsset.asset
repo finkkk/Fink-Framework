@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a6b3c4d5e7f90123456789abcdef012, type: 3}
+  m_Name: LocalizationSettingsAsset
+  m_EditorClassIdentifier: 
+  enableLocalization: 1
+  enableRtlSupport: 0
+  defaultLocale: en-US
+  defaultFallbackLocale: en-US
+  jsonFileNamePattern: '{0}.json'
+  runtimeLoadingMode: 0
+  supportedLocales:
+  - code: en-US
+    displayName: "\u7F8E\u56FD\u82F1\u8BED"
+  - code: zh-Hans
+    displayName: "\u7B80\u4F53\u4E2D\u6587"
+  categories: []

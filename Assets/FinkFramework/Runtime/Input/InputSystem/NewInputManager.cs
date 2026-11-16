@@ -1155,14 +1155,14 @@ namespace FinkFramework.Runtime.Input.InputSystem
         private static NewInputRebindOptions CreateDefaultRebindOptions()
         {
             var options = new NewInputRebindOptions();
-            if (GlobalSettingsRuntimeLoader.TryGet(out var settings))
+            if (InputSettingsRuntimeLoader.TryGet(out var settings))
                 options.ConflictMode = settings.InputConflictMode;
             return options;
         }
 
         private static InputConflictMode GetDefaultConflictMode()
         {
-            return GlobalSettingsRuntimeLoader.TryGet(out var settings)
+            return InputSettingsRuntimeLoader.TryGet(out var settings)
                 ? settings.InputConflictMode
                 : InputConflictMode.Warning;
         }

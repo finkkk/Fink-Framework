@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea4156946b929f649a564f95b60074fd, type: 3}
+  m_Name: UISettingsAsset
+  m_EditorClassIdentifier: 
+  CurrentUIMode: 2
+  UseCustomMainCanvas: 0
+  CustomMainCanvasPrefab: {fileID: 0}
+  UICanvasScaleMode: 1
+  UIReferenceResolution: {x: 1920, y: 1080}
+  UIScreenMatchMode: 1
+  UIMatchWidthOrHeight: 0
+  UIScaleFactor: 1
+  UIReferencePixelsPerUnit: 100
+  UIPhysicalUnit: 3
+  UIFallbackScreenDPI: 96
+  UIDefaultSpriteDPI: 96
+  UICanvasSortingLayerId: 0
+  UICanvasSortingOrder: 0
+  UICanvasPlaneDistance: 100
+  UICanvasPixelPerfect: 0
+  EnableAutoNavigationInteractionByInputDevice: 1
+  UIPanelLoadSource: 0
+  UIPanelAssetBundleName: ui
+  UIPanelAddressablesGroup: UI Panels
+  UIPanelExternalPrefabOutputRelativePath: GameAssets/UI/Panels
+  UIPanelScriptOutputSuffix: UI/Panels
+  UIPanelPrefabOutputRelativePath: Resources/UI/Panels

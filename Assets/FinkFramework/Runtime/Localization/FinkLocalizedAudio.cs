@@ -14,6 +14,7 @@ namespace FinkFramework.Runtime.Localization
 
         protected override void OnEnable()
         {
+            if (!LocalizationManager.IsEnabled) return;
             audioSource = GetComponent<AudioSource>();
             base.OnEnable();
         }

@@ -64,11 +64,11 @@ namespace FinkFramework.Editor.Modules.UI
         {
             if (!outputPathsInitialized && !TrySyncConfiguredPaths(out _))
             {
-                scriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(
+                scriptPath = UISettingsAsset.GetUIPanelScriptOutputPath(
                     GlobalSettingsAsset.DefaultScriptRootDirectory,
-                    GlobalSettingsAsset.DefaultUIPanelScriptOutputSuffix);
-                prefabPath = GlobalSettingsAsset.GetUIPanelPrefabOutputPath(
-                    GlobalSettingsAsset.DefaultUIPanelPrefabOutputRelativePath);
+                    UISettingsAsset.DefaultUIPanelScriptOutputSuffix);
+                prefabPath = UISettingsAsset.GetUIPanelPrefabOutputPath(
+                    UISettingsAsset.DefaultUIPanelPrefabOutputRelativePath);
             }
         }
 
@@ -237,7 +237,7 @@ namespace FinkFramework.Editor.Modules.UI
                 }
             }
             GUILayout.Space(4f);
-            var settings = GlobalSettingsEditorLoader.LoadOrCreate();
+            var settings = UISettingsEditorLoader.LoadOrCreate();
             var registration = settings ? CaptureOutputRegistration(settings) : null;
             using (new EditorGUI.DisabledScope(followUISettings))
             {
@@ -273,16 +273,16 @@ namespace FinkFramework.Editor.Modules.UI
                 string safeName = string.IsNullOrWhiteSpace(panelName) ? "面板名称" : panelName.Trim();
                 DrawReadOnlyPath("脚本文件", $"{resolvedScriptPath}/{safeName}.cs");
                 DrawReadOnlyPath("面板预制体", $"{resolvedPrefabPath}/{safeName}.prefab");
-                var settings = GlobalSettingsEditorLoader.LoadOrCreate();
-                if (settings.UIPanelUsesResources
-                    && GlobalSettingsAsset.GetUIPanelResourcesPath(resolvedPrefabPath)
-                        != GlobalSettingsAsset.GetUIPanelResourcesPath(settings.UIPanelPrefabOutputRelativePath))
+                var settings = UISettingsEditorLoader.LoadOrCreate();
+                if (UISettingsEditorLoader.UsesResources(settings)
+                    && UISettingsAsset.GetUIPanelResourcesPath(resolvedPrefabPath)
+                        != UISettingsAsset.GetUIPanelResourcesPath(settings.UIPanelPrefabOutputRelativePath))
                     EditorGUILayout.HelpBox(
                         "当前目录对应的 Resources 加载路径与 UI 配置不同。创建后需调整 UI 配置中的加载目录，才能通过 UIManager 打开该面板。",
                         MessageType.Warning);
             }
 
-            var outputSettings = GlobalSettingsEditorLoader.LoadOrCreate();
+            var outputSettings = UISettingsEditorLoader.LoadOrCreate();
             if (outputSettings)
             {
                 var registration = CaptureOutputRegistration(outputSettings);
@@ -342,25 +342,25 @@ namespace FinkFramework.Editor.Modules.UI
         /// </summary>
         private bool TrySyncConfiguredPaths(out string error)
         {
-            GlobalSettingsAsset settings = GlobalSettingsEditorLoader.LoadOrCreate();
+            UISettingsAsset settings = UISettingsEditorLoader.LoadOrCreate();
             if (!settings)
             {
                 error = "未找到 UI 配置文件。";
                 return false;
             }
 
-            if (!GlobalSettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
+            if (!UISettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
                     settings.UIPanelScriptOutputSuffix,
-                    settings.ScriptRootDirectory,
+                    GlobalSettingsEditorLoader.LoadOrCreate().ScriptRootDirectory,
                     out string scriptOutputSuffix,
                     out error))
                 return false;
 
-            if (!settings.TryGetUIPanelPrefabOutputPath(out string configuredPrefabPath, out error))
+            if (!settings.TryGetUIPanelPrefabOutputPath(ResBackendSettingsEditorLoader.LoadOrCreate().ResourceBackend, out string configuredPrefabPath, out error))
                 return false;
 
-            scriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(
-                settings.ScriptRootDirectory,
+            scriptPath = UISettingsAsset.GetUIPanelScriptOutputPath(
+                GlobalSettingsEditorLoader.LoadOrCreate().ScriptRootDirectory,
                 scriptOutputSuffix);
             prefabPath = configuredPrefabPath;
             outputPathsInitialized = true;
@@ -368,10 +368,10 @@ namespace FinkFramework.Editor.Modules.UI
             return true;
         }
 
-        /// <summary>资源后端仍由全局配置决定，注册参数使用本窗口的快照。</summary>
-        private UIPanelBuildRegistration CaptureOutputRegistration(GlobalSettingsAsset settings)
+        /// <summary>资源后端由独立资源配置决定，注册参数使用本窗口的快照。</summary>
+        private UIPanelBuildRegistration CaptureOutputRegistration(UISettingsAsset settings)
         {
-            var registration = UIPanelBuildRegistration.Capture(settings);
+            var registration = UIPanelBuildRegistration.Capture(settings, ResBackendSettingsEditorLoader.LoadOrCreate());
             if (followUISettings || !registrationInitialized)
             {
                 addressablesGroup = registration.Group;
@@ -390,7 +390,7 @@ namespace FinkFramework.Editor.Modules.UI
             if ((followUISettings || !outputPathsInitialized) && !TrySyncConfiguredPaths(out error))
                 return false;
 
-            var settings = GlobalSettingsEditorLoader.LoadOrCreate();
+            var settings = UISettingsEditorLoader.LoadOrCreate();
             if (!settings)
             {
                 error = "未找到 UI 配置文件。";
@@ -401,16 +401,16 @@ namespace FinkFramework.Editor.Modules.UI
                 error = "脚本和预制体输出目录不能为空。";
                 return false;
             }
-            if (!GlobalSettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
-                    scriptPath, settings.ScriptRootDirectory, out string suffix, out error))
+            if (!UISettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
+                    scriptPath, GlobalSettingsEditorLoader.LoadOrCreate().ScriptRootDirectory, out string suffix, out error))
                 return false;
-            resolvedScriptPath = GlobalSettingsAsset.GetUIPanelScriptOutputPath(settings.ScriptRootDirectory, suffix);
+            resolvedScriptPath = UISettingsAsset.GetUIPanelScriptOutputPath(GlobalSettingsEditorLoader.LoadOrCreate().ScriptRootDirectory, suffix);
 
             string relativePrefabPath;
-            bool valid = settings.UIPanelUsesResources
-                ? GlobalSettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
+            bool valid = UISettingsEditorLoader.UsesResources(settings)
+                ? UISettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
                     prefabPath, out relativePrefabPath, out error)
-                : GlobalSettingsAsset.TryNormalizeUIPanelExternalPrefabOutputRelativePath(
+                : UISettingsAsset.TryNormalizeUIPanelExternalPrefabOutputRelativePath(
                     prefabPath, out relativePrefabPath, out error);
             if (!valid)
                 return false;
@@ -540,7 +540,7 @@ namespace FinkFramework.Editor.Modules.UI
             SessionState.SetString(PendingPrefabPathKey, prefabPath);
             SessionState.SetString(PendingScriptPathKey, scriptPath);
             SessionState.SetString(PendingRegistrationKey,
-                JsonUtility.ToJson(CaptureOutputRegistration(GlobalSettingsEditorLoader.LoadOrCreate())));
+                JsonUtility.ToJson(CaptureOutputRegistration(UISettingsEditorLoader.LoadOrCreate())));
             
             // 保存示例控件选项
             SessionState.SetBool(PendingUseTMPKey, useTMP);

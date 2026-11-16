@@ -36,7 +36,7 @@ namespace FinkFramework.Runtime.UI.Input
             if (router == null || deviceDetectionManager == null)
                 return;
 
-            bool automatic = !GlobalSettingsRuntimeLoader.TryGet(out var settings)
+            bool automatic = !UISettingsRuntimeLoader.TryGet(out var settings)
                              || settings.EnableAutoNavigationInteractionByInputDevice;
 
             // 关闭自动策略后，导航开关完全交还给 UIManager 的公开 API，

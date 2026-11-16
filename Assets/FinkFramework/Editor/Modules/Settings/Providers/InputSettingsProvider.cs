@@ -11,7 +11,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
     /// <summary>全局设备输入检测的项目配置页面。</summary>
     public sealed class InputSettingsProvider : SettingsProvider
     {
-        private GlobalSettingsAsset asset;
+        private InputSettingsAsset asset;
 
         public InputSettingsProvider(string path, SettingsScope scope)
             : base(path, scope) { }
@@ -27,19 +27,17 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
-            asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            asset = InputSettingsEditorLoader.LoadOrCreate();
         }
 
         public override void OnGUI(string searchContext)
         {
             if (!asset)
             {
-                EditorGUILayout.HelpBox("GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。", MessageType.Error);
-                if (GUILayout.Button("重新创建配置文件"))
-                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
-                return;
+                OnActivate(searchContext, null);
             }
 
+            Undo.RecordObject(asset, "修改输入配置");
             GUILayout.Space(10);
             FFEditorGUI.Center(() => GUILayout.Label("Input System 配置", FFEditorStyles.Title));
             GUILayout.Space(6);

@@ -1,3 +1,4 @@
+using FinkFramework.Runtime.Settings.Loaders;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -14,35 +15,75 @@ namespace FinkFramework.Runtime.Localization
     /// </summary>
     public static class LocalizationManager
     {
-        private static readonly LocalizationDatabase database = new();
-        private static readonly LocalizationFileDataSource dataSource = new();
-        private static readonly IReadOnlyList<LocaleInfo> EmptyLocales = new List<LocaleInfo>().AsReadOnly();
-        private static readonly Dictionary<string, string> SystemLanguageLocaleMap = new(StringComparer.OrdinalIgnoreCase)
+        // 关闭时不构造数据库、数据源或查询/任务缓存。
+        private sealed class RuntimeState
         {
-            { "Chinese", LocaleIds.ChineseSimplified },
-            { "ChineseSimplified", LocaleIds.ChineseSimplified },
-            { "ChineseTraditional", LocaleIds.ChineseTraditional },
-            { "English", LocaleIds.EnglishUS },
-            { "French", LocaleIds.FrenchFrance },
-            { "German", LocaleIds.German },
-            { "Italian", LocaleIds.Italian },
-            { "Japanese", LocaleIds.Japanese },
-            { "Korean", LocaleIds.Korean },
-            { "Portuguese", LocaleIds.PortugueseBrazil },
-            { "Russian", LocaleIds.Russian },
-            { "Spanish", LocaleIds.SpanishSpain },
-            { "Thai", LocaleIds.Thai },
-            { "Turkish", LocaleIds.Turkish },
-            { "Ukrainian", LocaleIds.Ukrainian },
-            { "Vietnamese", LocaleIds.Vietnamese }
-        };
+            internal readonly LocalizationDatabase database = new();
+            internal readonly LocalizationFileDataSource dataSource = new();
+            internal readonly Dictionary<string, string> SystemLanguageLocaleMap = new(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Chinese", LocaleIds.ChineseSimplified },
+                { "ChineseSimplified", LocaleIds.ChineseSimplified },
+                { "ChineseTraditional", LocaleIds.ChineseTraditional },
+                { "English", LocaleIds.EnglishUS },
+                { "French", LocaleIds.FrenchFrance },
+                { "German", LocaleIds.German },
+                { "Italian", LocaleIds.Italian },
+                { "Japanese", LocaleIds.Japanese },
+                { "Korean", LocaleIds.Korean },
+                { "Portuguese", LocaleIds.PortugueseBrazil },
+                { "Russian", LocaleIds.Russian },
+                { "Spanish", LocaleIds.SpanishSpain },
+                { "Thai", LocaleIds.Thai },
+                { "Turkish", LocaleIds.Turkish },
+                { "Ukrainian", LocaleIds.Ukrainian },
+                { "Vietnamese", LocaleIds.Vietnamese }
+            };
+            internal readonly Dictionary<string, Task<bool>> asyncTableLoadTasks = new(StringComparer.OrdinalIgnoreCase);
+            // 记住失败加载，避免未知 Key 反复触发 I/O。
+            internal readonly HashSet<string> failedTableLoads = new(StringComparer.OrdinalIgnoreCase);
+            internal readonly HashSet<string> usedCategories = new(StringComparer.OrdinalIgnoreCase);
+            internal readonly HashSet<string> warnedMissingKeys = new();
+            internal readonly HashSet<string> warnedFallbackKeys = new();
+            internal readonly HashSet<string> warnedMissingAssets = new();
+        }
+        private static RuntimeState runtimeState;
+        private static RuntimeState State => runtimeState ??= new RuntimeState();
+        private static LocalizationDatabase database => State.database;
+        private static LocalizationFileDataSource dataSource => State.dataSource;
+        private static Dictionary<string, string> SystemLanguageLocaleMap => State.SystemLanguageLocaleMap;
+        private static Dictionary<string, Task<bool>> asyncTableLoadTasks => State.asyncTableLoadTasks;
+        private static HashSet<string> failedTableLoads => State.failedTableLoads;
+        private static HashSet<string> usedCategories => State.usedCategories;
+        private static HashSet<string> warnedMissingKeys => State.warnedMissingKeys;
+        private static HashSet<string> warnedFallbackKeys => State.warnedFallbackKeys;
+        private static HashSet<string> warnedMissingAssets => State.warnedMissingAssets;
+        private static bool disabledWarningLogged;
+        private const string DisabledMessage = "本地化模块未启用，请在 Project Settings > Fink Framework > Localization 中启用本地化模块。";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetRuntimeState()
+        {
+            Clear();
+            runtimeState = null;
+            disabledWarningLogged = false;
+        }
+
+        private static void ReportDisabled()
+        {
+            if (disabledWarningLogged) return;
+            disabledWarningLogged = true;
+            LogUtil.Warn("Localization", DisabledMessage);
+        }
+
+        private static readonly IReadOnlyList<LocaleInfo> EmptyLocales = Array.Empty<LocaleInfo>();
+
         private static bool initialized;
         // 每次重新初始化或 Clear 都递增，防止旧异步任务在新数据库上继续提交结果。
         private static int runtimeGeneration;
         // 每次有效的语言切换请求都递增，确保并发切换只有最后一次请求能够提交。
         private static int localeSwitchVersion;
         private static bool warnedSynchronousUriAccess;
-        private static bool settingsResourceLoaded;
         private static bool asyncPreloadAttempted;
         private static bool manifestLoadAttempted;
         private static bool manifestAsyncLoadAttempted;
@@ -52,16 +93,6 @@ namespace FinkFramework.Runtime.Localization
         private static LocalizationAssetTable assetTable;
         private static Task<bool> asyncReadyTask;
         private static Task<bool> manifestAsyncLoadTask;
-        private static readonly Dictionary<string, Task<bool>> asyncTableLoadTasks =
-            new(StringComparer.OrdinalIgnoreCase);
-        // 当前初始化周期内记住失败的本地文件加载，避免未知 Key 重复触发 I/O。
-        private static readonly HashSet<string> failedTableLoads =
-            new(StringComparer.OrdinalIgnoreCase);
-        private static readonly HashSet<string> usedCategories =
-            new(StringComparer.OrdinalIgnoreCase);
-        private static readonly HashSet<string> warnedMissingKeys = new();
-        private static readonly HashSet<string> warnedFallbackKeys = new();
-        private static readonly HashSet<string> warnedMissingAssets = new();
 
         /// <summary>
         /// 当前运行时使用的配置。
@@ -71,19 +102,19 @@ namespace FinkFramework.Runtime.Localization
         /// <summary>
         /// 本地化模块当前是否启用。首次访问时只会读取配置；模块关闭时不会加载语言表。
         /// </summary>
-        public static bool IsEnabled => EnsureInitialized()
-                                        && Settings != null
-                                        && Settings.EnableLocalization;
+        public static bool IsEnabled => LocalizationSettingsRuntimeLoader.IsEnabled
+                                        && (Settings == null || Settings.EnableLocalization);
 
         /// <summary>
-        /// 当前配置支持的语言列表。系统尚未初始化时返回空列表。
+        /// 当前配置支持的语言列表；关闭时返回空列表，不触发运行时初始化。
         /// </summary>
         public static IReadOnlyList<LocaleInfo> SupportedLocales
         {
             get
             {
-                EnsureInitialized();
-                return Settings?.SupportedLocales ?? EmptyLocales;
+                if (!IsEnabled) return EmptyLocales;
+                var settings = Settings ?? (LocalizationSettingsRuntimeLoader.TryGet(out var configured) ? configured : null);
+                return settings?.SupportedLocales ?? EmptyLocales;
             }
         }
 
@@ -101,6 +132,7 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public static bool EnsureInitialized()
         {
+            if (!IsEnabled) { ReportDisabled(); return false; }
             return initialized || Initialize();
         }
 
@@ -117,7 +149,7 @@ namespace FinkFramework.Runtime.Localization
         {
             get
             {
-                if (!EnsureInitialized() || Settings == null || !Settings.EnableRtlSupport)
+                if (!IsEnabled || !initialized || Settings == null || !Settings.EnableRtlSupport)
                     return false;
 
                 return LocaleInfo.IsRightToLeftCode(CurrentLocale);
@@ -127,7 +159,16 @@ namespace FinkFramework.Runtime.Localization
         /// <summary>
         /// 当前语言发生变化时触发，参数依次为旧语言和新语言。
         /// </summary>
-        public static event Action<string, string> OnLocaleChanged;
+        private static Action<string, string> localeChanged;
+        public static event Action<string, string> OnLocaleChanged
+        {
+            add
+            {
+                if (!IsEnabled) { ReportDisabled(); return; }
+                localeChanged += value;
+            }
+            remove => localeChanged -= value;
+        }
 
         /// <summary>
         /// 当前本地化数据库是否已初始化。
@@ -137,18 +178,19 @@ namespace FinkFramework.Runtime.Localization
         /// <summary>
         /// 当前已加载的文本数量，便于调试和测试。
         /// </summary>
-        public static int LoadedEntryCount => database.Count;
+        public static int LoadedEntryCount => runtimeState?.database.Count ?? 0;
 
         /// <summary>
         /// 当前已加载的独立语言表数量，便于调试按需加载和卸载行为。
         /// </summary>
-        public static int LoadedTableCount => database.TableCount;
+        public static int LoadedTableCount => runtimeState?.database.TableCount ?? 0;
 
         /// <summary>
         /// 使用项目本地化 Resources 中的配置初始化本地化系统。
         /// </summary>
         public static bool Initialize()
         {
+            if (!IsEnabled) { ReportDisabled(); return false; }
             return InitializeInternal(LoadSettingsResource(), null, false);
         }
 
@@ -158,6 +200,7 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public static bool InitializeFromSystemLanguage()
         {
+            if (!IsEnabled) { ReportDisabled(); return false; }
             return InitializeInternal(
                 LoadSettingsResource(),
                 TryGetSystemLocale(out string systemLocale) ? systemLocale : null,
@@ -169,6 +212,8 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public static bool InitializeFromSystemLanguage(LocalizationSettingsAsset localizationSettings)
         {
+            if (!LocalizationSettingsRuntimeLoader.IsEnabled || localizationSettings != null && !localizationSettings.EnableLocalization)
+            { ReportDisabled(); return false; }
             return InitializeInternal(
                 localizationSettings,
                 TryGetSystemLocale(out string systemLocale) ? systemLocale : null,
@@ -191,6 +236,9 @@ namespace FinkFramework.Runtime.Localization
             string preferredLocale,
             bool releaseRuntimeResources)
         {
+            if (!LocalizationSettingsRuntimeLoader.IsEnabled || localizationSettings != null && !localizationSettings.EnableLocalization)
+            { ReportDisabled(); return false; }
+            disabledWarningLogged = false;
             runtimeGeneration++;
             localeSwitchVersion++;
             if (releaseRuntimeResources)
@@ -230,13 +278,6 @@ namespace FinkFramework.Runtime.Localization
             {
                 LogUtil.Error("Localization", $"本地化配置无效：{exception.Message}");
                 return false;
-            }
-
-            if (!Settings.EnableLocalization)
-            {
-                LogUtil.Info("Localization", "本地化模块已关闭，跳过语言表加载。");
-                initialized = true;
-                return true;
             }
 
             CurrentLocale = ResolveInitialLocale(preferredLocale);
@@ -324,8 +365,8 @@ namespace FinkFramework.Runtime.Localization
         public static bool TryGetAsset<T>(string key, out T asset) where T : UnityEngine.Object
         {
             asset = null;
-            if (!EnsureInitialized()
-                || Settings == null
+            if (!EnsureInitialized()) return false;
+            if (Settings == null
                 || !Settings.EnableLocalization
                 || string.IsNullOrWhiteSpace(key))
             {
@@ -357,17 +398,19 @@ namespace FinkFramework.Runtime.Localization
             string key,
             CancellationToken cancellationToken = default)
         {
+            if (!EnsureInitialized()) return key ?? string.Empty;
             if (!await EnsureAsyncReady(cancellationToken)
                 || Settings == null
                 || !Settings.EnableLocalization
                 || string.IsNullOrWhiteSpace(key))
             {
-                if (Settings == null || Settings.EnableLocalization)
+                if (IsEnabled)
                     WarnMissingKey(key);
                 return key ?? string.Empty;
             }
 
             await EnsureCategoryLoadedForKeyAsync(key, cancellationToken);
+            if (!IsEnabled) return key ?? string.Empty;
             if (TryGetForDisplayWithoutLoading(key, out string value))
                 return value;
 
@@ -399,12 +442,12 @@ namespace FinkFramework.Runtime.Localization
         private static bool TryGetForDisplay(string key, out string value)
         {
             value = null;
-            if (!EnsureInitialized()
-                || Settings == null
+            if (!EnsureInitialized()) return false;
+            if (Settings == null
                 || !Settings.EnableLocalization
                 || string.IsNullOrWhiteSpace(key))
             {
-                if (Settings == null || Settings.EnableLocalization)
+                if (IsEnabled)
                     WarnMissingKey(key);
                 return false;
             }
@@ -455,7 +498,9 @@ namespace FinkFramework.Runtime.Localization
             CancellationToken cancellationToken = default,
             params object[] arguments)
         {
+            if (!EnsureInitialized()) return key ?? string.Empty;
             string template = await GetAsync(key, cancellationToken);
+            if (!IsEnabled) return template;
             if (string.Equals(template, key ?? string.Empty, StringComparison.Ordinal)
                 && !database.TryGet(key, out _))
                 return template;
@@ -532,7 +577,9 @@ namespace FinkFramework.Runtime.Localization
             if (!EnsureInitialized() || Settings == null || !Settings.EnableLocalization)
                 return false;
 
+            int generation = runtimeGeneration;
             bool loadedAny = await LoadCategoryAsync(category, CurrentLocale, cancellationToken);
+            if (generation != runtimeGeneration || !IsEnabled) return false;
             if (Settings.LoadingMode == RuntimeLoadingMode.OnDemandModule
                 && !string.Equals(CurrentLocale, Settings.DefaultFallbackLocale, StringComparison.OrdinalIgnoreCase))
             {
@@ -542,6 +589,7 @@ namespace FinkFramework.Runtime.Localization
                     cancellationToken);
             }
 
+            if (generation != runtimeGeneration || !IsEnabled) return false;
             if (loadedAny)
                 usedCategories.Add(category.Trim());
 
@@ -762,6 +810,14 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         public static void Clear()
         {
+            localeChanged = null;
+            if (runtimeState == null)
+            {
+                Settings = null;
+                CurrentLocale = null;
+                initialized = false;
+                return;
+            }
             runtimeGeneration++;
             localeSwitchVersion++;
             ReleaseRuntimeResources();
@@ -785,6 +841,7 @@ namespace FinkFramework.Runtime.Localization
             asyncTableLoadTasks.Clear();
             failedTableLoads.Clear();
             warnedSynchronousUriAccess = false;
+            runtimeState = null;
         }
 
         /// <summary>
@@ -796,8 +853,8 @@ namespace FinkFramework.Runtime.Localization
             out UnityEngine.Object asset)
         {
             asset = null;
-            if (!EnsureInitialized()
-                || Settings == null
+            if (!EnsureInitialized()) return false;
+            if (Settings == null
                 || !Settings.EnableLocalization
                 || string.IsNullOrWhiteSpace(key))
             {
@@ -873,58 +930,16 @@ namespace FinkFramework.Runtime.Localization
         }
 
         /// <summary>
-        /// 通过资源管理器加载本地化配置资产。
+        /// 沿全局配置引用读取本地化配置资产。
         /// 该入口只负责 Unity Resources 中的 ScriptableObject；语言 JSON 仍由文件数据源读取。
         /// </summary>
         private static LocalizationSettingsAsset LoadSettingsResource()
         {
-            // 顶层默认配置入口先释放本地化上一次持有的引用，再获取新引用。
             ReleaseRuntimeResources();
-            try
-            {
-                LocalizationSettingsAsset settings = ResManager.Instance.Load<LocalizationSettingsAsset>(
-                    BuildResourcesPath(LocalizationPath.SettingsResourcesPath));
-                if (settings != null)
-                {
-                    settingsResourceLoaded = true;
-                    return settings;
-                }
-
-                // 资源管理器可能在配置缺失时只返回 null 而不抛异常，同样使用 Unity Resources 兜底。
-                LocalizationSettingsAsset fallback = Resources.Load<LocalizationSettingsAsset>(
-                    LocalizationPath.SettingsResourcesPath);
-                if (fallback != null)
-                {
-                    settingsResourceLoaded = false;
-                    LogUtil.Warn("Localization", "资源管理器未返回本地化配置，已回退到 Unity Resources。");
-                    return fallback;
-                }
-
-                settingsResourceLoaded = false;
-                return null;
-            }
-            catch (Exception exception)
-            {
-                // 编辑器脚本或资源管理器尚未准备好时，直接从 Unity Resources 读取配置。
-                // 配置资产本身位于固定 Resources 路径，这个兜底不会依赖 GlobalSettingsAsset。
-                LocalizationSettingsAsset fallback = Resources.Load<LocalizationSettingsAsset>(
-                    LocalizationPath.SettingsResourcesPath);
-                if (fallback != null)
-                {
-                    settingsResourceLoaded = false;
-                    LogUtil.Warn(
-                        "Localization",
-                        $"资源管理器加载本地化配置失败，已回退到 Unity Resources：{exception.GetBaseException().Message}");
-                    return fallback;
-                }
-
-                // 配置资源或全局资源系统尚未准备好时，初始化应返回失败而不是把底层空引用抛给业务层。
-                settingsResourceLoaded = false;
-                LogUtil.Error(
-                    "Localization",
-                    $"加载本地化配置资源失败：{exception.GetBaseException().Message}");
-                return null;
-            }
+            if (LocalizationSettingsRuntimeLoader.TryGet(out var settings))
+                return settings;
+            LogUtil.Error("Localization", "全局配置未绑定 LocalizationSettingsAsset，无法初始化本地化系统。");
+            return null;
         }
 
         /// <summary>
@@ -989,26 +1004,12 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private static void ReleaseRuntimeResources()
         {
-            if (settingsResourceLoaded)
-            {
-                settingsResourceLoaded = false;
-                try
-                {
-                    ResManager.Instance.UnloadAsset<LocalizationSettingsAsset>(
-                        BuildResourcesPath(LocalizationPath.SettingsResourcesPath));
-                }
-                catch (Exception exception)
-                {
-                    LogUtil.Warn("Localization", $"释放本地化配置资源失败：{exception.Message}");
-                }
-            }
-
             if (assetTableResourceLoaded)
             {
                 assetTableResourceLoaded = false;
                 try
                 {
-                    ResManager.Instance.UnloadAsset<LocalizationAssetTable>(
+                    ResManager.TryGetInstance()?.UnloadAsset<LocalizationAssetTable>(
                         BuildResourcesPath(LocalizationPath.AssetTableResourcesPath));
                 }
                 catch (Exception exception)
@@ -1068,7 +1069,7 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private static void NotifyLocaleChanged(string previousLocale, string currentLocale)
         {
-            Action<string, string> handlers = OnLocaleChanged;
+            Action<string, string> handlers = localeChanged;
             if (handlers == null)
                 return;
 
@@ -1184,6 +1185,8 @@ namespace FinkFramework.Runtime.Localization
 
                     case RuntimeLoadingMode.OnDemandLocalePackage:
                         loadedAny = await LoadAllCategoriesAsync(CurrentLocale, cancellationToken);
+                        if (generation != runtimeGeneration || !IsEnabled)
+                        { completion.TrySetResult(false); return false; }
                         if (!string.Equals(
                                 CurrentLocale,
                                 Settings.DefaultFallbackLocale,
@@ -1571,11 +1574,14 @@ namespace FinkFramework.Runtime.Localization
         private static async UniTask<bool> LoadAllSupportedLocalesAsync(
             CancellationToken cancellationToken)
         {
+            if (!IsEnabled || Settings == null) return false;
+            int generation = runtimeGeneration;
             bool loadedAny = false;
             IReadOnlyList<LocaleInfo> locales = Settings.SupportedLocales;
 
             for (int i = 0; i < locales.Count; i++)
             {
+                if (generation != runtimeGeneration || !IsEnabled) return false;
                 cancellationToken.ThrowIfCancellationRequested();
                 LocaleInfo locale = locales[i];
                 if (locale != null)
@@ -1590,6 +1596,7 @@ namespace FinkFramework.Runtime.Localization
         /// </summary>
         private static bool LoadCategory(string category, string localeCode)
         {
+            if (!IsEnabled || Settings == null) return false;
             if (IsStreamingAssetsUri)
                 return RejectSynchronousUriAccess(
                     "当前平台的 StreamingAssets 是 URI，语言表必须通过异步接口加载。");
@@ -1645,6 +1652,7 @@ namespace FinkFramework.Runtime.Localization
             string localeCode,
             CancellationToken cancellationToken)
         {
+            if (!IsEnabled || Settings == null) return false;
             if (!LocalizationPath.IsSafeCategory(category)
                 || !LocaleInfo.TryNormalize(localeCode, out string normalizedLocale))
             {
@@ -1655,11 +1663,12 @@ namespace FinkFramework.Runtime.Localization
             if (database.IsTableLoaded(normalizedLocale, category))
                 return true;
 
+            var tasks = asyncTableLoadTasks;
             int generation = runtimeGeneration;
             string loadKey = BuildTableLoadKey(normalizedLocale, category);
             if (failedTableLoads.Contains(loadKey))
                 return false;
-            if (asyncTableLoadTasks.TryGetValue(loadKey, out Task<bool> existingTask))
+            if (tasks.TryGetValue(loadKey, out Task<bool> existingTask))
                 return await existingTask;
 
             var completion = new TaskCompletionSource<bool>(
@@ -1688,10 +1697,10 @@ namespace FinkFramework.Runtime.Localization
             }
             finally
             {
-                if (asyncTableLoadTasks.TryGetValue(loadKey, out Task<bool> currentTask)
+                if (tasks.TryGetValue(loadKey, out Task<bool> currentTask)
                     && currentTask == completion.Task)
                 {
-                    asyncTableLoadTasks.Remove(loadKey);
+                    tasks.Remove(loadKey);
                 }
             }
         }
@@ -1797,10 +1806,13 @@ namespace FinkFramework.Runtime.Localization
             string localeCode,
             CancellationToken cancellationToken)
         {
+            if (!IsEnabled || Settings == null) return false;
+            int generation = runtimeGeneration;
             bool loadedAny = false;
             IReadOnlyList<string> categories = Settings.Categories;
             for (int i = 0; i < categories.Count; i++)
             {
+                if (generation != runtimeGeneration || !IsEnabled) return false;
                 cancellationToken.ThrowIfCancellationRequested();
                 loadedAny |= await LoadCategoryAsync(
                     categories[i],

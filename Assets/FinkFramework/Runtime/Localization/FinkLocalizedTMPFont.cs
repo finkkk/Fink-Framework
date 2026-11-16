@@ -15,6 +15,7 @@ namespace FinkFramework.Runtime.Localization
 
         protected override void OnEnable()
         {
+            if (!LocalizationManager.IsEnabled) return;
             text = GetComponent<TMP_Text>();
             base.OnEnable();
         }

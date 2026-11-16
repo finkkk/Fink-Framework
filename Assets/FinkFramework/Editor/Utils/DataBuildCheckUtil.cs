@@ -61,9 +61,9 @@ namespace FinkFramework.Editor.Utils
             if (manifest?.entries == null || manifest.entries.Count == 0)
                 throw new BuildFailedException("构建失败：运行时数据清单为空，请重新执行一键处理数据。");
 
-            string expectedExtension = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
+            string expectedExtension = DataSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
                 ? ".json"
-                : GlobalSettingsRuntimeLoader.Current.EncryptedExtension;
+                : DataSettingsRuntimeLoader.Current.EncryptedExtension;
 
             var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (DataManifestEntry entry in manifest.entries)

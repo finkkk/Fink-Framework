@@ -19,11 +19,10 @@ namespace FinkFramework.Runtime.Localization
         // 这是编辑器维护的项目内源文件目录，不属于运行时资源目录。
         public const string DefaultSourceDataRoot = "FinkFramework_Data/Localization";
         public const string ManifestFileName = "localization-manifest.json";
-        // 本地化配置和资源表属于项目数据，不属于可更新的框架目录；路径固定且不开放配置。
+        // 本地化设置的默认创建路径；运行时沿 GlobalSettingsAsset.LocalizationSettings 引用读取。
         public const string SettingsAssetPath =
-            "Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/Localization/LocalizationSettingsAsset.asset";
-        public const string SettingsResourcesPath =
-            "FinkFramework/Settings/Localization/LocalizationSettingsAsset";
+            "Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/LocalizationSettingsAsset.asset";
+        // 资源表属于项目数据，运行时从固定的 Resources 地址加载。
         public const string AssetTablePath =
             "Assets/FinkFramework_Assets/Resources/FinkFramework/Localization/LocalizationAssetTable.asset";
         public const string AssetTableResourcesPath =

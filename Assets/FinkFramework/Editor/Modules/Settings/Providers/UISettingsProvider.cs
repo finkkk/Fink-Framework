@@ -1,4 +1,4 @@
-﻿using FinkFramework.Editor.Modules.Settings.Loaders;
+using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Common;
 using FinkFramework.Editor.Modules.UI;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
@@ -10,7 +10,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 {
     public class UISettingsProvider : SettingsProvider
     {
-        private GlobalSettingsAsset asset;
+        private UISettingsAsset asset;
+        private GlobalSettingsAsset global;
+        private InputSettingsAsset inputSettings;
+        private ResourceBackendSettingsAsset resourceSettings;
         private string scriptOutputPathDraft;
         private string prefabOutputPathDraft;
         private bool prefabDraftUsesResources;
@@ -39,23 +42,21 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
-            asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            global = GlobalSettingsEditorLoader.LoadOrCreate();
+            asset = global.UISettings;
+            inputSettings = global.InputSettings;
+            resourceSettings = global.ResourceBackendSettings;
             SyncPathDrafts();
         }
 
         public override void OnGUI(string searchContext)
         {
-            if (!asset)
+            if (!global || !asset || !inputSettings || !resourceSettings)
             {
-                EditorGUILayout.HelpBox("GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。", MessageType.Error);
-                if (GUILayout.Button("重新创建配置文件"))
-                {
-                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
-                    SyncPathDrafts();
-                }
-                return;
+                OnActivate(searchContext, null);
             }
 
+            Undo.RecordObject(asset, "修改UI配置");
             GUILayout.Space(10);
 
             // ===== 标题 =====
@@ -247,7 +248,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 return;
 
             // 从字段初始化值读取默认值，仅复制本板块字段，不重置整个配置资产。
-            GlobalSettingsAsset defaults = ScriptableObject.CreateInstance<GlobalSettingsAsset>();
+            UISettingsAsset defaults = ScriptableObject.CreateInstance<UISettingsAsset>();
             try
             {
                 Undo.RecordObject(asset, "恢复 Main Canvas 默认设置");
@@ -280,10 +281,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             if (!asset)
                 return;
 
-            scriptOutputPathDraft = GlobalSettingsAsset.NormalizeUIPanelScriptOutputSuffix(
+            scriptOutputPathDraft = UISettingsAsset.NormalizeUIPanelScriptOutputSuffix(
                 asset.UIPanelScriptOutputSuffix,
-                asset.ScriptRootDirectory);
-            prefabDraftUsesResources = asset.UIPanelUsesResources;
+                global.ScriptRootDirectory);
+            prefabDraftUsesResources = asset.UsesResources(resourceSettings.ResourceBackend);
             prefabOutputPathDraft = prefabDraftUsesResources
                 ? asset.UIPanelPrefabOutputRelativePath
                 : asset.UIPanelExternalPrefabOutputRelativePath;
@@ -310,8 +311,8 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                     EditorGUILayout.HelpBox("从下方面板生成目录对应的 Resources 路径加载，保持原有行为。", MessageType.Info);
                     break;
                 case Runtime.UI.UIPanelLoadSource.FollowResourceBackend:
-                    EditorGUILayout.LabelField("当前资源后端", asset.ResourceBackend.ToString());
-                    switch (asset.ResourceBackend)
+                    EditorGUILayout.LabelField("当前资源后端", resourceSettings.ResourceBackend.ToString());
+                    switch (resourceSettings.ResourceBackend)
                     {
                         case Runtime.Environments.EnvironmentState.ResourceBackendType.None:
                             EditorGUILayout.HelpBox("未启用构建型资源后端，面板继续从 Resources 加载。", MessageType.Info);
@@ -343,7 +344,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             try
             {
-                UIPanelBuildRegistration.Capture(asset).Validate("", "");
+                UIPanelBuildRegistration.Capture(asset, resourceSettings).Validate("", "");
             }
             catch (System.Exception exception)
             {
@@ -364,7 +365,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         private void DrawPanelPathSettings()
         {
             if (scriptOutputPathDraft == null || prefabOutputPathDraft == null
-                || prefabDraftUsesResources != asset.UIPanelUsesResources)
+                || prefabDraftUsesResources != asset.UsesResources(resourceSettings.ResourceBackend))
                 SyncPathDrafts();
 
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
@@ -372,12 +373,12 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             GUILayout.Space(6);
 
             string scriptRoot = GlobalSettingsAsset.NormalizeScriptRootDirectory(
-                asset.ScriptRootDirectory);
+                global.ScriptRootDirectory);
             DrawPathField(
                 "代码文件输出路径",
                 "全局脚本根目录/",
                 ref scriptOutputPathDraft);
-            if (GlobalSettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
+            if (UISettingsAsset.TryNormalizeUIPanelScriptOutputSuffix(
                     scriptOutputPathDraft,
                     scriptRoot,
                     out string normalizedScriptPath,
@@ -399,26 +400,26 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             GUILayout.Space(4);
             DrawPathField(
-                asset.UIPanelUsesResources ? "Resources 预制体目录" : "非 Resources 预制体目录",
+                asset.UsesResources(resourceSettings.ResourceBackend) ? "Resources 预制体目录" : "非 Resources 预制体目录",
                 "Assets/",
                 ref prefabOutputPathDraft);
             string normalizedPrefabPath;
             string prefabPathError;
-            bool validPrefabPath = asset.UIPanelUsesResources
-                ? GlobalSettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
+            bool validPrefabPath = asset.UsesResources(resourceSettings.ResourceBackend)
+                ? UISettingsAsset.TryNormalizeUIPanelPrefabOutputRelativePath(
                     prefabOutputPathDraft, out normalizedPrefabPath, out prefabPathError)
-                : GlobalSettingsAsset.TryNormalizeUIPanelExternalPrefabOutputRelativePath(
+                : UISettingsAsset.TryNormalizeUIPanelExternalPrefabOutputRelativePath(
                     prefabOutputPathDraft, out normalizedPrefabPath, out prefabPathError);
             if (validPrefabPath)
             {
-                string currentPath = asset.UIPanelUsesResources
+                string currentPath = asset.UsesResources(resourceSettings.ResourceBackend)
                     ? asset.UIPanelPrefabOutputRelativePath : asset.UIPanelExternalPrefabOutputRelativePath;
                 if (!string.Equals(
                         currentPath,
                         normalizedPrefabPath,
                         System.StringComparison.Ordinal))
                 {
-                    if (asset.UIPanelUsesResources)
+                    if (asset.UsesResources(resourceSettings.ResourceBackend))
                         asset.UIPanelPrefabOutputRelativePath = normalizedPrefabPath;
                     else
                         asset.UIPanelExternalPrefabOutputRelativePath = normalizedPrefabPath;
@@ -433,18 +434,18 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             GUILayout.Space(6);
             EditorGUILayout.LabelField(
                 "代码路径前缀跟随全局脚本根目录。Resources 与非 Resources 目录分别保存，切换来源不会移动已有面板。"
-                + (asset.UIPanelUsesResources ? "当前目录必须位于 Resources 下。" : "当前目录不能位于 Resources、Editor 或 StreamingAssets 下。")
+                + (asset.UsesResources(resourceSettings.ResourceBackend) ? "当前目录必须位于 Resources 下。" : "当前目录不能位于 Resources、Editor 或 StreamingAssets 下。")
                 + "预制体名称必须与对应面板脚本类名完全一致。",
                 FFEditorStyles.Description);
 
             if (GUILayout.Button("恢复默认路径"))
             {
-                scriptOutputPathDraft = GlobalSettingsAsset.DefaultUIPanelScriptOutputSuffix;
-                prefabOutputPathDraft = asset.UIPanelUsesResources
-                    ? GlobalSettingsAsset.DefaultUIPanelPrefabOutputRelativePath
-                    : GlobalSettingsAsset.DefaultUIPanelExternalPrefabOutputRelativePath;
+                scriptOutputPathDraft = UISettingsAsset.DefaultUIPanelScriptOutputSuffix;
+                prefabOutputPathDraft = asset.UsesResources(resourceSettings.ResourceBackend)
+                    ? UISettingsAsset.DefaultUIPanelPrefabOutputRelativePath
+                    : UISettingsAsset.DefaultUIPanelExternalPrefabOutputRelativePath;
                 asset.UIPanelScriptOutputSuffix = scriptOutputPathDraft;
-                if (asset.UIPanelUsesResources)
+                if (asset.UsesResources(resourceSettings.ResourceBackend))
                     asset.UIPanelPrefabOutputRelativePath = prefabOutputPathDraft;
                 else
                     asset.UIPanelExternalPrefabOutputRelativePath = prefabOutputPathDraft;
@@ -464,7 +465,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 "按输入设备自动管理导航交互",
                 asset.EnableAutoNavigationInteractionByInputDevice);
 
-            if (asset.EnableAutoNavigationInteractionByInputDevice && !asset.EnableDeviceDetection)
+            if (asset.EnableAutoNavigationInteractionByInputDevice && !inputSettings.EnableDeviceDetection)
             {
                 EditorGUILayout.HelpBox(
                     "设备输入检测当前已在 Project Settings > Fink Framework > Input 中关闭。"
@@ -474,7 +475,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             EditorGUILayout.LabelField(
                 asset.EnableAutoNavigationInteractionByInputDevice
-                    ? asset.EnableDeviceDetection
+                    ? inputSettings.EnableDeviceDetection
                         ? "前提：Project Settings > Fink Framework > Input 中的设备输入检测必须开启。"
                           + "预设策略：PC 键鼠输入时关闭键盘/手柄导航交互，手柄输入时重新开启。"
                           + "当前设备会以最近一次有效操作为准，而非设备是否已连接。"

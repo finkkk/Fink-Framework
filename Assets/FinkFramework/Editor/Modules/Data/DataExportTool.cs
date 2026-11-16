@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -200,11 +200,11 @@ namespace FinkFramework.Editor.Modules.Data
                     return false;
                 
                 // ========== 5. 处理二进制数据的输出 ==========
-                if (GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
+                if (DataSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary)
                 {
                     string targetRoot = DataPipelinePath.BinaryRoot;
                     // 使用 streamingAssetsPath 作为 root（Binary 模式）
-                    string binaryFullPath = DataFilesUtil.BuildFullPath(targetRoot, relativePath, GlobalSettingsRuntimeLoader.Current.EncryptedExtension);
+                    string binaryFullPath = DataFilesUtil.BuildFullPath(targetRoot, relativePath, DataSettingsRuntimeLoader.Current.EncryptedExtension);
                     if (!BinaryExportTool.TryExportBinary(container, binaryFullPath))
                         return false;
                 }

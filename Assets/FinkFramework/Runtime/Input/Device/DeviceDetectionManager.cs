@@ -127,7 +127,7 @@ namespace FinkFramework.Runtime.Input
 
         private static DeviceDetectionSettings ReadSettings()
         {
-            if (!GlobalSettingsRuntimeLoader.TryGet(out var settings))
+            if (!InputSettingsRuntimeLoader.TryGet(out var settings))
                 return DeviceDetectionSettings.Default;
 
             return new DeviceDetectionSettings(
@@ -174,7 +174,7 @@ namespace FinkFramework.Runtime.Input
         public static readonly DeviceDetectionSettings Default = new(
             true,
             true,
-            GlobalSettingsAsset.DefaultMouseMovementDetectionThreshold);
+            InputSettingsAsset.DefaultMouseMovementDetectionThreshold);
 
         public readonly bool IsEnabled;
         public readonly bool TreatMouseMovementAsKeyboardMouseInput;

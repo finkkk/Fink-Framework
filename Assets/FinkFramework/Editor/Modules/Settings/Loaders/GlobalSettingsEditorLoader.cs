@@ -1,64 +1,38 @@
-﻿using FinkFramework.Runtime.Settings.ScriptableObjects;
-using FinkFramework.Runtime.Utils;
+using FinkFramework.Editor.Modules.Localization;
+using FinkFramework.Runtime.Environments;
+using FinkFramework.Runtime.Settings.Loaders;
+using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
-using UnityEngine;
 
 namespace FinkFramework.Editor.Modules.Settings.Loaders
 {
-    /// <summary>
-    /// 全局配置文件加载器（Editor-only）
-    /// </summary>
+    /// <summary>框架配置入口，统一补齐模块 SO 引用；只在编辑器主线程显式调用时创建资产。</summary>
+    [InitializeOnLoad]
     public static class GlobalSettingsEditorLoader
     {
-        /// <summary>
-        /// 全局配置文件的存储路径
-        /// </summary>
-        public const string AssetPath = "Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/Global/GlobalSettingsAsset.asset";
-        
-        /// <summary>
-        /// 加载全局设置 SO，如果不存在就自动创建。
-        /// </summary>
+        static GlobalSettingsEditorLoader()
+            => GlobalSettingsRuntimeLoader.RegisterEditorLoader(LoadOrCreate);
+
+        /// <summary>默认框架配置路径。</summary>
+        public const string AssetPath = "Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/GlobalSettingsAsset.asset";
+
+        /// <summary>加载或创建根配置和各模块配置；不读取或迁移旧模块字段。</summary>
+        /// <returns>模块引用完整的根配置；路径冲突时抛出配置错误，不覆盖原文件。</returns>
         public static GlobalSettingsAsset LoadOrCreate()
         {
-            EnsureParentDirectoryExists(AssetPath);
-            // 尝试加载
-            var asset = AssetDatabase.LoadAssetAtPath<GlobalSettingsAsset>(AssetPath);
-
-            // 文件不存在 → 创建新文件
-            if (asset == null)
-            {
-                asset = ScriptableObject.CreateInstance<GlobalSettingsAsset>();
-                AssetDatabase.CreateAsset(asset, AssetPath);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.Refresh();
-                LogUtil.Info("FinkFramework", "已自动创建 GlobalSettingsAsset");
-            }
-
-            return asset;
-        }
-        
-        /// <summary>
-        /// 自动递归创建父目录（Unity 官方不会自动创建）
-        /// </summary>
-        private static void EnsureParentDirectoryExists(string assetPath)
-        {
-            string folderPath = assetPath[..assetPath.LastIndexOf('/')];
-
-            if (AssetDatabase.IsValidFolder(folderPath))
-                return;
-
-            string[] parts = folderPath.Split('/');
-            string current = parts[0]; // "Assets"
-
-            for (int i = 1; i < parts.Length; i++)
-            {
-                string next = $"{current}/{parts[i]}";
-
-                if (!AssetDatabase.IsValidFolder(next))
-                    AssetDatabase.CreateFolder(current, parts[i]);
-
-                current = next;
-            }
+            var global = SettingsAssetEditorUtility.LoadOrCreate<GlobalSettingsAsset>(AssetPath);
+            DataSettingsEditorLoader.GetOrCreateDataSettings(global);
+            SaveSettingsEditorLoader.GetOrCreateSaveSettings(global);
+            InputSettingsEditorLoader.GetOrCreateInputSettings(global);
+            UISettingsEditorLoader.GetOrCreateUISettings(global);
+            var backend = ResBackendSettingsEditorLoader.GetOrCreateResourceBackendSettings(global);
+            if (backend.ResourceBackend == EnvironmentState.ResourceBackendType.AssetBundle)
+                ResBackendSettingsEditorLoader.GetOrCreateAssetBundleSettings(backend);
+            else if (backend.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
+                ResBackendSettingsEditorLoader.GetOrCreateAddressablesSettings(backend);
+            AudioSettingsEditorLoader.GetOrCreateAudioSettings(global);
+            LocalizationSettingsEditorLoader.GetOrCreateLocalizationSettings(global);
+            return global;
         }
     }
 }

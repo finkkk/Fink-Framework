@@ -26,7 +26,7 @@ namespace FinkFramework.Runtime.UI.Core
 
         public UIRuntimeRoot()
         {
-            GlobalSettingsRuntimeLoader.TryGet(out var settings);
+            UISettingsRuntimeLoader.TryGet(out var settings);
             bool custom = settings && settings.UseCustomMainCanvas;
             if (custom)
                 ValidateCustomCanvas(settings.CustomMainCanvasPrefab);
@@ -116,7 +116,7 @@ namespace FinkFramework.Runtime.UI.Core
 
         private static Canvas CreateMainCanvas(Camera camera, RenderMode renderMode)
         {
-            GlobalSettingsRuntimeLoader.TryGet(out var settings);
+            UISettingsRuntimeLoader.TryGet(out var settings);
             if (settings && settings.UseCustomMainCanvas)
             {
                 GameObject instance = Object.Instantiate(settings.CustomMainCanvasPrefab);

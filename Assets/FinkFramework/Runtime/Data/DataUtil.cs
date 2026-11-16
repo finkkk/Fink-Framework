@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -20,7 +20,7 @@ using UnityEngine;
 namespace FinkFramework.Runtime.Data
 {
     /// <summary>
-    /// 使用 OdinSerializer 的通用数据存取工具（默认 AES 加密，可前往全局设置中关闭加密）
+    /// 使用 OdinSerializer 的通用数据存取工具（数据管线与存档分别使用各自模块的 AES 配置）
     /// 提供 Serialize / Deserialize / Encrypt / Decrypt。
     /// </summary>
     public static class DataUtil
@@ -52,7 +52,7 @@ namespace FinkFramework.Runtime.Data
         /// <typeparam name="T">存档根类型。</typeparam>
         /// <param name="data">要编码的非空数据。</param>
         /// <param name="format">JSON 或 Binary 编码格式。</param>
-        /// <param name="encrypt">是否使用全局数据管线密码进行 AES 加密。</param>
+        /// <param name="encrypt">是否使用存档配置密码进行 AES 加密。</param>
         /// <returns>编码后的独立字节数组。</returns>
         /// <exception cref="ArgumentNullException"><paramref name="data"/> 为空。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="format"/> 不是受支持格式。</exception>
@@ -71,12 +71,12 @@ namespace FinkFramework.Runtime.Data
         /// <typeparam name="T">存档根类型；仅公共字段和公共可读写属性参与存档序列化。</typeparam>
         /// <param name="data">要编码的非空数据。</param>
         /// <param name="format">JSON 或 Binary 编码格式。</param>
-        /// <param name="encrypt">是否使用全局数据管线密码进行 AES 加密。</param>
+        /// <param name="encrypt">是否使用存档配置密码进行 AES 加密。</param>
         /// <param name="compress">是否在加密前使用 GZip 压缩。</param>
         /// <returns>编码、压缩和加密后的独立字节数组。</returns>
         /// <exception cref="ArgumentNullException"><paramref name="data"/> 为空。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="format"/> 不是受支持格式。</exception>
-        /// <exception cref="InvalidOperationException">请求加密但全局密码不可用。</exception>
+        /// <exception cref="InvalidOperationException">请求加密但存档密码不可用。</exception>
         public static byte[] SerializeSaveValue<T>(
             T data,
             EnvironmentState.DataLoadMode format,
@@ -104,7 +104,7 @@ namespace FinkFramework.Runtime.Data
             if (compress)
                 bytes = Compress(bytes);
             if (encrypt)
-                bytes = AESEncrypt(bytes, GetEncryptionPassword());
+                bytes = AESEncrypt(bytes, GetSaveEncryptionPassword());
             return bytes;
         }
 
@@ -151,7 +151,7 @@ namespace FinkFramework.Runtime.Data
             ValidateSaveFormat(format);
 
             byte[] bytes = encrypted
-                ? AESDecrypt(data, GetEncryptionPassword())
+                ? AESDecrypt(data, GetSaveEncryptionPassword())
                 : data;
             if (compressed)
                 bytes = Decompress(bytes);
@@ -177,9 +177,9 @@ namespace FinkFramework.Runtime.Data
         }
 
         #region 数据存储
-        
+
         /// <summary>
-        /// 保存对象为二进制文件（基于全局设置的加密选项自动判断是否加密）
+        /// 保存对象为二进制文件（基于数据管线加密配置自动判断是否加密）
         /// </summary>
         public static void Save<T>(string path, T data)
         {
@@ -193,7 +193,7 @@ namespace FinkFramework.Runtime.Data
                 return;
             }
 
-            if (GlobalSettingsRuntimeLoader.Current.EnableEncryption)
+            if (DataSettingsRuntimeLoader.Current.EnableEncryption)
                 SaveEncrypted(path, data);
             else
                 SavePlain(path, data);
@@ -215,7 +215,7 @@ namespace FinkFramework.Runtime.Data
                 LogUtil.Error("DataUtil", $"保存明文失败: {path} → {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// AES 加密保存数据为二进制文件
         /// </summary>
@@ -227,7 +227,7 @@ namespace FinkFramework.Runtime.Data
                 // 1. 序列化对象为二进制
                 byte[] bytes = SerializationUtility.SerializeValue(data, DataFormat.Binary);
                 // 2. AES加密
-                bytes = AESEncrypt(bytes, GlobalSettingsRuntimeLoader.Current.Password);
+                bytes = AESEncrypt(bytes, DataSettingsRuntimeLoader.Current.Password);
                 // 3. 写入文件
                 File.WriteAllBytes(path, bytes);
             }
@@ -240,9 +240,9 @@ namespace FinkFramework.Runtime.Data
         #endregion
 
         #region 数据加载
-        
+
         /// <summary>
-        /// 从文件加载对象（基于全局设置的加密选项自动判断是否加密）
+        /// 从文件加载对象（基于数据管线加密配置自动判断是否加密）
         /// </summary>
         public static T Load<T>(string path)
         {
@@ -251,7 +251,7 @@ namespace FinkFramework.Runtime.Data
             if (ext == ".json")
                 return LoadJson<T>(path);
 
-            if (GlobalSettingsRuntimeLoader.Current.EnableEncryption)
+            if (DataSettingsRuntimeLoader.Current.EnableEncryption)
                 return LoadEncrypted<T>(path);
 
             return LoadPlain<T>(path);
@@ -280,8 +280,8 @@ namespace FinkFramework.Runtime.Data
                     return JsonConvert.DeserializeObject<T>(json, GetJsonSettings());
                 }
 
-                if (GlobalSettingsRuntimeLoader.Current.EnableEncryption)
-                    bytes = AESDecrypt(bytes, GlobalSettingsRuntimeLoader.Current.Password);
+                if (DataSettingsRuntimeLoader.Current.EnableEncryption)
+                    bytes = AESDecrypt(bytes, DataSettingsRuntimeLoader.Current.Password);
 
                 return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary);
             }
@@ -309,7 +309,7 @@ namespace FinkFramework.Runtime.Data
                 return default;
             }
         }
-        
+
         /// <summary>
         /// AES 解密从文件加载对象
         /// </summary>
@@ -325,7 +325,7 @@ namespace FinkFramework.Runtime.Data
                 // 1. 读取文件
                 byte[] bytes = File.ReadAllBytes(path);
                 // 2. AES解密
-                bytes = AESDecrypt(bytes, GlobalSettingsRuntimeLoader.Current.Password);
+                bytes = AESDecrypt(bytes, DataSettingsRuntimeLoader.Current.Password);
                 // 3. 反序列化为对象
                 return SerializationUtility.DeserializeValue<T>(bytes, DataFormat.Binary);
             }
@@ -335,11 +335,11 @@ namespace FinkFramework.Runtime.Data
                 return default;
             }
         }
-    
+
         #endregion
 
         #region Json相关
-                
+
         public static void SaveJson<T>(string path, T data)
         {
             try
@@ -357,7 +357,7 @@ namespace FinkFramework.Runtime.Data
                 LogUtil.Error("DataUtil", $"保存 JSON 失败: {path} → {ex.Message}");
             }
         }
-        
+
         public static T LoadJson<T>(string path)
         {
             try
@@ -448,7 +448,7 @@ namespace FinkFramework.Runtime.Data
             gzip.CopyTo(output);
             return output.ToArray();
         }
-        
+
         // AES加密 盐值
         private static readonly byte[] Salt = Encoding.UTF8.GetBytes("Fink_AES_Salt");
         /// <summary>
@@ -485,10 +485,10 @@ namespace FinkFramework.Runtime.Data
             return ms.ToArray();
         }
 
-        private static string GetEncryptionPassword()
+        private static string GetSaveEncryptionPassword()
         {
-            if (!GlobalSettingsRuntimeLoader.TryGet(out var settings) || settings == null)
-                throw new InvalidOperationException("GlobalSettingsAsset 未加载，无法取得存档加密配置。");
+            if (!SaveSettingsRuntimeLoader.TryGet(out var settings) || settings == null)
+                throw new InvalidOperationException("SaveSettingsAsset 未配置，无法取得存档加密配置。");
 
             if (string.IsNullOrEmpty(settings.Password))
                 throw new InvalidOperationException("存档加密密码不能为空。");
@@ -507,9 +507,9 @@ namespace FinkFramework.Runtime.Data
                     "存档格式只支持 Json 或 Binary。");
             }
         }
-        
+
         #endregion
-        
+
         #region 类型映射与查找
         /// <summary>
         /// 类型映射字符串名
@@ -549,7 +549,7 @@ namespace FinkFramework.Runtime.Data
         {
             if (string.IsNullOrWhiteSpace(typeName))
                 return null;
-            
+
             // === 支持数组类型 T[] ===
             if (typeName.EndsWith("[]"))
             {
@@ -621,7 +621,7 @@ namespace FinkFramework.Runtime.Data
             }
             return null;
         }
-        
+
         /// <summary>
         /// 支持递归解析的泛型类型查找（如 Dictionary<string, List<GameItemData>>）
         /// </summary>

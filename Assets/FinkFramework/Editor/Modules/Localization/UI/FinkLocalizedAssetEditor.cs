@@ -210,8 +210,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             categories.Clear();
             keyCatalogLoaded = false;
 
-            LocalizationSettingsAsset settings = AssetDatabase.LoadAssetAtPath<LocalizationSettingsAsset>(
-                LocalizationPath.SettingsAssetPath);
+            LocalizationSettingsAsset settings = LocalizationSettingsEditorLoader.LoadOrCreate();
             LocalizationAssetTable catalog = AssetDatabase.LoadAssetAtPath<LocalizationAssetTable>(
                 LocalizationPath.AssetTablePath);
             if (settings == null || catalog?.Entries == null)
@@ -318,8 +317,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             if (Application.isPlaying || keyProperty == null || targets == null)
                 return;
 
-            LocalizationSettingsAsset settings = AssetDatabase.LoadAssetAtPath<LocalizationSettingsAsset>(
-                LocalizationPath.SettingsAssetPath);
+            LocalizationSettingsAsset settings = LocalizationSettingsEditorLoader.LoadOrCreate();
             LocalizationAssetTable catalog = AssetDatabase.LoadAssetAtPath<LocalizationAssetTable>(
                 LocalizationPath.AssetTablePath);
             if (settings == null || catalog == null)

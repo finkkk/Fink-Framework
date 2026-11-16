@@ -22,11 +22,11 @@ namespace FinkFramework.Editor.Modules.UI
         public string Group;
         public string Bundle;
 
-        public static UIPanelBuildRegistration Capture(GlobalSettingsAsset settings) => new()
+        public static UIPanelBuildRegistration Capture(UISettingsAsset settings, ResourceBackendSettingsAsset resources) => new()
         {
             Backend = settings.UIPanelLoadSource == UIPanelLoadSource.Custom
                 ? EnvironmentState.ResourceBackendType.Custom
-                : settings.UIPanelUsesResources ? EnvironmentState.ResourceBackendType.None : settings.ResourceBackend,
+                : settings.UsesResources(resources.ResourceBackend) ? EnvironmentState.ResourceBackendType.None : resources.ResourceBackend,
             Group = settings.UIPanelAddressablesGroup?.Trim(),
             Bundle = settings.UIPanelAssetBundleName?.Trim()
         };

@@ -25,7 +25,7 @@ namespace FinkFramework.Editor.Modules.Data
             try
             {
                 string streamingRoot = PathUtil.NormalizePath(Application.streamingAssetsPath);
-                string dataRoot = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary
+                string dataRoot = DataSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary
                     ? DataPipelinePath.BinaryRoot
                     : DataPipelinePath.JsonRoot;
 
@@ -35,8 +35,8 @@ namespace FinkFramework.Editor.Modules.Data
                     return false;
                 }
 
-                string extension = GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary
-                    ? GlobalSettingsRuntimeLoader.Current.EncryptedExtension
+                string extension = DataSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Binary
+                    ? DataSettingsRuntimeLoader.Current.EncryptedExtension
                     : ".json";
                 if (string.IsNullOrEmpty(extension))
                 {

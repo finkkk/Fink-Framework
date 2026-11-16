@@ -1,7 +1,5 @@
-﻿using FinkFramework.Editor.Modules.Settings.Loaders;
+using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Common;
-using FinkFramework.Editor.Modules.Localization;
-using FinkFramework.Runtime.Localization;
 using FinkFramework.Runtime.Settings.ScriptableObjects;
 using UnityEditor;
 using UnityEngine;
@@ -12,8 +10,6 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
     public class FrameworkSettingsProvider : SettingsProvider
     {
         private GlobalSettingsAsset asset;
-        private LocalizationSettingsAsset localizationAsset;
-        private SerializedObject localizationSerializedAsset;
         private string scriptRootDirectoryDraft;
 
         public FrameworkSettingsProvider(string path, SettingsScope scope)
@@ -32,10 +28,6 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
             asset = GlobalSettingsEditorLoader.LoadOrCreate();
-            localizationAsset = LocalizationSettingsEditorLoader.LoadOrCreate();
-            localizationSerializedAsset = localizationAsset != null
-                ? new SerializedObject(localizationAsset)
-                : null;
             scriptRootDirectoryDraft = GlobalSettingsAsset.NormalizeScriptRootDirectory(
                 asset.ScriptRootDirectory);
         }
@@ -44,14 +36,10 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         {
             if (!asset)
             {
-                EditorGUILayout.HelpBox("GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。", MessageType.Error);
-                if (GUILayout.Button("重新创建配置文件"))
-                {
-                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
-                }
-                return;
+                OnActivate(searchContext, null);
             }
 
+            Undo.RecordObject(asset, "修改框架配置");
             GUILayout.Space(10);
 
               // ===== 标题 =====
@@ -67,9 +55,6 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             GUILayout.Space(12);
 
             DrawScriptRootDirectorySettings();
-            GUILayout.Space(12);
-
-            DrawModuleSwitchSettings();
             GUILayout.Space(12);
 
             DrawFrameworkUpdateSettings();
@@ -132,61 +117,6 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 EditorGUILayout.HelpBox(error, MessageType.Error);
             }
 
-            GUILayout.EndVertical();
-        }
-
-        /// <summary>
-        /// 集中显示各模块的总开关。具体模块仍由自己的配置资产保存状态，
-        /// 这里只提供统一入口，避免用户在多个 Project Settings 页面中查找。
-        /// </summary>
-        private void DrawModuleSwitchSettings()
-        {
-            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
-            FFEditorGUI.DrawSectionHeader(
-                "模块开关设置",
-                "控制各功能模块是否在运行时启用。关闭模块后，对应运行时服务不会初始化或加载关联资源。");
-            GUILayout.Space(6);
-
-            asset.EnableAudioModule = EditorGUILayout.Toggle(
-                new GUIContent(
-                    "启用音频模块",
-                    "关闭后不会初始化 AudioManager、加载音频资源或播放音乐和音效。"),
-                asset.EnableAudioModule);
-            EditorGUILayout.LabelField(
-                "关闭后，框架不会初始化 AudioManager，不加载音频资源，也不会播放任何音乐或音效。",
-                FFEditorStyles.Description);
-
-            GUILayout.Space(8);
-
-            if (localizationAsset == null || localizationSerializedAsset == null)
-            {
-                EditorGUILayout.HelpBox(
-                    "LocalizationSettingsAsset 缺失，无法编辑本地化模块开关。",
-                    MessageType.Error);
-            }
-            else
-            {
-                localizationSerializedAsset.Update();
-                SerializedProperty enabledProperty =
-                    localizationSerializedAsset.FindProperty("enableLocalization");
-                EditorGUI.BeginChangeCheck();
-                bool enabled = EditorGUILayout.Toggle(
-                    new GUIContent(
-                        "启用本地化模块",
-                        "关闭后，本地化运行时不会初始化或加载语言文件。"),
-                    enabledProperty.boolValue);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    enabledProperty.boolValue = enabled;
-                    localizationSerializedAsset.ApplyModifiedProperties();
-                    EditorUtility.SetDirty(localizationAsset);
-                    AssetDatabase.SaveAssets();
-                }
-            }
-
-            EditorGUILayout.LabelField(
-                "关闭后，本地化运行时不会初始化或加载语言文件。",
-                FFEditorStyles.Description);
             GUILayout.EndVertical();
         }
 
@@ -258,6 +188,13 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 EditorGUILayout.Toggle("启用编辑器加载打包检测", asset.EnableEditorUrlCheck);
             EditorGUILayout.LabelField(
                 "构建前自动扫描代码；发现 editor:// 路径引用时阻止打包，避免运行时无法加载资源。",
+                FFEditorStyles.Description);
+
+            GUILayout.Space(8);
+            asset.EnableAudioBuildCheck =
+                EditorGUILayout.Toggle("启用音频配置打包检测", asset.EnableAudioBuildCheck);
+            EditorGUILayout.LabelField(
+                "构建前检查 Mixer、输出分组归属和层级；音频模块关闭时自动跳过。仅控制构建检查。",
                 FFEditorStyles.Description);
             GUILayout.EndVertical();
         }

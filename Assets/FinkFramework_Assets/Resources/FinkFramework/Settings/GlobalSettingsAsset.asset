@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9fb8a045a93243b8989c9ae9075d5899, type: 3}
+  m_Name: GlobalSettingsAsset
+  m_EditorClassIdentifier: 
+  EnableUpdateCheck: 1
+  UpdateCheckIntervalDays: 1
+  ForceDisableXR: 0
+  ForceDisableNewInputSystem: 0
+  ForceDisableURP: 0
+  EnableEditorUrlCheck: 1
+  ScriptRootDirectory: Scripts
+  DataSettings: {fileID: 11400000, guid: 8594a065533e4ad4bbb149d4aad852f8, type: 2}
+  SaveSettings: {fileID: 11400000, guid: 1dc9ce55315c8dc4c8a35182566017fe, type: 2}
+  InputSettings: {fileID: 11400000, guid: 076192d3e51fe9a40ae609f3efa20931, type: 2}
+  UISettings: {fileID: 11400000, guid: a846b4f00042cce42a5c708ee72acfd6, type: 2}
+  ResourceBackendSettings: {fileID: 11400000, guid: 20c3900317fb7c94ea3a3a74f7f1b7f1, type: 2}
+  AudioSettings: {fileID: 11400000, guid: 72aae613326755f4f85627fd77394ef8, type: 2}
+  LocalizationSettings: {fileID: 11400000, guid: c3a4b1b90fc2ad14b96cabb9b65442ed, type: 2}

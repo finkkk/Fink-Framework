@@ -1,4 +1,4 @@
-﻿#nullable enable
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -124,7 +124,7 @@ namespace FinkFramework.Editor.Modules.Data
                 DataGenerationManifestTool.CleanupPreviousOutput(previousManifest, classRoot, generatedFiles);
 
             bool isInternalOutput =
-                GlobalSettingsRuntimeLoader.Current.CSharpPathMode == EnvironmentState.CSharpOutputPathMode.Internal;
+                DataSettingsRuntimeLoader.Current.CSharpPathMode == EnvironmentState.CSharpOutputPathMode.Internal;
 
             // 外部目录不受 Unity 资源数据库管理，无需刷新；内部目录需要刷新以触发脚本编译。
             if (isInternalOutput)

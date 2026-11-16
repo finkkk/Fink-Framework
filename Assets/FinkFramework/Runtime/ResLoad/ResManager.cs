@@ -38,20 +38,11 @@ namespace FinkFramework.Runtime.ResLoad
             AddProvider("http", webProvider);
             AddProvider("https", webProvider);
             
-            // 注册 AssetBundle / Addressables 加载模块。
-            // 全局配置首次导入或被移除时允许资源管理器先以基础 Provider 工作，
-            // 避免直接访问空配置导致整个本地化初始化链抛出 NullReferenceException。
-            if (!GlobalSettingsRuntimeLoader.TryGet(out var globalSettings))
+            // 缺失配置使用默认 None 后端，仅注册基础 Provider；所选内置后端的子配置也会自动补齐。
+            var backendSettings = ResBackendSettingsRuntimeLoader.Current;
+            if (backendSettings.ResourceBackend == EnvironmentState.ResourceBackendType.AssetBundle)
             {
-                LogUtil.Warn(
-                    "FinkFramework",
-                    "未加载到外部 GlobalSettingsAsset，已跳过 AssetBundle/Addressables Provider 注册。"
-                    + "请确认 Assets/FinkFramework_Assets/Resources/FinkFramework/Settings/Global/GlobalSettingsAsset.asset"
-                    + " 已被 Unity 导入。");
-            }
-            else if (globalSettings.ResourceBackend == EnvironmentState.ResourceBackendType.AssetBundle)
-            {
-                var settings = globalSettings.AssetBundleSettings;
+                var settings = ResBackendSettingsRuntimeLoader.AssetBundle;
                 var provider = new ABProvider();
                 provider.Initialize(settings);
                 AddProvider("ab", provider);
@@ -59,12 +50,12 @@ namespace FinkFramework.Runtime.ResLoad
             // Addressables 位于独立程序集。核心程序集不直接引用该包，
             // 以便未安装 Addressables 的项目仍可正常编译和使用 Resources / AB。
 #if ENABLE_ADDRESSABLES
-            if (globalSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
+            if (backendSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
             {
                 RegisterAddressablesProvider();
             }
 #else
-            if (globalSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
+            if (backendSettings?.ResourceBackend == EnvironmentState.ResourceBackendType.Addressables)
             {
                 LogUtil.Error(
                     "ResManager",

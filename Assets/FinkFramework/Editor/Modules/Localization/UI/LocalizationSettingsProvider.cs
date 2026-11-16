@@ -161,12 +161,7 @@ namespace FinkFramework.Editor.Modules.Localization.UI
         {
             if (asset == null || serializedAsset == null)
             {
-                EditorGUILayout.HelpBox(
-                    "LocalizationSettingsAsset 缺失，请点击按钮自动创建配置。",
-                    MessageType.Error);
-                if (GUILayout.Button("重新创建配置文件"))
-                    ReloadSettings();
-                return;
+                ReloadSettings();
             }
 
             // 有未提交的 Inspector 草稿时不要调用 Update，否则 Unity 会丢弃用户正在输入的内容。
@@ -183,6 +178,8 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                 FFEditorStyles.Description);
             GUILayout.Space(14);
 
+            DrawModuleSettings();
+            GUILayout.Space(FFEditorStyles.SectionSpacing);
             DrawTextDirectionSettings();
             GUILayout.Space(FFEditorStyles.SectionSpacing);
             DrawLocaleSettings();
@@ -197,6 +194,27 @@ namespace FinkFramework.Editor.Modules.Localization.UI
             FFEditorGUI.DrawFrameworkFooter(18f);
 
             FFEditorGUI.EndWindowContent();
+        }
+
+        private void DrawModuleSettings()
+        {
+            GUILayout.BeginVertical(FFEditorStyles.SectionBox);
+            FFEditorGUI.DrawSectionHeader("模块配置", "仅在本地化配置中管理本地化模块开关。");
+            var moduleSettings = new SerializedObject(asset);
+            moduleSettings.Update();
+            var enabledProperty = moduleSettings.FindProperty("enableLocalization");
+            EditorGUI.BeginChangeCheck();
+            enabledProperty.boolValue = EditorGUILayout.Toggle(
+                new GUIContent("启用本地化模块", "开关立即保存。关闭时不初始化语言数据库、不加载语言表、不注册语言切换监听。"),
+                enabledProperty.boolValue);
+            if (EditorGUI.EndChangeCheck())
+            {
+                moduleSettings.ApplyModifiedProperties();
+                AssetDatabase.SaveAssetIfDirty(asset);
+                ApplyRuntimeModuleState();
+            }
+            EditorGUILayout.HelpBox("关闭时保留原有文本和资源。主动调用本地化功能只会返回未启用结果，并给出一次未启用提示。", MessageType.Info);
+            GUILayout.EndVertical();
         }
 
         private void DrawTextDirectionSettings()
@@ -707,18 +725,31 @@ namespace FinkFramework.Editor.Modules.Localization.UI
                 return;
             }
 
-            if (!asset.EnableLocalization
-                && !LocalizationDataSyncUtility.Sync(asset, out string syncMessage))
+            ApplyRuntimeModuleState();
+        }
+
+        private void ApplyRuntimeModuleState()
+        {
+            if (!Application.isPlaying) return;
+            if (!asset.EnableLocalization)
             {
-                EditorUtility.DisplayDialog(
-                    "配置已保存，但运行时副本未同步",
-                    $"本地化模块已关闭，但源文件与 StreamingAssets 副本同步失败：\n\n{syncMessage}",
-                    "确定");
+                LocalizationManager.Clear();
                 return;
             }
+            if (!LocalizationManager.Initialize(asset)) return;
 
-            if (Application.isPlaying)
-                LocalizationManager.Initialize(asset);
+            // Clear 会撤销订阅；运行中重新启用时，复用组件生命周期恢复绑定，无需后台轮询开关。
+            foreach (var component in UnityEngine.Object.FindObjectsOfType<FinkLocalizedText>())
+                ReactivateBinding(component);
+            foreach (var component in UnityEngine.Object.FindObjectsOfType<FinkLocalizedAsset>())
+                ReactivateBinding(component);
+        }
+
+        private static void ReactivateBinding(Behaviour component)
+        {
+            if (!component.isActiveAndEnabled) return;
+            component.enabled = false;
+            component.enabled = true;
         }
 
         private void OpenLanguageTableWindow()

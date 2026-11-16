@@ -220,9 +220,9 @@ namespace FinkFramework.Runtime.Data
 
         private static string GetRuntimeExtension()
         {
-            return GlobalSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
+            return DataSettingsRuntimeLoader.Current.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json
                 ? ".json"
-                : GlobalSettingsRuntimeLoader.Current.EncryptedExtension;
+                : DataSettingsRuntimeLoader.Current.EncryptedExtension;
         }
 
         /// <summary>
@@ -326,7 +326,7 @@ namespace FinkFramework.Runtime.Data
             }
 
             string searchName = GetDataKey(type);
-            var settings = GlobalSettingsRuntimeLoader.Current;
+            var settings = DataSettingsRuntimeLoader.Current;
             bool useJson = settings.CurrentDataLoadMode == EnvironmentState.DataLoadMode.Json;
             string folder = useJson
                 ? "FinkFramework_Data/DataJson"

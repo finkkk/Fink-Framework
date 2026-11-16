@@ -9,7 +9,7 @@ using UnityEngine.UIElements;
 namespace FinkFramework.Editor.Modules.Settings.Providers
 {
     /// <summary>
-    /// 存档设置入口。所有值仍然写入同一份 GlobalSettingsAsset，页面本身不维护第二份配置。
+    /// 存档设置入口。配置保存在独立 SaveSettingsAsset 中，AES 配置由存档模块独立保存。
     /// </summary>
     public sealed class SaveSettingsProvider : SettingsProvider
     {
@@ -30,23 +30,21 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             };
         }
 
-        private GlobalSettingsAsset asset;
+        private SaveSettingsAsset asset;
 
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
-            asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            asset = SaveSettingsEditorLoader.LoadOrCreate();
         }
 
         public override void OnGUI(string searchContext)
         {
             if (!asset)
             {
-                EditorGUILayout.HelpBox("GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。", MessageType.Error);
-                if (GUILayout.Button("重新创建配置文件"))
-                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
-                return;
+                OnActivate(searchContext, null);
             }
 
+            Undo.RecordObject(asset, "修改存档配置");
             GUILayout.Space(10);
             FFEditorGUI.Center(() =>
             {
@@ -54,7 +52,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             });
             GUILayout.Space(8);
             EditorGUILayout.LabelField(
-                "存档格式、文件命名、历史备份和压缩配置。AES 开关与密钥继续复用数据管线配置。",
+                "存档格式、文件命名、历史备份和压缩配置。AES 开关与密钥保存在本模块配置中。",
                 FFEditorStyles.Description);
             GUILayout.Space(12);
 
@@ -77,7 +75,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
                 string extension = EditorGUILayout.TextField(
                     new GUIContent("二进制存档后缀", "只控制存档系统，不影响数据管线的文件后缀。"),
                     asset.SaveBinaryExtension);
-                asset.SaveBinaryExtension = GlobalSettingsAsset.NormalizeSaveBinaryExtension(extension);
+                asset.SaveBinaryExtension = SaveSettingsAsset.NormalizeSaveBinaryExtension(extension);
             }
 
             GUILayout.Space(16);
@@ -110,14 +108,14 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             EditorGUILayout.LabelField(
                 asset.SaveDataLoadMode == EnvironmentState.DataLoadMode.Json
                     ? "JSON 模式为保证文件可直接打开，不压缩也不加密。"
-                    : "Binary 模式可按需启用 GZip；AES 加密继续使用数据管线配置。",
+                    : "Binary 模式可按需启用 GZip；AES 加密使用下方存档配置。",
                 FFEditorStyles.Description);
 
             GUILayout.Space(16);
             EditorGUILayout.LabelField("AES 加密", FFEditorStyles.SectionTitle);
-            EditorGUILayout.LabelField(
-                "加密开关和密钥不在此重复配置，直接使用“数据管线”页面中的“启用 AES 加密”和“AES 密钥”。",
-                FFEditorStyles.Description);
+            asset.EnableEncryption = EditorGUILayout.Toggle("启用 AES 加密", asset.EnableEncryption);
+            asset.Password = EditorGUILayout.PasswordField("AES 密钥", asset.Password);
+            EditorGUILayout.LabelField("仅影响存档的 Binary 数据，配置保存在本模块 SO 中。", FFEditorStyles.Description);
 
             GUILayout.EndVertical();
 

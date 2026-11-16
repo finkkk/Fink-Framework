@@ -59,7 +59,7 @@ namespace FinkFramework.Editor.Modules.Data
 
             // 判断是否需要等待编译
             bool needWaitCompile =
-                GlobalSettingsRuntimeLoader.Current.CSharpPathMode == EnvironmentState.CSharpOutputPathMode.Internal;
+                DataSettingsRuntimeLoader.Current.CSharpPathMode == EnvironmentState.CSharpOutputPathMode.Internal;
             
             if (needWaitCompile)
             {

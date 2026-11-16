@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Settings.Loaders;
 using FinkFramework.Runtime.Utils;
@@ -28,7 +28,7 @@ namespace FinkFramework.Editor.Modules.Data
                 // 执行保存（内部会根据 EnableEncryption 决定加密与否）
                 DataUtil.Save(binaryPath, container);
 
-                string mode = GlobalSettingsRuntimeLoader.Current.EnableEncryption ? "加密二进制" : "二进制（明文）";
+                string mode = DataSettingsRuntimeLoader.Current.EnableEncryption ? "加密二进制" : "二进制（明文）";
                 LogUtil.Success("DataBinaryTool", $"已生成 {mode} 数据：{binaryPath}");
                 return true;
             }

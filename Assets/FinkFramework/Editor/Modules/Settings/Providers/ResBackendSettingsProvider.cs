@@ -10,7 +10,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 {
     public class ResBackendSettingsProvider : SettingsProvider
     {
-        private GlobalSettingsAsset asset;
+        private ResourceBackendSettingsAsset asset;
         private UnityEditor.Editor backendSettingsEditor;
         private EnvironmentState.ResourceBackendType lastBackend;
         private ScriptableObject currentBackendSettings;
@@ -41,25 +41,17 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         {
             lastBackend = (EnvironmentState.ResourceBackendType)(-1);
             currentBackendSettings = null;
-            asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            asset = ResBackendSettingsEditorLoader.LoadOrCreate();
         }
 
         public override void OnGUI(string searchContext)
         {
             if (!asset)
             {
-                EditorGUILayout.HelpBox(
-                    "GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。",
-                    MessageType.Error);
-
-                if (GUILayout.Button("重新创建配置文件"))
-                {
-                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
-                }
-
-                return;
+                OnActivate(searchContext, null);
             }
 
+            Undo.RecordObject(asset, "修改资源后端配置");
             GUILayout.Space(10);
             FFEditorGUI.Center(() =>
             {
@@ -128,6 +120,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             if (GUI.changed)
             {
                 EditorUtility.SetDirty(asset);
+                AssetDatabase.SaveAssets();
             }
         }
 

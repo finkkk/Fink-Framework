@@ -644,7 +644,7 @@ namespace FinkFramework.Runtime.Save
                     "SaveData 不能为 null。");
 
             SemaphoreSlim gate = GetTargetLock(mainPath);
-            GlobalSettingsAssetSnapshot settings;
+            SaveSettingsSnapshot settings;
             byte[] snapshotPayload;
             try
             {
@@ -791,7 +791,7 @@ namespace FinkFramework.Runtime.Save
             string dataType,
             string mainPath,
             string backupPath,
-            GlobalSettingsAssetSnapshot settings,
+            SaveSettingsSnapshot settings,
             CancellationToken cancellationToken)
         {
             try
@@ -1068,14 +1068,14 @@ namespace FinkFramework.Runtime.Save
             return generation + 1;
         }
 
-        private GlobalSettingsAssetSnapshot CaptureSettings()
+        private SaveSettingsSnapshot CaptureSettings()
         {
             var settings = GetSettings();
             // JSON 模式必须保持为可直接打开的裸 JSON，因此不启用 GZip。
-            // Binary 模式则按存档设置使用压缩；AES 开关仍复用数据管线配置。
+            // Binary 模式则按存档设置使用压缩；AES 开关由存档配置独立提供。
             bool compress = settings.SaveDataLoadMode == EnvironmentState.DataLoadMode.Binary &&
                             settings.EnableSaveCompression;
-            return new GlobalSettingsAssetSnapshot(
+            return new SaveSettingsSnapshot(
                 settings.SaveDataLoadMode,
                 settings.SaveDataLoadMode == EnvironmentState.DataLoadMode.Binary && settings.EnableEncryption,
                 compress,
@@ -1083,10 +1083,10 @@ namespace FinkFramework.Runtime.Save
                 Math.Max(0, settings.SaveHistoryLimit));
         }
 
-        private static GlobalSettingsAsset GetSettings()
+        private static SaveSettingsAsset GetSettings()
         {
-            if (!GlobalSettingsRuntimeLoader.TryGet(out var settings) || settings == null)
-                throw new InvalidOperationException("GlobalSettingsAsset 未加载，SaveSystem 无法初始化。");
+            if (!SaveSettingsRuntimeLoader.TryGet(out var settings) || settings == null)
+                throw new InvalidOperationException("SaveSettingsAsset 未配置，SaveSystem 无法初始化。");
             return settings;
         }
 
@@ -1132,11 +1132,11 @@ namespace FinkFramework.Runtime.Save
 
         private static string GetSaveExtension()
         {
-            GlobalSettingsAsset settings = GetSettings();
+            SaveSettingsAsset settings = GetSettings();
             if (settings.SaveDataLoadMode == EnvironmentState.DataLoadMode.Json)
                 return ".json";
 
-            return GlobalSettingsAsset.NormalizeSaveBinaryExtension(settings.SaveBinaryExtension);
+            return SaveSettingsAsset.NormalizeSaveBinaryExtension(settings.SaveBinaryExtension);
         }
 
         private static void UseLegacyPathsWhenNeeded(
@@ -1155,7 +1155,7 @@ namespace FinkFramework.Runtime.Save
             }
         }
 
-        private readonly struct GlobalSettingsAssetSnapshot
+        private readonly struct SaveSettingsSnapshot
         {
             public readonly EnvironmentState.DataLoadMode Format;
             public readonly bool Encrypt;
@@ -1163,7 +1163,7 @@ namespace FinkFramework.Runtime.Save
             public readonly bool EnableHistory;
             public readonly int HistoryLimit;
 
-            public GlobalSettingsAssetSnapshot(
+            public SaveSettingsSnapshot(
                 EnvironmentState.DataLoadMode format,
                 bool encrypt,
                 bool compress,

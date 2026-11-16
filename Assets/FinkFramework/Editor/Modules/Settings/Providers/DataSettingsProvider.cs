@@ -1,4 +1,4 @@
-﻿using FinkFramework.Editor.Modules.Settings.Loaders;
+using FinkFramework.Editor.Modules.Settings.Loaders;
 using FinkFramework.Editor.Common;
 using FinkFramework.Runtime.Data;
 using FinkFramework.Runtime.Environments;
@@ -17,7 +17,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             "外部（项目目录）"
         };
 
-        private GlobalSettingsAsset asset;
+        private DataSettingsAsset asset;
         private string internalPathDraft;
         private string externalPathDraft;
         private bool draftsInitialized;
@@ -47,7 +47,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
         public override void OnActivate(string searchContext, VisualElement rootElement)
         {
-            asset = GlobalSettingsEditorLoader.LoadOrCreate();
+            asset = DataSettingsEditorLoader.LoadOrCreate();
             SyncPathDrafts();
         }
 
@@ -55,17 +55,13 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         {
             if (!asset)
             {
-                EditorGUILayout.HelpBox("GlobalSettingsAsset 缺失，请重新导入框架或点击按钮自动修复。", MessageType.Error);
-                if (GUILayout.Button("重新创建配置文件"))
-                {
-                    asset = GlobalSettingsEditorLoader.LoadOrCreate();
-                }
-                return;
+                OnActivate(searchContext, null);
             }
 
             if (!draftsInitialized)
                 SyncPathDrafts();
 
+            Undo.RecordObject(asset, "修改数据管线配置");
             GUILayout.Space(10);
             FFEditorGUI.Center(() =>
             {
@@ -80,7 +76,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
             // ===== 主区域 =====
             GUILayout.BeginVertical(FFEditorStyles.SectionBox);
-            
+
             EditorGUILayout.LabelField("运行时数据源", FFEditorStyles.SectionTitle);
             GUILayout.Space(6);
             // ----------------------------------------------------
@@ -112,7 +108,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
             GUILayout.Space(16);
 
             DrawCSharpPathSettings();
-          
+
             GUILayout.Space(16);
 
             GUILayout.EndVertical();
@@ -138,7 +134,7 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
         /// </summary>
         private void DrawCSharpPathSettings()
         {
-            // 路径输入使用草稿值，只有点击“应用”才写入 GlobalSettingsAsset。
+            // 路径输入使用草稿值，只有点击“应用”才写入 DataSettingsAsset。
             EditorGUILayout.LabelField("代码生成路径设置", FFEditorStyles.SectionTitle);
             GUILayout.Space(6);
 
@@ -164,27 +160,16 @@ namespace FinkFramework.Editor.Modules.Settings.Providers
 
         /// <summary>
         /// 绘制二进制数据的加密配置。
-        /// 配置仍保存在全局配置资产中，合并页面不会改变运行时读写逻辑。
+        /// AES 策略及数据后缀均由数据管线配置保存。
         /// </summary>
         private void DrawEncryptionSettings()
         {
-            EditorGUILayout.LabelField("二进制数据加密", FFEditorStyles.SectionTitle);
+            EditorGUILayout.LabelField("AES 加密", FFEditorStyles.SectionTitle);
             GUILayout.Space(6);
 
             asset.EnableEncryption = EditorGUILayout.Toggle("启用 AES 加密", asset.EnableEncryption);
-            EditorGUILayout.LabelField(
-                asset.EnableEncryption
-                    ? "二进制模式下导出的数据将使用 AES 加密；DataUtil 的二进制存储也会使用同一配置。"
-                    : "二进制模式下导出的数据将以明文保存，便于开发与调试。",
-                FFEditorStyles.Description);
-
-            GUILayout.Space(10);
-
             asset.Password = EditorGUILayout.PasswordField("AES 密钥", asset.Password);
-            EditorGUILayout.LabelField(
-                "用于二进制数据加密与解密。正式发布前请替换默认密钥，并配合混淆或密钥外置策略。",
-                FFEditorStyles.Description);
-
+            EditorGUILayout.LabelField("仅影响数据管线的 Binary 数据，配置保存在本模块 SO 中。", FFEditorStyles.Description);
             GUILayout.Space(10);
 
             asset.EncryptedExtension = EditorGUILayout.TextField("二进制文件后缀", asset.EncryptedExtension);

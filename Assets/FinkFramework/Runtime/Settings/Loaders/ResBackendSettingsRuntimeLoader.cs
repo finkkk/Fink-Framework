@@ -1,74 +1,60 @@
 using FinkFramework.Runtime.Settings.ScriptableObjects;
-using UnityEngine;
 
 namespace FinkFramework.Runtime.Settings.Loaders
 {
-    /// <summary>
-    /// 资源后端配置 SO 只读加载器（Runtime 专用）
-    /// </summary>
-    public class ResBackendSettingsRuntimeLoader
+    /// <summary>资源后端配置入口；已有引用直接复用，缺失时使用默认配置，必须在 Unity 主线程访问。</summary>
+    public static class ResBackendSettingsRuntimeLoader
     {
-        /// <summary>
-        /// 获取当前 Addressables 后端配置
-        /// 若未启用 Addressables 或未配置，则返回 null
-        /// </summary>
+        /// <summary>已有或自动补齐的模块配置。</summary>
+        public static ResourceBackendSettingsAsset Current
+            => GlobalSettingsRuntimeLoader.GetOrCreateModule(ref GlobalSettingsRuntimeLoader.Current.ResourceBackendSettings);
+
+        /// <summary>沿全局引用读取模块配置，必须在 Unity 主线程调用。</summary>
+        /// <param name="settings">已有或默认模块配置。</param>
+        /// <returns>成功取得配置时为 true，缺失时自动补齐。</returns>
+        public static bool TryGet(out ResourceBackendSettingsAsset settings)
+        {
+            settings = Current;
+            return settings;
+        }
+
+        /// <summary>当前后端为 Addressables 时的配置，否则为 null。</summary>
         public static AddressablesBackendSettingsAsset Addressables
         {
             get
             {
-                if (!GlobalSettingsRuntimeLoader.TryGet(out var global))
-                    return null;
-
-                if (global.ResourceBackend != Environments.EnvironmentState.ResourceBackendType.Addressables)
-                    return null;
-
-                return global.AddressablesSettings;
+                var settings = Current;
+                return settings.ResourceBackend == Environments.EnvironmentState.ResourceBackendType.Addressables
+                    ? GlobalSettingsRuntimeLoader.GetOrCreateModule(ref settings.AddressablesSettings) : null;
             }
         }
 
-        /// <summary>
-        /// 获取当前 AssetBundle 后端配置
-        /// 若未启用 AssetBundle 或未配置，则返回 null
-        /// </summary>
+        /// <summary>当前后端为 AssetBundle 时的配置，否则为 null。</summary>
         public static AssetBundleBackendSettingsAsset AssetBundle
         {
             get
             {
-                if (!GlobalSettingsRuntimeLoader.TryGet(out var global))
-                    return null;
-
-                if (global.ResourceBackend != Environments.EnvironmentState.ResourceBackendType.AssetBundle)
-                    return null;
-
-                return global.AssetBundleSettings;
+                var settings = Current;
+                return settings.ResourceBackend == Environments.EnvironmentState.ResourceBackendType.AssetBundle
+                    ? GlobalSettingsRuntimeLoader.GetOrCreateModule(ref settings.AssetBundleSettings) : null;
             }
         }
-        
-        /// <summary>
-        /// 尝试获取当前资源后端配置（非关心具体类型的通用入口）
-        /// </summary>
-        public static bool TryGetCurrent(out ScriptableObject backendSettings)
+
+        /// <summary>获取当前选中后端的子配置，必须在 Unity 主线程调用。</summary>
+        /// <param name="backendSettings">已有或默认后端配置；未选择后端或未提供自定义配置时为 null。</param>
+        /// <returns>选中的后端有配置时返回 true，框架内置后端缺失配置会自动补齐。</returns>
+        public static bool TryGetCurrent(out UnityEngine.ScriptableObject backendSettings)
         {
             backendSettings = null;
-
-            if (!GlobalSettingsRuntimeLoader.TryGet(out var global))
-                return false;
-
-            switch (global.ResourceBackend)
+            if (!TryGet(out var settings)) return false;
+            backendSettings = settings.ResourceBackend switch
             {
-                case Environments.EnvironmentState.ResourceBackendType.AssetBundle:
-                    backendSettings = global.AssetBundleSettings;
-                    break;
-
-                case Environments.EnvironmentState.ResourceBackendType.Addressables:
-                    backendSettings = global.AddressablesSettings;
-                    break;
-
-                default:
-                    return false;
-            }
-
-            return backendSettings != null;
+                Environments.EnvironmentState.ResourceBackendType.AssetBundle => AssetBundle,
+                Environments.EnvironmentState.ResourceBackendType.Addressables => Addressables,
+                Environments.EnvironmentState.ResourceBackendType.Custom => settings.CustomBackendSettings,
+                _ => null
+            };
+            return backendSettings;
         }
     }
 }

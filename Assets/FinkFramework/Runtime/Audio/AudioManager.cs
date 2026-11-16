@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using FinkFramework.Runtime.Mono;
 using FinkFramework.Runtime.Pool;
@@ -9,622 +10,534 @@ using FinkFramework.Runtime.Utils;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.Events;
+using Object = UnityEngine.Object;
 
 namespace FinkFramework.Runtime.Audio
 {
+    /// <summary>
+    /// 只管理框架创建的单个音乐播放器和池化音效播放器。所有 API 必须在运行期间的 Unity 主线程调用；关闭模块时，操作入口抛出说明未启用的异常。
+    /// 音量直接作用于这些 AudioSource，不修改 Mixer 参数、效果、Snapshot 或用户播放器。
+    /// </summary>
     public class AudioManager : Singleton<AudioManager>
     {
-        /// <summary>
-        /// 音频模块总开关
-        /// </summary>
-        private readonly bool audioEnabled;
-        
-        #region 初始化音效管理器
+        #region 状态与配置
 
-        private AudioManager()
-        {
-            audioEnabled = GlobalSettingsRuntimeLoader.TryGet(out var settings)
-                           && settings.EnableAudioModule;
+        private const string SoundPlayerPath = "res://FinkFramework/Audio/Base/SoundPlayer";
+        private const string DisabledMessage = "音频模块未启用，请在 Project Settings > Fink Framework > Audio System 中启用音频模块。";
 
-            if (!audioEnabled)
-            {
-                LogUtil.Info("AudioManager", "音频模块已被全局配置禁用");
-                return;
-            }
-            // 初始化混音器
-            InitMixer();
-            // 未继承Mono的脚本只能通过Mono管理器执行生命周期函数
-            MonoManager.Instance.AddFixedUpdateListener(CleanAudioSource);
-        }
-        
-        /// <summary>
-        /// 初始化混音器（从 Resources 加载）
-        /// </summary>
-        private void InitMixer()
-        {
-            // 1. 加载 Mixer 资源
-            masterMixer = ResManager.Instance.Load<AudioMixer>("res://FinkFramework/Audio/MasterMixer");
-            if (!masterMixer)
-            {
-                LogUtil.Error("AudioManager", "无法加载 AudioMixer：Audio/MasterMixer");
-                return;
-            }
-
-            // 2. 获取 Music / SFX 组
-            var musicGroups = masterMixer.FindMatchingGroups("Music");
-            var sfxGroups = masterMixer.FindMatchingGroups("SFX");
-
-            if (musicGroups.Length > 0)
-                musicGroup = musicGroups[0];
-            else
-                LogUtil.Error("AudioManager", "AudioMixer 未找到 Music 组");
-
-            if (sfxGroups.Length > 0)
-                sfxGroup = sfxGroups[0];
-            else
-                LogUtil.Error("AudioManager", "AudioMixer 未找到 SFX 组");
-        }
-
-        #endregion
-        
-        #region 控制音乐相关
-        // 全局 AudioMixer（从 Resources 加载）
-        private AudioMixer masterMixer;
-        // Mixer 分组（Music / SFX）
+        private bool audioEnabled;
+        private bool ownsBuiltInMixer;
         private AudioMixerGroup musicGroup;
         private AudioMixerGroup sfxGroup;
-        // 音乐播放器
         private AudioSource musicPlayer;
-        // 记录所有正在播放的音效播放源容器
+        private GameObject soundPlayers;
+        private string musicPath;
+        private int musicRequest;
+        private int soundRequest;
+        private bool soundIsPlay = true;
+        private float globalVolume = 1f;
+        private float musicVolume = 1f;
+        private float soundVolume = 1f;
         private readonly List<AudioSource> soundList = new();
         private readonly HashSet<AudioSource> soundSet = new();
         private readonly Dictionary<AudioSource, string> soundPaths = new();
-        // 音效是否在播放
-        private bool soundIsPlay = true;
-        // 全局音效组件合集
-        private GameObject soundPlayers;
-        private string musicPath;
-        
-        /// <summary>
-        /// 播放音乐（同步加载）
-        /// --------------------------------------
-        /// ⚠ 不建议使用：
-        ///   - 音乐文件通常体积较大
-        ///   - 同步加载将阻塞主线程，引发卡顿
-        /// 仅在特殊情况下使用，例如：
-        ///   - 启动时加载极小的占位音乐
-        ///   - 编辑器工具需要同步预览
-        /// </summary>
-        /// <param name="fullPath">带前缀的完整资源路径（如 res://Audio/Music/bgm）</param>
+        // 同时记录加载中和播放中的音效，防止池复用或停止后的旧加载重新启动播放器。
+        private readonly Dictionary<AudioSource, int> soundRequests = new();
+        private readonly List<AudioSource> cleanupBuffer = new();
+
+        #endregion
+
+        #region 服务入口与音量状态
+
+        /// <summary>只检查配置，不创建音频服务、播放器或帧回调。</summary>
+        public static bool IsEnabled => AudioSettingsRuntimeLoader.Current.EnableAudioModule;
+
+        /// <summary>仅在启用时创建服务；关闭时抛出明确的未启用异常，不进入单例注册和初始化。</summary>
+        /// <exception cref="InvalidOperationException">模块未启用或音频输出配置无效。</exception>
+        public new static AudioManager Instance
+        {
+            get
+            {
+                if (!IsEnabled) throw new InvalidOperationException(DisabledMessage);
+                var manager = Singleton<AudioManager>.Instance;
+                if (!manager.audioEnabled) manager.Initialize();
+                return manager;
+            }
+        }
+
+        /// <summary>关闭模块时返回 false，不触发单例创建或注册。</summary>
+        public new static bool HasInstance => TryGetInstance() != null;
+
+        /// <summary>仅返回已启用的现有服务，关闭时为 null，不触发初始化。</summary>
+        public new static AudioManager TryGetInstance()
+        {
+            if (!IsEnabled) return null;
+            var manager = Singleton<AudioManager>.TryGetInstance();
+            return manager is { audioEnabled: true } ? manager : null;
+        }
+
+        /// <summary>设置框架全局音量，与音乐、音效分类音量相乘。立即作用于框架持有的播放器，不改变分类目标值或用户播放器。</summary>
+        /// <param name="v">0～1；有限越界值限制到此范围，NaN 或 Infinity 抛出 ArgumentOutOfRangeException。0 为全局静音。</param>
+        public void ChangeGlobalValue(float v)
+        {
+            EnsureReady();
+            globalVolume = NormalizeVolume(v);
+            ApplyMusicVolume();
+            ApplySoundVolume();
+        }
+
+        /// <summary>当前框架全局目标音量，范围 0～1；与音乐、音效分类音量相乘。</summary>
+        public float GlobalVolume => globalVolume;
+        /// <summary>当前音乐分类目标音量，范围 0～1；不包含全局倍率，播放切换或停止不会重置。</summary>
+        public float MusicVolume => musicVolume;
+        /// <summary>当前音效分类目标音量，范围 0～1；不包含全局倍率，对象池复用不会重置。</summary>
+        public float SoundVolume => soundVolume;
+
+        #endregion
+
+        #region 音乐播放
+
+        /// <summary>同步加载并循环播放音乐；大文件建议使用异步入口。停止或新请求会取消旧请求的播放资格。</summary>
+        /// <param name="fullPath">ResManager 支持的完整资源地址。</param>
         public void PlayMusic(string fullPath)
         {
-            if (!audioEnabled)
-                return;
-
-            if (!musicGroup)
+            EnsureReady();
+            int request = ++musicRequest;
+            var clip = ResManager.Instance.Load<AudioClip>(fullPath);
+            if (!clip) return;
+            var source = CreateAudioSource(true, null);
+            if (!IsCurrent(source, true, request))
             {
-                LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
-            }
-            // 动态创建 播放音乐 的播放器 且不会过场景移除 保证过场景时也能播放
-            if (!musicPlayer)
-            {
-                GameObject obj = new("MusicPlayer");
-                Object.DontDestroyOnLoad(obj);
-                musicPlayer = obj.AddComponent<AudioSource>();
-                musicPlayer.outputAudioMixerGroup = musicGroup;
-            }
-            
-            AudioClip clip = ResManager.Instance.Load<AudioClip>(fullPath);
-            if (!clip)
-            {
-                LogUtil.Error("AudioManager", $"无法加载音乐资源：{fullPath}");
+                ReleaseLoadedClip(fullPath);
                 return;
             }
-
-            ReleaseLoadedClip(musicPath);
-            musicPath = fullPath;
-            musicPlayer.clip = clip;
-            musicPlayer.loop = true;
-            musicPlayer.volume = 1;
-            musicPlayer.Play();
+            CommitMusic(source, clip, true, fullPath);
         }
 
-        /// <summary>
-        /// 播放音乐（推荐使用 异步加载，await 方式）
-        /// </summary>
-        /// <param name="fullPath">带前缀的完整资源路径</param>
-        /// <returns>加载完成后返回音乐播放器 AudioSource</returns>
+        /// <summary>异步加载并循环播放音乐，返回框架持有的播放器。失败或请求失效时返回 null。</summary>
+        /// <param name="fullPath">完整资源地址。</param>
+        /// <returns>框架音乐播放器，调用方不应销毁或归还对象池。</returns>
         public async UniTask<AudioSource> PlayMusicAsync(string fullPath)
         {
-            if (!audioEnabled)
-                return null;
-
-            if (!musicGroup)
-            {
-                LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
-            }
-            var op = PlayAudioHandle(fullPath, true, true, null);
-            await op.WaitUntilDone();
-            return op.IsFailed ? null : op.Source;
+            var operation = PlayAudioHandle(fullPath, true, true);
+            await operation.WaitUntilDone();
+            return operation.IsFailed ? null : operation.Source;
         }
-        
-        /// <summary>
-        /// 播放音乐（推荐使用 异步加载，回调方式）
-        /// </summary>
-        /// <param name="path">带前缀的完整资源路径</param>
-        /// <param name="callback">加载并播放成功后的回调，返回 AudioSource</param>
+
+        /// <summary>通过回调异步播放音乐；加载失败时回调收到 null，模块关闭时抛出未启用异常，不发起请求。</summary>
+        /// <param name="path">完整资源地址。</param>
+        /// <param name="callback">加载结束回调，不是播放结束回调。</param>
         public void PlayMusicAsyncCallback(string path, UnityAction<AudioSource> callback = null)
         {
-            if (!audioEnabled)
-                return;
-
-            if (!musicGroup)
-            {
-                LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
-            }
-            var op = PlayAudioHandle(path, true, true, null);
-            op.Completed += o => callback?.Invoke(o.Source);
+            var operation = PlayAudioHandle(path, true, true);
+            operation.Completed += completed => callback?.Invoke(completed.IsFailed ? null : completed.Source);
         }
-        
-        /// <summary>
-        /// 播放音乐（推荐使用 异步加载，句柄方式）
-        /// 返回 AudioOperation，可用于：
-        ///   - 监听 Progress（进度条）
-        ///   - 注册 Completed 事件
-        ///   - 查询 IsDone/IsFailed
-        /// </summary>
-        /// <param name="fullPath">带前缀的完整资源路径</param>
-        /// <returns>音频异步播放操作句柄</returns>
+
+        /// <summary>句柄式异步音乐播放。后发请求优先，停止后旧请求不会恢复播放。</summary>
+        /// <param name="fullPath">完整资源地址。</param>
+        /// <returns>加载与播放操作，加载失败或请求失效时 IsFailed 为 true；模块关闭或配置无效时抛出异常。</returns>
         public AudioOperation PlayMusicAsyncHandle(string fullPath)
-        {
-            if (!audioEnabled)
-                return null;
+            => PlayAudioHandle(fullPath, true, true);
 
-            if (!musicGroup)
-            {
-                LogUtil.Warn("AudioManager", "MusicGroup 未初始化");
-            }
-            return PlayAudioHandle(fullPath, true, true, null);
-        }
-
-        /// <summary>
-        /// 停止音乐
-        /// </summary>
+        /// <summary>停止音乐并归还当前音频资源，同时使尚未完成的音乐请求失效。</summary>
         public void StopMusic()
         {
-            if (!audioEnabled)
-                return;
-
-            if (!musicPlayer)
+            EnsureReady();
+            musicRequest++;
+            if (musicPlayer)
             {
-                LogUtil.Warn("音乐播放器不存在，无法停止歌曲！");
-                return;
+                musicPlayer.Stop();
+                musicPlayer.clip = null;
             }
-            musicPlayer.Stop();
-            musicPlayer.clip = null;
             ReleaseLoadedClip(musicPath);
             musicPath = null;
         }
-        
-        /// <summary>
-        /// 暂停音乐
-        /// </summary>
-        /// <param name="name">音乐名</param>
+
+        /// <summary>暂停当前音乐播放器。</summary>
+        /// <param name="name">当前只有一个音乐播放器，该参数不参与查找。</param>
         public void PauseMusic(string name)
         {
-            if (!audioEnabled)
-                return;
-
-            if (!musicPlayer)
-            {
-                LogUtil.Warn("音乐播放器不存在，无法停止歌曲！");
-                return;
-            }
-            musicPlayer.Pause();
+            EnsureReady();
+            if (musicPlayer) musicPlayer.Pause();
         }
 
-        /// <summary>
-        /// 调整音乐
-        /// </summary>
-        /// <param name="v">音量的值</param>
+        /// <summary>设置框架音乐分类音量，与全局音量相乘，立即影响当前及后续音乐。无需暴露 Mixer 参数。</summary>
+        /// <param name="v">0～1；有限越界值会限制到此范围，NaN 或 Infinity 抛出 ArgumentOutOfRangeException。0 为静音。</param>
         public void ChangeMusicValue(float v)
         {
-            if (!audioEnabled)
-                return;
-
-            if (!masterMixer)
-            {
-                LogUtil.Warn("AudioManager", "MasterMixer 未初始化");
-                return;
-            }
-            // 将 0~1 映射到 -80~0 dB（真实可用的音量区间）
-            float dB = MathUtil.Remap(v, 0f, 1f, -80f, 0f);
-            masterMixer.SetFloat("MusicVolume", dB);
+            EnsureReady();
+            musicVolume = NormalizeVolume(v);
+            ApplyMusicVolume();
         }
-        
+
         #endregion
-        
-        #region 控制音效相关
 
-        /// <summary>
-        /// 每一个FixedUpdate帧中 不停检测 当音效的播放源播放完毕时 销毁播放源组件（注意！如果只是未处于播放状态不销毁）
-        /// 为避免边遍历边销毁出问题 采用逆向遍历
-        /// </summary>
-        private void CleanAudioSource()
+        #region 音效播放
+
+        /// <summary>同步加载并播放音效，资源和播放器由框架持有。</summary>
+        /// <param name="fullPath">完整资源地址。</param>
+        /// <param name="isLoop">是否循环播放。</param>
+        /// <param name="fatherObj">跟随的父物体，为空时使用框架音效容器。</param>
+        /// <param name="callback">加载结束回调，失败时收到 null。</param>
+        /// <returns>成功时返回框架音效播放器，加载失败时为 null；模块关闭或配置无效时抛出异常。</returns>
+        public AudioSource PlaySound(string fullPath, bool isLoop = false, GameObject fatherObj = null,
+            UnityAction<AudioSource> callback = null)
         {
-            if (!audioEnabled || !soundIsPlay)
-                return;
-            for (int i = soundList.Count - 1; i >= 0 ; --i)
-            {
-                AudioSource s = soundList[i];
-                if (!s.isPlaying)
-                {
-                    s.clip = null;
-                    PoolManager.Instance.Despawn(s.gameObject);
-                    ReleaseSoundClip(s);
-
-                    soundSet.Remove(s);
-                    soundList.RemoveAt(i);
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 播放音效（同步加载）
-        /// </summary>
-        /// <param name="fullPath">音乐文件带前缀完整路径</param>
-        /// <param name="isLoop">是否循环播放</param>
-        /// <param name="fatherObj">用于跟随的游戏对象父物体 若传空则默认挂载到全局音效游戏对象</param>
-        /// <param name="callback">加载完成的回调函数(并非播放完成)</param>
-        public AudioSource PlaySound(string fullPath, bool isLoop = false, GameObject fatherObj = null, UnityAction<AudioSource> callback = null)
-        {
-            if (!audioEnabled)
-                return null;
-
-            if (!sfxGroup)
-            {
-                LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
-            }
-            AudioSource source = CreateAudioSource(false, fatherObj);
+            EnsureReady();
+            var source = CreateAudioSource(false, fatherObj);
             if (!source)
             {
                 callback?.Invoke(null);
                 return null;
             }
-            // 同步加载资源
-            AudioClip clip = ResManager.Instance.Load<AudioClip>(fullPath);
-            if (!clip)
+            int request = soundRequests[source];
+            var clip = ResManager.Instance.Load<AudioClip>(fullPath);
+            if (!clip || !IsCurrent(source, false, request))
             {
-                PoolManager.Instance.Despawn(source.gameObject);
+                if (clip) ReleaseLoadedClip(fullPath);
+                if (IsCurrent(source, false, request)) StopSoundInternal(source);
                 callback?.Invoke(null);
                 return null;
             }
             PlaySoundClip(source, clip, isLoop, fullPath);
-            // 执行完毕逻辑后 执行回调
             callback?.Invoke(source);
-
             return source;
         }
 
-        /// <summary>
-        /// 播放音效（异步加载，await 方式）
-        /// </summary>
-        /// <param name="path">音乐文件带前缀完整路径</param>
-        /// <param name="isLoop">是否循环播放</param>
-        /// <param name="fatherObj">用于跟随的游戏对象父物体 若传空则默认挂载到全局音效游戏对象</param>
+        /// <summary>异步加载并播放音效。</summary>
+        /// <param name="path">完整资源地址。</param>
+        /// <param name="isLoop">是否循环。</param>
+        /// <param name="fatherObj">跟随的父物体。</param>
+        /// <returns>成功时返回框架持有的播放器，加载失败或请求失效时为 null；模块关闭或配置无效时抛出异常。</returns>
         public async UniTask<AudioSource> PlaySoundAsync(string path, bool isLoop = false, GameObject fatherObj = null)
         {
-            if (!audioEnabled)
-                return null;
-
-            if (!sfxGroup)
-            {
-                LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
-            }
-            var op = PlayAudioHandle(path, isLoop, false, fatherObj);
-            await op.WaitUntilDone();
-            return op.IsFailed ? null : op.Source;
+            var operation = PlayAudioHandle(path, isLoop, false, fatherObj);
+            await operation.WaitUntilDone();
+            return operation.IsFailed ? null : operation.Source;
         }
-        
-        /// <summary>
-        /// 播放音效（异步加载，回调方式）
-        /// </summary>
-        /// <param name="path">带前缀的完整资源路径</param>
-        /// <param name="callback">加载并播放成功后的回调（返回 AudioSource）</param>
-        /// <param name="isLoop">是否循环播放</param>
-        /// <param name="fatherObj">父对象（用于跟随）</param>
-        public void PlaySoundAsyncCallback(string path, UnityAction<AudioSource> callback, bool isLoop = false, GameObject fatherObj = null) 
+
+        /// <summary>回调式异步音效播放。</summary>
+        /// <param name="path">完整资源地址。</param>
+        /// <param name="callback">加载结束回调；失败或取消时收到 null。</param>
+        /// <param name="isLoop">是否循环。</param>
+        /// <param name="fatherObj">跟随的父物体。</param>
+        public void PlaySoundAsyncCallback(string path, UnityAction<AudioSource> callback, bool isLoop = false,
+            GameObject fatherObj = null)
         {
-            if (!audioEnabled)
-                return;
-
-            if (!sfxGroup)
-            {
-                LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
-            }
-            var op = PlayAudioHandle(path, isLoop, false, fatherObj);
-            op.Completed += o => callback?.Invoke(o.Source);
+            var operation = PlayAudioHandle(path, isLoop, false, fatherObj);
+            operation.Completed += completed => callback?.Invoke(completed.IsFailed ? null : completed.Source);
         }
-        
-        /// <summary>
-        /// 播放音效（异步加载，句柄方式）
-        /// ✔ 返回 AudioOperation，可用于：
-        ///   - 监听 Progress（进度条）
-        ///   - 注册 Completed 事件
-        ///   - 轮询 IsDone / IsFailed 状态
-        /// ✔ 最适合 Loading UI / 框架层 / 多步骤流程
-        /// </summary>
-        /// <param name="path">带前缀的完整资源路径</param>
-        /// <param name="isLoop">是否循环播放</param>
-        /// <param name="fatherObj">父对象（用于跟随）</param>
-        /// <returns>音频异步播放操作句柄 AudioOperation</returns>
+
+        /// <summary>句柄式异步音效播放。请求的 Source 可用于 StopSound，包括加载尚未完成时。</summary>
+        /// <param name="path">完整资源地址。</param>
+        /// <param name="isLoop">是否循环。</param>
+        /// <param name="fatherObj">跟随的父物体。</param>
+        /// <returns>加载与播放操作；加载失败或请求失效时 IsFailed 为 true；模块关闭或配置无效时抛出异常。</returns>
         public AudioOperation PlaySoundHandle(string path, bool isLoop = false, GameObject fatherObj = null)
-        {
-            if (!audioEnabled)
-                return null;
+            => PlayAudioHandle(path, isLoop, false, fatherObj);
 
-            if (!sfxGroup)
-            {
-                LogUtil.Warn("AudioManager", "SFXGroup 未初始化");
-            }
-
-            // isMusic = false（音效）
-            return PlayAudioHandle(path, isLoop, false, fatherObj);
-        }
-        
-        /// <summary>
-        /// 停止音效
-        /// </summary>
-        /// <param name="source">需要停止的播放源</param>
+        /// <summary>停止框架持有的指定音效，取消其待完成请求，归还音频资源及池对象。外部播放器不受影响。</summary>
+        /// <param name="source">框架当前持有的音效播放器；回收后不要长期保存并用于控制其他播放。</param>
         public void StopSound(AudioSource source)
         {
-            if (!audioEnabled)
-                return;
-            
-            // 若不存在则直接退出
-            if (!soundSet.Remove(source))
-                return;
-            // 从列表中移除（Remove 是 O(n)，但 SFX 数量通常不大）
-            soundList.Remove(source);
-            // 回收
-            source.Stop();
-            source.clip = null;
-            ReleaseSoundClip(source);
-            PoolManager.Instance.Despawn(source.gameObject);
+            EnsureReady();
+            StopSoundInternal(source);
         }
 
-        /// <summary>
-        /// 调整音效
-        /// </summary>
-        /// <param name="v">音量的值</param>
+        /// <summary>设置全部框架音效的音量，包括加载中及后续新音效；不调整用户的外部 AudioSource 或 Mixer 参数。</summary>
+        /// <param name="v">0～1；有限越界值限制到此范围，非有限值抛出 ArgumentOutOfRangeException。0 为静音。</param>
         public void ChangeSoundValue(float v)
         {
-            if (!audioEnabled)
-                return;
-            
-            if (!masterMixer)
-            {
-                LogUtil.Warn("AudioManager", "MasterMixer 未初始化");
-                return;
-            }
-            // 将 0~1 映射到 -80~0 dB（真实可用的音量区间）
-            float dB = MathUtil.Remap(v, 0f, 1f, -80f, 0f);
-            masterMixer.SetFloat("SFXVolume", dB);
+            EnsureReady();
+            soundVolume = NormalizeVolume(v);
+            ApplySoundVolume();
         }
-        
-        /// <summary>
-        /// 控制所有音效开关（继续播放或暂停播放）
-        /// </summary>
-        /// <param name="isPlay">是否播放</param>
+
+        /// <summary>暂停或继续全部框架音效，继续时保留播放位置；暂停期间的新音效也保持暂停。</summary>
+        /// <param name="isPlay">true 继续，false 暂停。</param>
         public void ToggleAllSounds(bool isPlay)
         {
-            if (!audioEnabled)
-                return;
-
-            if (isPlay)
+            EnsureReady();
+            if (soundIsPlay == isPlay) return;
+            soundIsPlay = isPlay;
+            foreach (var source in soundList)
             {
-                soundIsPlay = true;
-                foreach (var t in soundList)
-                {
-                    t.Play();
-                }
-            }
-            else
-            {
-                soundIsPlay = false;
-                foreach (var t in soundList)
-                {
-                    t.Stop();
-                }
+                if (!source) continue;
+                if (isPlay) source.UnPause();
+                else source.Pause();
             }
         }
-        
-        /// <summary>
-        /// 清空音效容器记录 在清空缓存池之前调用（一般用于过场景）
-        /// </summary>
+
+        /// <summary>停止全部框架音效（包括加载中的请求），归还资源与池对象。不停止音乐或外部播放器。</summary>
         public void ClearSound()
         {
-            if (!audioEnabled)
-                return;
+            EnsureReady();
+            var sources = new List<AudioSource>(soundRequests.Keys);
+            foreach (var source in sources) StopSoundInternal(source);
+        }
 
-            foreach (var t in soundList)
-            {
-                t.Stop();
-                t.clip = null;
-                PoolManager.Instance.Despawn(t.gameObject);
-                ReleaseSoundClip(t);
-            }
-            soundSet.Clear();
-            soundList.Clear();
-            soundPaths.Clear();
-        }
-        
-        /// <summary>
-        /// 播放音效内部逻辑
-        /// </summary>
-        private void PlaySoundClip(AudioSource source, AudioClip clip, bool isLoop, string fullPath)
-        {
-            PlayAudioClip(source,clip,isLoop);
-            soundPaths[source] = fullPath;
-            // 若缓存池达到上限可能会取出之前正在播放的音效 所以需要避免重复添加
-            if (soundSet.Add(source)) // 若不存在则添加并返回 true
-            {
-                soundList.Add(source);
-            }
-        }
-        
         #endregion
 
-        #region 通用工具方法
-        
-        /// <summary>
-        /// 播放音频
-        /// </summary>
-        private void PlayAudioClip(AudioSource source, AudioClip clip, bool isLoop)
-        {
-            source.clip = clip;
-            source.loop = isLoop;
-            source.volume = 1f;
-            source.Play();
-        }
-        
-        /// <summary>
-        /// 句柄式播放音效 (核心接口)
-        /// </summary>
+        #region 异步播放核心
+
+        /// <summary>音乐/音效共用的句柄式入口，仅选择这两类播放，不管理额外音轨。</summary>
+        /// <param name="fullPath">完整资源地址。</param>
+        /// <param name="isLoop">是否循环。</param>
+        /// <param name="isMusic">true 音乐，false 音效。</param>
+        /// <param name="fatherObj">音效跟随的父物体。</param>
+        /// <returns>操作句柄；加载失败或请求失效时 IsFailed 为 true；模块关闭或配置无效时抛出异常。</returns>
         public AudioOperation PlayAudioHandle(string fullPath, bool isLoop, bool isMusic, GameObject fatherObj = null)
         {
-            if (!audioEnabled)
-                return null;
-
-            var op = new AudioOperation();
-            _ = PlayAudioAsyncWrapper(fullPath, isLoop, isMusic, fatherObj, op);
-            return op;
+            EnsureReady();
+            int request = isMusic ? ++musicRequest : 0;
+            var source = CreateAudioSource(isMusic, fatherObj);
+            if (!isMusic && source) request = soundRequests[source];
+            var operation = new AudioOperation { Source = source };
+            _ = PlayAudioAsyncWrapper(fullPath, isLoop, isMusic, source, request, operation);
+            return operation;
         }
-        
-        /// <summary>
-        /// 异步播放音频核心封装
-        /// </summary>
-        private async UniTask PlayAudioAsyncWrapper(string fullPath, bool isLoop, bool isMusic, GameObject fatherObj, AudioOperation op)
+
+        private async UniTask PlayAudioAsyncWrapper(string path, bool isLoop, bool isMusic, AudioSource source,
+            int request, AudioOperation operation)
         {
-            AudioSource source = null;
+            AudioClip clip = null;
+            bool committed = false;
             try
             {
-                // 1. 创建 AudioSource
-                source = CreateAudioSource(isMusic, fatherObj);
-                op.Source = source;
-                op.SetProgress(0);
-                if (!source)
+                if (!IsCurrent(source, isMusic, request)) return;
+                var resource = ResManager.Instance.LoadAsyncHandle<AudioClip>(path);
+                while (!resource.IsDone)
                 {
-                    op.SetFailed();
-                    return;
-                }
-
-                // 2. 使用 ResManager 的句柄进行加载
-                var resOp = ResManager.Instance.LoadAsyncHandle<AudioClip>(fullPath);
-                // 3. 实时同步加载进度
-                while (!resOp.IsDone)
-                {
-                    op.SetProgress(resOp.Progress);
+                    operation.SetProgress(resource.Progress);
                     await UniTask.Yield();
                 }
-
-                if (!resOp.Result)
-                {
-                    if (!isMusic)
-                        PoolManager.Instance.Despawn(source.gameObject);
-                    op.SetFailed();
-                    return;
-                }
-
-                AudioClip clip = resOp.Result;
-                if (isMusic)
-                {
-                    ReleaseLoadedClip(musicPath);
-                    musicPath = fullPath;
-                    PlayAudioClip(source, clip, isLoop);
-                }
-                else
-                {
-                    PlaySoundClip(source, clip, isLoop, fullPath);
-                }
-
-                op.SetResult(clip);
+                clip = resource.Result;
+                if (!clip || !IsCurrent(source, isMusic, request)) return;
+                if (isMusic) CommitMusic(source, clip, isLoop, path);
+                else PlaySoundClip(source, clip, isLoop, path);
+                committed = true;
+                operation.SetResult(clip);
             }
-            catch (System.Exception exception)
+            catch (Exception exception)
             {
-                if (source && !isMusic && !soundSet.Contains(source))
-                    PoolManager.Instance.Despawn(source.gameObject);
-
-                LogUtil.Error("AudioManager", $"异步播放音频失败：{fullPath} => {exception}");
-                op.SetFailed();
+                LogUtil.Error("AudioManager", $"异步播放失败：{path} => {exception}");
+            }
+            finally
+            {
+                if (!IsEnabled) ShutdownInternal();
+                if (!committed)
+                {
+                    if (clip) ReleaseLoadedClip(path);
+                    if (!isMusic && IsCurrent(source, false, request)) StopSoundInternal(source);
+                    operation.SetFailed();
+                }
             }
         }
 
-        /// <summary>
-        /// 创建音效资源
-        /// </summary>
-        /// <param name="isMusic">是否是音乐文件 若为否则是音效文件</param>
-        /// <param name="fatherObj">需要跟随的父物体（仅音效文件时需要）</param>
-        /// <returns></returns>
+        private bool IsCurrent(AudioSource source, bool isMusic, int request)
+            => audioEnabled && IsEnabled && source && (isMusic ? source == musicPlayer && musicRequest == request
+                : soundRequests.TryGetValue(source, out int current) && current == request);
+
+        #endregion
+
+        #region 播放器与资源回收
+
+        private void StopSoundInternal(AudioSource source)
+        {
+            if (ReferenceEquals(source, null) || !soundRequests.Remove(source)) return;
+            soundSet.Remove(source);
+            soundList.Remove(source);
+            if (source)
+            {
+                source.Stop();
+                source.clip = null;
+            }
+            ReleaseSoundClip(source);
+            if (source)
+            {
+                // 非调试模式的对象池不会重新挂父节点，先脱离业务/临时容器，避免回收后被父对象误删。
+                source.transform.SetParent(null, true);
+                PoolManager.Instance.Despawn(source.gameObject);
+            }
+        }
+
         private AudioSource CreateAudioSource(bool isMusic, GameObject fatherObj)
         {
-            if (!audioEnabled)
-                return null;
-            // 如果需要播放的是音乐文件
             if (isMusic)
             {
-                // 动态创建 播放音乐 的播放器 且不会过场景移除 保证过场景时也能播放
+                if (!musicGroup) return null;
                 if (!musicPlayer)
                 {
-                    GameObject obj = new("MusicPlayer");
+                    var obj = new GameObject("MusicPlayer");
                     Object.DontDestroyOnLoad(obj);
                     musicPlayer = obj.AddComponent<AudioSource>();
-                    musicPlayer.outputAudioMixerGroup = musicGroup;
                 }
+                musicPlayer.outputAudioMixerGroup = musicGroup;
+                musicPlayer.volume = globalVolume * musicVolume;
                 return musicPlayer;
             }
-
-            // --- 音效 ---
-            GameObject soundObject = PoolManager.Instance.Spawn("res://FinkFramework/Audio/Base/SoundPlayer");
-            AudioSource source = soundObject ? soundObject.GetComponent<AudioSource>() : null;
+            if (!sfxGroup) return null;
+            var soundObject = PoolManager.Instance.Spawn(SoundPlayerPath);
+            var source = soundObject ? soundObject.GetComponent<AudioSource>() : null;
             if (!source)
             {
+                if (soundObject) PoolManager.Instance.Despawn(soundObject);
                 LogUtil.Error("AudioManager", "无法创建 SoundPlayer AudioSource。");
                 return null;
             }
-            source.outputAudioMixerGroup = sfxGroup;
-            // 对象池达到上限时可能复用仍在播放的旧音效，先清理旧的记录与资源引用。
             soundSet.Remove(source);
             soundList.Remove(source);
-            ReleaseSoundClip(source);
-            // 若缓存池达到上限可能会取出之前正在播放的音效 所以可以先执行一次停止播放
             source.Stop();
-            // 父节点绑定逻辑
-            if (!fatherObj)
+            source.clip = null;
+            ReleaseSoundClip(source);
+            soundRequests[source] = ++soundRequest;
+            source.outputAudioMixerGroup = sfxGroup;
+            source.volume = globalVolume * soundVolume;
+            source.pitch = 1f;
+            source.mute = false;
+            Transform parent = fatherObj ? fatherObj.transform : null;
+            if (!parent && !PoolManager.debugMode)
             {
-                if (!PoolManager.debugMode)
-                {
-                    if (!soundPlayers)
-                        soundPlayers = new GameObject("SoundPlayers");
-                    source.transform.parent = soundPlayers.transform;
-                }
+                if (!soundPlayers) soundPlayers = new GameObject("SoundPlayers");
+                parent = soundPlayers.transform;
             }
-            else
-            {
-                source.transform.parent = fatherObj.transform;
-            }
-
+            // 池复用后重新贴合跟随目标，不能继承上次播放的世界坐标或父节点偏移。
+            source.transform.SetParent(parent, false);
+            source.transform.localPosition = Vector3.zero;
+            source.transform.localRotation = Quaternion.identity;
             return source;
+        }
+
+        private void CommitMusic(AudioSource source, AudioClip clip, bool isLoop, string path)
+        {
+            source.Stop();
+            source.clip = null;
+            ReleaseLoadedClip(musicPath);
+            musicPath = path;
+            PlayAudioClip(source, clip, isLoop, true);
+        }
+
+        private void PlaySoundClip(AudioSource source, AudioClip clip, bool isLoop, string path)
+        {
+            soundPaths[source] = path;
+            if (soundSet.Add(source)) soundList.Add(source);
+            PlayAudioClip(source, clip, isLoop, false);
+            if (!soundIsPlay) source.Pause();
+        }
+
+        private void PlayAudioClip(AudioSource source, AudioClip clip, bool isLoop, bool isMusic)
+        {
+            source.outputAudioMixerGroup = isMusic ? musicGroup : sfxGroup;
+            source.clip = clip;
+            source.loop = isLoop;
+            source.volume = globalVolume * (isMusic ? musicVolume : soundVolume);
+            source.Play();
+        }
+
+        private void CleanAudioSource()
+        {
+            if (!IsEnabled)
+            {
+                ShutdownInternal();
+                return;
+            }
+            cleanupBuffer.Clear();
+            foreach (var source in soundRequests.Keys)
+                if (!source) cleanupBuffer.Add(source);
+            foreach (var source in soundList)
+                if (source && soundIsPlay && !source.isPlaying) cleanupBuffer.Add(source);
+            foreach (var source in cleanupBuffer) StopSoundInternal(source);
         }
 
         private void ReleaseSoundClip(AudioSource source)
         {
-            if (!source || !soundPaths.Remove(source, out string path))
-                return;
-
-            ReleaseLoadedClip(path);
+            if (soundPaths.Remove(source, out string path)) ReleaseLoadedClip(path);
         }
 
+        #endregion
+
+        #region 模块生命周期与音量应用
+
+        private AudioManager() => Initialize();
+
+        private void Initialize()
+        {
+            if (!IsEnabled) throw new InvalidOperationException(DisabledMessage);
+            if (!AudioSettingsRuntimeLoader.TryLoad(out var settings, out string error))
+                throw new InvalidOperationException($"音频配置无效，无法初始化 AudioManager：{error}");
+            if (settings == null)
+                throw new InvalidOperationException(DisabledMessage);
+            ownsBuiltInMixer = settings.UsesBuiltInMixer;
+            musicGroup = settings.MusicGroup;
+            sfxGroup = settings.SoundGroup;
+            audioEnabled = true;
+            MonoManager.Instance.AddFixedUpdateListener(CleanAudioSource);
+        }
+
+        private void EnsureReady()
+        {
+            if (!IsEnabled)
+            {
+                ShutdownInternal();
+                throw new InvalidOperationException(DisabledMessage);
+            }
+            if (!audioEnabled) Initialize();
+        }
+
+        /// <summary>配置关闭时立即撤销现有服务的帧回调、播放器及资源引用；不创建服务。</summary>
+        public static void ShutdownIfDisabled()
+        {
+            if (!IsEnabled) Singleton<AudioManager>.TryGetInstance()?.ShutdownInternal();
+        }
+
+        private void ShutdownInternal()
+        {
+            if (!audioEnabled) return;
+            audioEnabled = false;
+            // 暂停属于本轮播放状态，关闭后清除；用户设置的三个音量目标继续保留。
+            soundIsPlay = true;
+            musicRequest++;
+            MonoManager.TryGetInstance()?.RemoveFixedUpdateListener(CleanAudioSource);
+            if (musicPlayer)
+            {
+                musicPlayer.Stop();
+                musicPlayer.clip = null;
+                Object.Destroy(musicPlayer.gameObject);
+                musicPlayer = null;
+            }
+            ReleaseLoadedClip(musicPath);
+            musicPath = null;
+            foreach (var source in new List<AudioSource>(soundRequests.Keys)) StopSoundInternal(source);
+            cleanupBuffer.Clear();
+            if (soundPlayers) Object.Destroy(soundPlayers);
+            soundPlayers = null;
+            musicGroup = sfxGroup = null;
+            if (ownsBuiltInMixer)
+            {
+                ownsBuiltInMixer = false;
+                ResManager.TryGetInstance()?.UnloadAsset<AudioMixer>(AudioSettingsRuntimeLoader.BuiltInMixerPath, true);
+            }
+        }
+
+        private void ApplyMusicVolume()
+        {
+            if (musicPlayer) musicPlayer.volume = globalVolume * musicVolume;
+        }
+
+        private void ApplySoundVolume()
+        {
+            foreach (var source in soundRequests.Keys)
+                if (source) source.volume = globalVolume * soundVolume;
+        }
+
+        private static float NormalizeVolume(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                throw new ArgumentOutOfRangeException(nameof(value), "音量必须是有限数值。");
+            return Mathf.Clamp01(value);
+        }
+
+        // 每次成功 Load 获得一份引用；转交播放器后由停止/回收释放，失效请求由 finally 释放。
         private static void ReleaseLoadedClip(string path)
         {
             if (!string.IsNullOrWhiteSpace(path))

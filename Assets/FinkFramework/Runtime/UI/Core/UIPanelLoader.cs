@@ -16,7 +16,7 @@ namespace FinkFramework.Runtime.UI.Core
 
         public string GetAssetPath<T>() where T : BasePanel
         {
-            if (GlobalSettingsRuntimeLoader.TryGet(out var settings))
+            if (UISettingsRuntimeLoader.TryGet(out var settings))
             {
                 switch (settings.UIPanelLoadSource)
                 {
@@ -25,7 +25,7 @@ namespace FinkFramework.Runtime.UI.Core
                     case UIPanelLoadSource.Custom:
                         return ResolveCustomPath<T>();
                     case UIPanelLoadSource.FollowResourceBackend:
-                        switch (settings.ResourceBackend)
+                        switch (ResBackendSettingsRuntimeLoader.Current.ResourceBackend)
                         {
                             case EnvironmentState.ResourceBackendType.None:
                                 break;
@@ -39,7 +39,7 @@ namespace FinkFramework.Runtime.UI.Core
                             case EnvironmentState.ResourceBackendType.Custom:
                                 return ResolveCustomPath<T>();
                             default:
-                                throw new InvalidOperationException($"不支持的资源后端：{settings.ResourceBackend}");
+                                throw new InvalidOperationException($"不支持的资源后端：{ResBackendSettingsRuntimeLoader.Current.ResourceBackend}");
                         }
                         break;
                     default:
@@ -47,7 +47,7 @@ namespace FinkFramework.Runtime.UI.Core
                 }
             }
 
-            string root = GlobalSettingsRuntimeLoader.UIPanelResourcesPath;
+            string root = UISettingsRuntimeLoader.UIPanelResourcesPath;
             if (string.IsNullOrWhiteSpace(root))
             {
                 throw new InvalidOperationException(
